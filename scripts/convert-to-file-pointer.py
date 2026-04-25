@@ -30,6 +30,13 @@ def convert(path: Path) -> str:
 
     header = lines[start : end + 1]
 
+    if any(re.match(r"^//\s*@require\b", ln) for ln in header):
+        raise SystemExit(f"error: {path}: script already has an @require; not converting")
+
+    # Strip auto-update directives — the pointer script is local-only and
+    # should not try to fetch updates from the original URL.
+    header = [ln for ln in header if not re.match(r"^//\s*@(updateURL|downloadURL)\b", ln)]
+
     name_idx = next(
         (i for i, ln in enumerate(header) if re.match(r"^//\s*@name\s+\S", ln)),
         None,
