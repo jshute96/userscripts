@@ -22,8 +22,8 @@ The site name is a hash of the extension ID and should be consistent for everyon
   - You need to know which script. If it's not obvious which one we're working on, ask the user.
   - You need to know if the user wants to install the raw script, or a script with a pointer to the local file. If it's not clear, ask.
   - Use `install-raw` or `install-pointer` as below to copy script contents to the clipboard.
-  - Tell the user "Script <name> copied to clipboard. Paste and save in the browser."
   - Open the `new` page as above.
+  - Give the user a task formatted as a checklist: "Script <name> copied to clipboard. Paste and save in the browser."
 
 * `install-raw`: Install a copy of the raw script contents.
   - Follow instructions in `install` above.
@@ -31,4 +31,8 @@ The site name is a hash of the extension ID and should be consistent for everyon
 
 * `install-pointer`: Install a script that dynamically loads the content from a local file.
   - Follow instructions in `install` above.
-  - To copy the script to the clipboard, use `scripts/convert-to-file-pointer.py <script> | xclip -selection clipbaord`
+  - To copy the script to the clipboard, use `scripts/convert-to-file-pointer.py <script> | xclip -selection clipboard`
+
+* `reinstall`: Redo install steps from above to update a script.
+  - This works the same, but we need to give the user an additional task:
+    "After saving, remove or disable the old version."

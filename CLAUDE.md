@@ -33,7 +33,8 @@
 * After creating the first version of a userscript, suggest the user install it.
   Use the `userscript` skill, and do `install-pointer` action for this script.
   Then the user can get incremental updates just by doing Reload in the browser.
-  - NOTE: If the `@match` rules change, the page will need to be re-installed.
+
+* NOTE: If the header changes (`@match` rules, permissions, etc), the userscript needs to be reinstalled.
 
 ## Documentation files for each userscript
 
