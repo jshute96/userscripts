@@ -5,6 +5,8 @@
 // @description  Automatically clicks the X on the sticky footer ad popup on Pinkbike.
 // @match        https://www.pinkbike.com/*
 // @grant        none
+// @updateURL    https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/pinkbike.com/close-sticky-footer-ad.user.js
+// @downloadURL  https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/pinkbike.com/close-sticky-footer-ad.user.js
 // ==/UserScript==
 
 (function () {

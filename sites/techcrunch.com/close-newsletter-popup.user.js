@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         TechCrunch: auto-close newsletter popup
 // @namespace    https://github.com/jshute/userscripts
-// @version      1.0.0
+// @version      1.0.1
 // @description  Automatically clicks the X on the "Save your valuable time with TechCrunch in your inbox" newsletter popup.
 // @match        https://techcrunch.com/*
 // @grant        none
