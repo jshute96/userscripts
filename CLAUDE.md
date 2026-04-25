@@ -30,6 +30,10 @@
 
 * To get scripts to update from github, increment the `@version` (in the last number field) before final commit and push.
 
+* After creating the first version of a userscript, suggest the user install it.
+  Use the `userscript` skill, and do `install-pointer` action for this script.
+  Then the user can get incremental updates just by doing Reload in the browser.
+
 ## Documentation files for each userscript
 
 Each userscript has a sibling `.md` with three sections: `Summary`,
