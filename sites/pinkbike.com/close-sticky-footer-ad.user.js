@@ -1,10 +1,12 @@
 // ==UserScript==
 // @name         Pinkbike: auto-close sticky footer ad
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.2
+// @version      1.0.3
 // @description  Automatically clicks the X on the sticky footer ad popup on Pinkbike.
+// @author       Jeff Shute <jshute@gmail.com>
 // @match        https://www.pinkbike.com/*
 // @grant        none
+// @run-at       document-idle
 // @updateURL    https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/pinkbike.com/close-sticky-footer-ad.user.js
 // @downloadURL  https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/pinkbike.com/close-sticky-footer-ad.user.js
 // ==/UserScript==
@@ -24,7 +26,11 @@
         return el.offsetParent !== null || getComputedStyle(el).display !== 'none';
     }
 
+    let dismissed = false;
+    let footerObserver = null;
+
     function tryClose() {
+        if (dismissed) return;
         const footer = document.getElementById(FOOTER_ID);
         if (!footer || !isVisible(footer)) return;
         const btn = document.getElementById(CLOSE_ID);
@@ -36,15 +42,22 @@
         btn.click();
         if (isVisible(footer)) {
             console.warn(TAG, 'click did not hide the footer');
-        } else {
-            console.log(TAG, 'sticky footer ad closed');
+            return;
+        }
+        console.log(TAG, 'sticky footer ad closed');
+        dismissed = true;
+        if (footerObserver) {
+            footerObserver.disconnect();
+            footerObserver = null;
         }
     }
 
     function watchFooter(footer) {
         console.log(TAG, 'found #' + FOOTER_ID + ', attaching observer');
         tryClose();
-        new MutationObserver(tryClose).observe(footer, {
+        if (dismissed) return;
+        footerObserver = new MutationObserver(tryClose);
+        footerObserver.observe(footer, {
             attributes: true,
             attributeFilter: ['style', 'class'],
         });

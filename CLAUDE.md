@@ -3,6 +3,12 @@
 * Save userscripts for domain `example.com` in a subdirectory called `sites/example.com`.
 * The filename should briefly state the main purpose.
 
+## Skills
+
+* `tampermonkey` is a public plugin with general guidance on userscript syntax and development
+  - Read this for advice whenever writing or reviewing userscripts.
+* `userscript` is my skill with my tools and conventions, how to install them, etc
+
 ## Tips
 
 * When writing userscripts, add `console.log` logging to give more debugging visibility.

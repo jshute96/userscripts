@@ -1,10 +1,12 @@
 // ==UserScript==
 // @name         TechCrunch: auto-close newsletter popup
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.1
+// @version      1.0.2
 // @description  Automatically clicks the X on the "Save your valuable time with TechCrunch in your inbox" newsletter popup.
+// @author       Jeff Shute <jshute@gmail.com>
 // @match        https://techcrunch.com/*
 // @grant        none
+// @run-at       document-idle
 // @updateURL    https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/techcrunch.com/close-newsletter-popup.user.js
 // @downloadURL  https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/techcrunch.com/close-newsletter-popup.user.js
 // ==/UserScript==
@@ -26,6 +28,7 @@
     }
 
     let dismissed = false;
+    let observer = null;
 
     function tryClose() {
         if (dismissed) return;
@@ -38,19 +41,27 @@
         }
         console.log(TAG, 'newsletter popup detected — clicking close');
         btn.click();
-        if (!document.querySelector(MODAL_SELECTOR) || !isVisible(document.querySelector(MODAL_SELECTOR))) {
+        const after = document.querySelector(MODAL_SELECTOR);
+        if (!after || !isVisible(after)) {
             console.log(TAG, 'newsletter popup closed');
             dismissed = true;
+            if (observer) {
+                observer.disconnect();
+                observer = null;
+            }
         } else {
             console.warn(TAG, 'click did not hide the popup');
         }
     }
 
     tryClose();
-    new MutationObserver(tryClose).observe(document.documentElement, {
-        childList: true,
-        subtree: true,
-        attributes: true,
-        attributeFilter: ['style', 'class'],
-    });
+    if (!dismissed) {
+        observer = new MutationObserver(tryClose);
+        observer.observe(document.documentElement, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['style', 'class'],
+        });
+    }
 })();
