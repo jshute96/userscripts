@@ -1,0 +1,12 @@
+{
+  "name": "userscripts",
+  "private": true,
+  "description": "Personal userscripts collection with a Playwright-based test harness.",
+  "scripts": {
+    "test": "playwright test",
+    "open-browser": "scripts/open-browser.sh"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0"
+  }
+}
