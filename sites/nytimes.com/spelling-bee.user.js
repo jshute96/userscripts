@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         NYT Spelling Bee: tweaks
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.10
-// @description  Quality-of-life tweaks for the NYT Spelling Bee: auto-dismiss the "Welcome Back" splash, add a Buddy link to the toolbar, add a dictionary-lookup link next to each found word, and show a definition popup on hover.
+// @version      1.0.11
+// @description  UI tweaks for the NYT Spelling Bee game: show definitions when hovering or clicking a word, add a Buddy link to the toolbar, and auto-dismiss splash screens.
 // @author       Jeff Shute <jshute@gmail.com>
 // @match        https://www.nytimes.com/puzzles/spelling-bee*
 // @match        https://www.nytimes.com/interactive/2023/upshot/spelling-bee-buddy.html*
@@ -33,10 +33,11 @@
     //     bar-graph table (word is plain text inside a `td.word`).
     const BUDDY_FOUND_ROW_SELECTOR = '.word-row.found, .row.user-found';
     const BUDDY_WORD_SELECTOR = '.word';
+    // Marks the word element we've already wired up so the MutationObserver
+    // doesn't double-attach listeners.
     const LOOKUP_MARKER_ATTR = 'data-sb-lookup-added';
-    const LOOKUP_LINK_CLASS = 'sb-lookup-link';
-    // Click destination for the 🔍 link — the user prefers Cambridge as the
-    // landing page when they actually open a definition.
+    // "Open on Cambridge Dictionary" link inside the popup — the user
+    // prefers Cambridge as the landing page when they actually click through.
     const DICTIONARY_URL = 'https://dictionary.cambridge.org/us/dictionary/english/';
     // Hover-popup data source: the Free Dictionary API. JSON, no auth, no
     // ads, and concise — much cleaner than scraping a full dictionary page.
@@ -45,8 +46,6 @@
     const HIDE_DELAY_MS = 200;
     const POPUP_WIDTH = 480;
     const POPUP_HEIGHT = 360;
-    const NBSP = ' ';
-    const LOOKUP_GLYPH = NBSP + '🔍'; // NBSP + 🔍
 
     console.log(TAG, 'initializing');
 
@@ -112,12 +111,25 @@
 
     // ---------- Definition popup ----------
 
+    // Subtle "interactive" affordance for any wired-up word. Injected once
+    // as a stylesheet rather than per-word inline styles, so we don't churn
+    // the `style` attribute on every found word and feedback-loop our own
+    // MutationObserver.
+    const styleEl = document.createElement('style');
+    styleEl.textContent = '[' + LOOKUP_MARKER_ATTR + '] { cursor: help; }';
+    (document.head || document.documentElement).appendChild(styleEl);
+
     const definitionCache = new Map(); // word -> Promise<{ html, error, missing }>
     let popupEl = null;
     let popupContentEl = null;
     let hoverTimer = null;
     let hideTimer = null;
     let popupWord = null;
+    // When the popup was opened by a click, "pin" it: don't auto-hide on
+    // mouseleave. mouseleave never fires on touch devices, so click is the
+    // primary trigger there and we need an explicit dismiss path
+    // (click outside, or click the same word again).
+    let popupPinned = false;
 
     function fetchDefinition(word) {
         if (definitionCache.has(word)) return definitionCache.get(word);
@@ -251,9 +263,9 @@
         return popupEl;
     }
 
-    function positionPopup(link) {
+    function positionPopup(anchor) {
         const p = ensurePopup();
-        const rect = link.getBoundingClientRect();
+        const rect = anchor.getBoundingClientRect();
         const margin = 8;
         let left = rect.right + margin;
         if (left + POPUP_WIDTH > window.innerWidth - margin) {
@@ -317,17 +329,18 @@
         popupContentEl.innerHTML = '<p style="padding:12px;color:#666;">Looking up <b>' + escapeHtml(word) + '</b>…</p>';
     }
 
-    function showDefinitionPopup(word, link) {
+    function showDefinitionPopup(word, anchor) {
         const p = ensurePopup();
         if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
         popupWord = word;
-        positionPopup(link);
+        positionPopup(anchor);
         p.style.display = 'block';
         setPopupLoading(word);
         fetchDefinition(word).then((result) => setPopupContent(word, result));
     }
 
     function schedulePopupHide() {
+        if (popupPinned) return;
         if (hideTimer) clearTimeout(hideTimer);
         hideTimer = setTimeout(() => {
             if (popupEl) popupEl.style.display = 'none';
@@ -336,79 +349,95 @@
         }, HIDE_DELAY_MS);
     }
 
-    function attachHover(link, word) {
-        link.addEventListener('mouseenter', () => {
+    function hidePopup() {
+        if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+        if (popupEl) popupEl.style.display = 'none';
+        popupWord = null;
+        popupPinned = false;
+    }
+
+    function attachWordInteractions(wordEl, word) {
+        wordEl.addEventListener('mouseenter', () => {
             if (hoverTimer) clearTimeout(hoverTimer);
             if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
             hoverTimer = setTimeout(() => {
                 hoverTimer = null;
-                showDefinitionPopup(word, link);
+                showDefinitionPopup(word, wordEl);
             }, HOVER_DELAY_MS);
         });
-        link.addEventListener('mouseleave', () => {
+        wordEl.addEventListener('mouseleave', () => {
             if (hoverTimer) { clearTimeout(hoverTimer); hoverTimer = null; }
+            if (popupPinned) return;
             schedulePopupHide();
         });
-    }
-
-    function buildLookupLink(word) {
-        const link = document.createElement('a');
-        link.className = LOOKUP_LINK_CLASS;
-        link.href = DICTIONARY_URL + encodeURIComponent(word);
-        link.target = '_blank';
-        link.rel = 'noreferrer';
-        link.title = 'Dictionary look-up';
-        link.style.textDecoration = 'none';
-        link.textContent = LOOKUP_GLYPH;
-        link.addEventListener('click', (e) => {
+        wordEl.addEventListener('click', (e) => {
+            // Don't let the row's own click handler fire (e.g. Buddy's
+            // "Reveal clue" toggle on the tile list).
             e.stopPropagation();
+            if (hoverTimer) { clearTimeout(hoverTimer); hoverTimer = null; }
+            // Click on the currently-pinned word: toggle off.
+            if (popupPinned && popupWord === word && popupEl &&
+                popupEl.style.display !== 'none') {
+                hidePopup();
+                return;
+            }
+            popupPinned = true;
+            showDefinitionPopup(word, wordEl);
         });
-        attachHover(link, word);
-        return link;
     }
 
-    function addLookupLinks() {
+    // Click anywhere outside the popup (or a word we've wired up) closes a
+    // pinned popup. Capture phase so we see it before the page does, and we
+    // still let the click reach the page since we're not inside an
+    // interactive word.
+    document.addEventListener('click', (e) => {
+        if (!popupPinned) return;
+        if (popupEl && popupEl.contains(e.target)) return;
+        const onWord = e.target.closest && e.target.closest('[' + LOOKUP_MARKER_ATTR + ']');
+        if (onWord) return;
+        hidePopup();
+    }, true);
+
+    function attachLookupHandlers() {
         let added = 0;
 
         // Spelling Bee puzzle page: found-words list and Yesterday's Answers modal.
         document.querySelectorAll(WORDLIST_ITEM_SELECTOR).forEach((span) => {
-            const li = span.parentElement;
-            if (!li || li.hasAttribute(LOOKUP_MARKER_ATTR)) return;
+            if (span.hasAttribute(LOOKUP_MARKER_ATTR)) return;
             const word = (span.textContent || '').trim().toLowerCase();
             if (!word) return;
-            li.appendChild(buildLookupLink(word));
-            li.setAttribute(LOOKUP_MARKER_ATTR, '1');
+            attachWordInteractions(span, word);
+            span.setAttribute(LOOKUP_MARKER_ATTR, '1');
             added++;
         });
 
         // Spelling Bee Buddy page: found word rows. Both the bar-graph list
         // and the "You've already found:" tile list share this markup.
         document.querySelectorAll(BUDDY_FOUND_ROW_SELECTOR).forEach((row) => {
-            if (row.hasAttribute(LOOKUP_MARKER_ATTR)) return;
             const wordEl = row.querySelector(BUDDY_WORD_SELECTOR);
-            if (!wordEl) return;
+            if (!wordEl || wordEl.hasAttribute(LOOKUP_MARKER_ATTR)) return;
             const word = (wordEl.textContent || '').replace(/\s+/g, '').toLowerCase();
             if (!word) return;
-            wordEl.appendChild(buildLookupLink(word));
-            row.setAttribute(LOOKUP_MARKER_ATTR, '1');
+            attachWordInteractions(wordEl, word);
+            wordEl.setAttribute(LOOKUP_MARKER_ATTR, '1');
             added++;
         });
 
         if (added > 0) {
-            console.log(TAG, 'added lookup links to', added, 'word(s)');
+            console.log(TAG, 'wired lookup handlers on', added, 'word(s)');
         }
     }
 
     tryDismissWelcome();
     tryDismissCongrats();
     tryAddBuddyLink();
-    addLookupLinks();
+    attachLookupHandlers();
 
     const observer = new MutationObserver(() => {
         tryDismissWelcome();
         tryDismissCongrats();
         tryAddBuddyLink();
-        addLookupLinks();
+        attachLookupHandlers();
     });
     observer.observe(document.documentElement, {
         childList: true,

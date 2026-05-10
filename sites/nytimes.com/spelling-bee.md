@@ -4,8 +4,8 @@
 
 Quality-of-life tweaks for the NYT Spelling Bee puzzle page and
 its Spelling Bee Buddy companion: skip splash screens, add a
-toolbar link to Buddy, and put a 🔍 next to each found word that
-opens Cambridge on click and shows an inline definition on hover.
+toolbar link to Buddy, and show an inline definition popup when
+you hover or click any found word.
 
 ## Visible changes
 
@@ -13,10 +13,14 @@ opens Cambridge on click and shows an inline definition on hover.
   splash are auto-dismissed.
 * A **Buddy ↗** link is added after **Hints ↗** in the top
   toolbar, opening the Spelling Bee Buddy companion in a new tab.
-* The word lists on the main page and Buddy page all get a 🔍 icon.
-  - Hovering it shows an inline definition.
-  - Clicking it, or the link in the hover, opens it on the
-    Cambridge Dictionary site.
+* Found words on the main page and Buddy page become interactive
+  (subtle `cursor: help`).
+  - Hovering a word shows an inline definition popup.
+  - Clicking a word pins the popup open (works on touch / when
+    hover doesn't fire); clicking outside or clicking the same
+    word again dismisses it.
+  - The popup includes an "Open on Cambridge Dictionary →" link
+    for the full entry.
 
 ## Implementation
 
@@ -120,9 +124,9 @@ deploys, so we don't rely on them.
 
 For the hover popup, the data source is the **Free Dictionary
 API** (`https://api.dictionaryapi.dev/api/v2/entries/en/<word>`)
-— JSON, no auth, no ads, and concise. The 🔍 *click* target is
-still Cambridge (preferred landing page when you actually open a
-definition), but the hover *data* comes from the JSON API.
+— JSON, no auth, no ads, and concise. The "Open on Cambridge
+Dictionary" link inside the popup still points at Cambridge as
+the preferred landing page when the user wants the full entry.
 
 The API returns an array of entries, each with `word`, optional
 `phonetic`, and `meanings[]` containing `partOfSpeech` and
@@ -151,9 +155,11 @@ The script will break if any of these change:
    provide the visual styling we piggy-back on for the Buddy link.
 5. Each found word stays rendered as `.sb-anagram` inside an `<li>`,
    with the lowercase word as the span's text content. We also
-   assume the `<li>` container is safe to append a sibling
-   element to without breaking NYT's own click handler on the
-   row (we stop propagation on our link's click to be safe).
+   assume the page doesn't itself attach a click handler to the
+   `.sb-anagram` span that we'd be clobbering by stopping
+   propagation; the page's own per-row click affordances (e.g.
+   Buddy's "Reveal clue" button) live on sibling elements, not
+   the word itself.
 6. On the Spelling Bee Buddy page, found-word rows keep the
    `word-row` + `found` classes, and the per-character `.letter`
    children of `.word` keep the lowercase characters as their
@@ -189,34 +195,45 @@ On `document-idle`:
    immediately after the Hints link via `insertAdjacentElement`.
    It re-runs from the same MutationObserver so it works even if
    the toolbar mounts after `document-idle`.
-5. **Append dictionary-lookup links and hover popups.**
-   `addLookupLinks()` runs in two passes:
+5. **Wire hover/click handlers onto the found-word elements.**
+   `attachLookupHandlers()` runs in two passes:
    - **Puzzle page pass.** Iterate every `li > .sb-anagram` (this
      covers both the found-words panel and the Yesterday's Answers
-     modal). Skip any `<li>` already marked with
-     `data-sb-lookup-added`. For each new one, append a small
-     `<a class="sb-lookup-link"> 🔍</a>` to the `<li>` itself.
-   - **Buddy page pass.** Iterate every `.word-row.found`. Skip
-     rows already marked. Reconstruct the word by reading
-     `.word`'s text content with whitespace stripped, then append
-     the same `<a class="sb-lookup-link">` to the inner `.word`
-     div so it sits inline with the letter tiles.
-   Both passes link to
-   `https://dictionary.cambridge.org/us/dictionary/english/<word>`
-   (URL-encoded) in a new tab, and stop click propagation so the
-   page's own per-row handler doesn't fire when the user clicks
-   the icon. The marker attribute makes the operation idempotent
-   under repeated MutationObserver callbacks. The Buddy page is
-   served from a different URL, so the userscript header has a
-   second `@match` for it.
+     modal). Skip any `.sb-anagram` already marked with
+     `data-sb-lookup-added`. For each new one, set
+     `cursor: help` on the span and attach mouseenter / mouseleave
+     / click listeners.
+   - **Buddy page pass.** Iterate every `.word-row.found, .row.user-found`
+     and find the inner `.word` element. Skip ones already marked.
+     Reconstruct the word by reading `.word`'s text content with
+     whitespace stripped, then attach the same handlers to the
+     `.word` element directly.
 
-   Each lookup link also gets a hover handler: after a ~250 ms
-   debounce, `fetchDefinition(word)` issues a `GM_xmlhttpRequest`
-   to `https://api.dictionaryapi.dev/api/v2/entries/en/<word>`,
-   parses the JSON response, and renders our own minimal HTML for
-   the entries (word, phonetic, then a `meaning` section per
-   part-of-speech with a numbered list of definitions and
-   examples). The rendered HTML is shown inside an
+   Both passes mark the word element itself (not the parent row)
+   with `data-sb-lookup-added` so the MutationObserver callback
+   is idempotent. The Buddy page is served from a different URL,
+   so the userscript header has a second `@match` for it.
+
+   The handlers behave as follows:
+   - **Hover.** After a ~250 ms debounce, `fetchDefinition(word)`
+     issues a `GM_xmlhttpRequest` to
+     `https://api.dictionaryapi.dev/api/v2/entries/en/<word>`,
+     parses the JSON response, and renders our own minimal HTML
+     for the entries (word, phonetic, then a `meaning` section
+     per part-of-speech with a numbered list of definitions and
+     examples). The popup auto-hides on `mouseleave` (after a
+     short grace period so the user can move into the popup
+     itself).
+   - **Click.** Pins the popup: shows it immediately and disables
+     the auto-hide. This is the primary trigger on touch devices,
+     where `mouseenter` / `mouseleave` don't fire reliably. We
+     `stopPropagation` and `preventDefault` so the row's own
+     handlers (e.g. Buddy's "Reveal clue" button) don't fire from
+     the same click. A pinned popup is dismissed by clicking
+     outside it (we listen on `document` in the capture phase) or
+     by clicking the same word again, which toggles it off.
+
+   The rendered HTML is shown inside an
    `<iframe srcdoc="...">` with
    `sandbox="allow-popups allow-popups-to-escape-sandbox"`
    (scripts off, but `target="_blank"` links can open new tabs)
@@ -225,6 +242,6 @@ On `document-idle`:
    new tabs. Successful results are cached in an in-memory `Map`
    keyed by word so subsequent hovers are instant; transient
    errors are evicted from the cache so they don't poison the
-   session. The popup auto-positions next to the link and shares
-   hide logic between the link and the popup, so the user can
+   session. The popup auto-positions next to the word and shares
+   hide logic between the word and the popup, so the user can
    move into the popup without it disappearing.
