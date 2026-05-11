@@ -29,6 +29,56 @@ written down before, that's the bar for recording it.
   - Read this for advice whenever writing or reviewing userscripts.
 * `userscript` is my skill with my tools and conventions, how to install them, etc
 
+## Git workflow
+
+Commit directly to `main` in this repo — that's how the history is
+structured. Don't create feature branches before committing, even if
+the harness default suggests otherwise. (Push only when the user
+asks.)
+
+## Creating a new userscript
+
+When the user describes a new userscript (usually a site, screenshot,
+maybe HTML), follow this flow:
+
+1. **Reproduce the starting state.** Drive the running CDP browser
+   (`scripts/open-browser.sh`, port 9233) to the page they're asking
+   about, and confirm you can see and inspect the controls they want
+   to change. If the persistent profile isn't logged in to the
+   target site, **stop and ask the user to log in** in that
+   window — don't try to automate the login.
+2. **Capture the DOM you'll depend on.** Per "Iterating on DOM-heavy
+   userscripts" below, snapshot every relevant state up front
+   (closed, each menu open, hover/focus). This avoids multiple
+   fix-and-fail cycles.
+3. **Write the script** under `sites/<domain>/`, with its sibling
+   `.md` doc.
+4. **Manually verify in Playwright.** Inject the script the same way
+   the `loadUserscript` fixture does, confirm the button appears,
+   click it, watch logs and effects. If you get stuck, stop and
+   report exactly where — don't guess.
+5. **Suggest install** via the `userscript` skill's `install-pointer`
+   action, so the user can iterate by reloading.
+6. **Write a Playwright spec** (`<name>.spec.js`) once the user
+   confirms it works in their normal browser. The spec is for
+   reproducible regression — write it after the human-confirmed pass,
+   not before, so that the spec encodes a known-good state.
+
+### State-checking for option-change scripts
+
+If the userscript's job is to set an option to a target value (rather
+than perform a one-shot action), **read the current state first** and
+skip the change if it already matches:
+
+* Toggling an option that's already in the desired state often has
+  side effects — focus jumps, network calls, animations, dirty
+  flags, telemetry events.
+* The check is cheap and gives a useful log line ("already in target
+  state, skipping") for debugging.
+
+Pure action buttons (download, navigate, submit) have no current
+state to compare against — this guideline doesn't apply to them.
+
 ## Tips
 
 * When writing userscripts, add `console.log` logging to give more debugging visibility.
@@ -53,6 +103,35 @@ written down before, that's the bar for recording it.
   Then the user can get incremental updates just by doing Reload in the browser.
 
 * NOTE: If the header changes (`@match` rules, permissions, etc), the userscript needs to be reinstalled.
+
+* Default to `@noframes` in the header. Sites often embed hidden
+  iframes; without `@noframes` the script
+  runs in those too and you'll see init logs from contexts you
+  didn't expect. Drop it only when the script genuinely needs to
+  run inside iframes.
+
+* When inserting a button into a host site that uses CSS-modules
+  (class names like `Button_btn__g8LLk Button_secondary__8WBFj`
+  with build-hash suffixes), don't hardcode the suffixes — they
+  rotate every deploy. Instead, find a reference button on the page
+  that already has the styling you want and copy its `className` to
+  your new button. Match references by class-prefix attribute
+  selectors, e.g.
+  `button[class*="Button_btn"][class*="Button_secondary"][class*="Button_medium"]`,
+  excluding variants you don't want
+  (`:not([class*="iconButton"])`). If the reference button might
+  not be in the DOM yet at insertion time (e.g. it lives below the
+  toolbar you're attaching to), have your `MutationObserver`
+  *upgrade* the className when a better reference appears.
+
+* React menu items often render as plain `<div>`s with `onClick`
+  handlers, not `<button>`/`<a>`. From in-page JS (i.e. inside the
+  userscript), calling `.click()` on the element reliably fires
+  React's onClick, including for the parent menu trigger. Use this
+  to chain "open menu, find item, click it" without simulating
+  pointer events. (From a Playwright test runner the same
+  `.click()` may not toggle the menu — keyboard activation
+  `focus()` + `Enter` works there as a fallback when needed.)
 
 ## Testing
 
@@ -113,6 +192,28 @@ that surprise:
 * Attributes like `aria-controls` are often only set while the popup
   is open — don't include them in selectors meant to find the
   trigger button when it's collapsed.
+
+### Selector preference: semantic over visual
+
+When you have a choice of selectors for the same element, pick the
+most semantic one. Stable preference order, best to worst:
+
+1. Stable IDs / `data-*` attributes the site authors put there.
+2. Semantic CSS-module class **prefixes**
+   (`ActivitySettingsMenu_menuContainer__*`) and meaningful
+   `aria-label` / `title` strings — they describe *purpose*, not
+   how the element is drawn.
+3. Generic role/tag selectors with disambiguating text content
+   (e.g. `[role="menuitem"]` matching `/^export to tcx$/i`).
+4. Visual identifiers — SVG `<path d="…">` geometry, exact pixel
+   positions, icon dimensions. Last resort; brittle to any rebrand
+   or icon refresh.
+
+When the leaf element you want to click looks generic but its
+ancestors carry semantic class names, walk *up* the DOM until you
+find a meaningful container, then re-find your leaf relative to it.
+A 460-character minified `<path d="…">` prefix is a code smell —
+look up the tree.
 
 ## Documentation files for each userscript
 
