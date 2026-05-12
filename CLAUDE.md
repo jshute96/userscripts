@@ -79,6 +79,54 @@ skip the change if it already matches:
 Pure action buttons (download, navigate, submit) have no current
 state to compare against — this guideline doesn't apply to them.
 
+## When a script stops working
+
+Sites change. Triage in this order — it converges fast and avoids
+re-deriving the script from scratch:
+
+1. **Open DevTools on the affected page and look for the `[name]
+   init` log.**
+   - Present → @match is fine, the IIFE ran. Skip to step 2.
+   - Absent → it's an installation, `@match`, or grant issue. Check
+     Tampermonkey's "Installed Scripts" page; confirm the URL in
+     the address bar against the `@match` pattern; check whether
+     `@match` was changed since the script was last installed
+     (header changes require reinstall).
+
+2. **Find the first log line that *should* fire but doesn't.** Each
+   step in the script logs on success; the gap between the last
+   present log and the missing next log is where it broke. If the
+   only log is `init`, the failure is in the very next step
+   (usually the first selector lookup or the MutationObserver
+   callback).
+
+3. **Treat the sibling `.md` doc's "What we assume stays stable"
+   section as the selector checklist.** Open DevTools console on
+   the live page and run a one-liner that probes each assumed
+   selector and prints which ones are non-null. The first null is
+   your answer. Example:
+   ```js
+   ({
+     wrapper:  !!document.querySelector('.FeedPage'),
+     header:   !!document.querySelector('.FeedPage header'),
+     moreBtn:  !!document.querySelector('header button[aria-haspopup="listbox"]'),
+     markRead: !!document.querySelector('button[aria-label="Mark as read"]'),
+   })
+   ```
+
+4. **Once you've identified the changed selector, look for a more
+   resilient anchor on or near the target.** Prefer something on
+   the element itself over its wrapper (`header.Header` is harder
+   to break than `.SomeWrapper header`). If you switch from a
+   wrapper-based anchor to a leaf-based one, update the doc's
+   stability assumptions to match.
+
+A silent retry-forever path (e.g. a `MutationObserver` whose
+`findX()` returns null and bails) looks identical to "page still
+loading" from the outside — see the logging tip below about
+periodic "still waiting" logs for poll loops. Add that log first
+if it's missing; it makes the next break diagnose itself.
+
 ## Tips
 
 * When writing userscripts, add `console.log` logging to give more debugging visibility.
@@ -87,6 +135,11 @@ state to compare against — this guideline doesn't apply to them.
   - Log when it detects the activity or finds the element it's trying to fix.
   - Log when it successfully makes a change.
   - Log any failures.
+  - If a `MutationObserver` or poll loop is *also* the normal
+    startup path (every tick "selector not found yet" is expected
+    on first paint), log once after N seconds of continued failure
+    so a permanent break is distinguishable from "still loading."
+    Otherwise a renamed selector looks identical to a slow SPA.
 
 * To make a script updatable, include update URLs in the header pointing at the corresponding path in github, like:
 ```
@@ -188,6 +241,27 @@ in `test/fixtures.js`.
 * The `page` fixture forwards in-page `[name]` console logs to the
   test runner output, so userscript debug logs are visible during
   test failures without opening DevTools.
+
+* **When Playwright itself misbehaves, drive the browser via raw
+  CDP.** The running Chromium exposes a stable HTTP+WebSocket API
+  at `http://localhost:9233`, completely independent of
+  `chromium.connectOverCDP`. Useful endpoints:
+  - `GET /json` — list all targets (pages, iframes), each with a
+    `webSocketDebuggerUrl`.
+  - `PUT /json/new?<url>` — open a tab navigated to that URL.
+  - `GET /json/close/<id>` — close a tab. **Closing the last page
+    quits Chromium on Linux**, so always leave at least one.
+  - `ws://.../devtools/page/<id>` — per-page CDP session. Send
+    `{id, method, params}` JSON; Node 22+ has a built-in
+    `WebSocket` so no `ws` dep needed. `Runtime.evaluate` with
+    `awaitPromise: true` and `returnByValue: true` covers most
+    needs (inspect DOM, click elements, inject scripts). Listen
+    for `Runtime.consoleAPICalled` to capture `[name]` logs.
+
+  This was the lifeline when `connectOverCDP` was hanging on
+  `Page.createIsolatedWorld` — page-level CDP doesn't go through
+  Playwright's per-frame attach dance, so the same iframe that
+  hung Playwright was perfectly accessible directly.
 
 ## Iterating on DOM-heavy userscripts
 
