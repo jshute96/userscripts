@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Feedly: Sort/Filter presets
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.4
+// @version      1.0.5
 // @description  Add Oldest/Newest preset buttons to a Feedly feed's header toolbar that combine sort order and unread-only filter.
 // @author       Jeff Shute <jshute@gmail.com>
 // @match        https://feedly.com/i/subscription/content/feed*
@@ -82,14 +82,24 @@
         return new Promise(r => setTimeout(r, ms));
     }
 
+    function getFeedHeader() {
+        // The feed page wrapper has gone through at least one rename
+        // (.StreamPage → .FeedPage), so try the current name first then
+        // fall back to the semantic `Header` class on the <header> itself.
+        // Both are PascalCase React component names, not hash-suffixed.
+        return document.querySelector('.FeedPage header')
+            || document.querySelector('header.Header');
+    }
+
     function getMoreButton() {
         // The three-dots button in the header is a <button> with
         // aria-haspopup="listbox". Mark-as-read also has that attribute
-        // but on its wrapping <div> (not the inner button), so this
-        // selector uniquely targets the three-dots trigger. We must NOT
-        // require aria-controls here because Feedly only sets it while
-        // the menu is open — when closed the attribute is absent.
-        const header = document.querySelector('.StreamPage header');
+        // but on its wrapping <div role="combobox"> (not the inner
+        // button), so scoping to <button> uniquely targets the
+        // three-dots trigger. We must NOT require aria-controls here
+        // because Feedly only sets it while the menu is open — when
+        // closed the attribute is absent.
+        const header = getFeedHeader();
         if (!header) return null;
         return header.querySelector('button[aria-haspopup="listbox"]');
     }
@@ -223,7 +233,7 @@
         // toolbar button (three-dots) and the Mark-as-read button is the
         // toolbar's flex row. We inject our buttons as its first children
         // so they appear to the left of the existing icons.
-        const header = document.querySelector('.StreamPage header');
+        const header = getFeedHeader();
         if (!header) return null;
         const more = getMoreButton();
         const markAsRead = header.querySelector('button[aria-label="Mark as read"]');

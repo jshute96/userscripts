@@ -20,11 +20,17 @@ combination in one click, so we don't have to walk the three-dots menu.
 
 ### What we observed
 
-- Feedly feed pages render a `.StreamPage` wrapper containing a
-  `<header>` with a title section on the left and a toolbar of icon
-  buttons on the right. The toolbar (in DOM order) is: Mark-as-read
-  (with a count badge) → Toggle Ask AI Panel → Add to Favorites → an
-  unlabeled icon → the three-dots "more" menu trigger.
+- Feedly feed pages render a `.FeedPage` wrapper (previously
+  `.StreamPage` — renamed in May 2026) containing a `<header>` (which
+  also carries a literal `Header` class on the element itself) with a
+  title section on the left and a toolbar of icon buttons on the
+  right. The toolbar (in DOM order) is: Mark-as-read (with a count
+  badge) → Toggle Ask AI Panel → Add to Favorites → an unlabeled icon
+  → the three-dots "more" menu trigger.
+- We anchor on `.FeedPage header` and fall back to `header.Header`
+  in case Feedly renames the wrapper again — both are PascalCase
+  React component names, not hash-suffixed, so they're as stable as
+  anything we get here.
 - The three-dots button is a `<button>` with
   `aria-haspopup="listbox"`. The matching `aria-controls` attribute is
   only present while the menu is open, so we cannot rely on it.
@@ -52,7 +58,8 @@ combination in one click, so we don't have to walk the three-dots menu.
 
 ### What we assume stays stable
 
-- The presence of `.StreamPage header` on subscription/feed pages.
+- The presence of either `.FeedPage header` or a `<header>` element
+  with class `Header` on subscription/feed pages.
 - That the three-dots is the only `button[aria-haspopup="listbox"]`
   inside the header (other listbox comboboxes in the header use that
   attribute on a wrapping `<div>`, not on a `<button>`).

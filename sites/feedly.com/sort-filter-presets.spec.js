@@ -29,7 +29,7 @@ const FEED_URL = process.env.FEEDLY_FEED_URL
 // a closed state because polling readers may catch the userscript
 // mid-flow (e.g. with a submenu still showing).
 async function readMenuState(page) {
-    const moreBtn = page.locator('.StreamPage header button[aria-haspopup="listbox"]');
+    const moreBtn = page.locator('.FeedPage header button[aria-haspopup="listbox"]');
     // Press Escape until the popup fully collapses. Toggling the
     // trigger button doesn't reliably dismiss from a submenu state.
     for (let i = 0; i < 5 && (await moreBtn.getAttribute('aria-expanded')) === 'true'; i++) {
@@ -73,7 +73,7 @@ test.describe('feedly sort/filter presets', () => {
     test('injects Oldest and Newest buttons in the header toolbar', async ({ page }) => {
         await page.goto(FEED_URL);
         // The header has to render before our MutationObserver finds it.
-        await expect(page.locator('.StreamPage header')).toBeVisible();
+        await expect(page.locator('.FeedPage header')).toBeVisible();
         const oldest = page.locator('button[data-jshute-preset="oldest"]');
         const newest = page.locator('button[data-jshute-preset="newest"]');
         await expect(oldest).toBeVisible();
