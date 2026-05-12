@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         Peloton Classes: Default filters
 // @namespace    https://github.com/jshute96/userscripts
-// @version      2.0.0
+// @version      2.0.1
 // @description  Rewrite Peloton category-tab links so navigating to any /classes/<category> page lands with default filters preset (Difficulty=Intermediate+Advanced, has-workout=Not Taken).
 // @author       Jeff Shute <jshute@gmail.com>
 // @match        https://members.onepeloton.com/classes*
+// @exclude      https://members.onepeloton.com/classes/player/*
 // @grant        none
 // @run-at       document-idle
 // @noframes
