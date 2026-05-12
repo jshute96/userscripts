@@ -159,6 +159,20 @@ in `test/fixtures.js`.
   browsers can run side by side without `connectOverCDP` finding the
   wrong one.
 
+* **Site isolation must be disabled in `open-browser.sh`** via
+  `--disable-features=IsolateOrigins,site-per-process`. With site
+  isolation on (Chrome's default), cross-origin iframes (Feedly's
+  Twitter widget, the New Tab Page's Google widgets, almost any
+  third-party embed) run in their own renderer process. During
+  `chromium.connectOverCDP`, Playwright calls
+  `Page.createIsolatedWorld` once per frame, and for those OOPIFs
+  Chrome 147 silently drops the response — the whole connect hangs
+  until timeout, with no useful error. Same-process iframes respond
+  synchronously, so the flag eliminates the hang at the source. If
+  you're debugging a CDP hang and see `pw:protocol` stop dead on a
+  `Page.createIsolatedWorld` `SEND ►` for a cross-origin frameId,
+  this is what you're looking at.
+
 * `loadUserscript` (a fixture) reads the `.user.js` file fresh on
   each test, strips the metadata block, and injects via
   `page.addInitScript` wrapped in a `load`-event listener (mirroring

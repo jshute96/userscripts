@@ -51,9 +51,20 @@ echo "Log in to test sites once; sessions persist in the profile dir."
 echo "Leave the browser running, then run \`npm test\` in another shell."
 echo ""
 
+# --disable-features=IsolateOrigins,site-per-process puts cross-origin
+# iframes in the parent's renderer process instead of running them as
+# out-of-process iframes (OOPIFs). With OOPIFs, Playwright's
+# connectOverCDP issues Page.createIsolatedWorld for each iframe during
+# initial attach, and Chrome 147 silently never responds for some
+# embeds (Feedly's Twitter widget, Google's New Tab Page widgets) —
+# the whole connect hangs until timeout. Same-process iframes
+# respond to createIsolatedWorld synchronously, so the hang
+# disappears. Acceptable for a test browser we control; we wouldn't
+# want this in a regular browsing profile.
 exec "$CHROME" \
   --user-data-dir="$PROFILE_DIR" \
   --no-first-run \
   --no-default-browser-check \
+  --disable-features=IsolateOrigins,site-per-process \
   --remote-debugging-port="$DEBUG_PORT" \
   "$URL"
