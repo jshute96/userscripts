@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         Peloton Classes: Default filters
 // @namespace    https://github.com/jshute96/userscripts
-// @version      2.0.1
-// @description  Rewrite Peloton category-tab links so navigating to any /classes/<category> page lands with default filters preset (Difficulty=Intermediate+Advanced, has-workout=Not Taken).
+// @version      2.1.0
+// @description  Rewrite Peloton category-tab links (and intercept home-page discipline tiles) so navigating to any /classes/<category> page lands with default filters preset (Difficulty=Intermediate+Advanced, has-workout=Not Taken).
 // @author       Jeff Shute <jshute@gmail.com>
 // @match        https://members.onepeloton.com/classes*
+// @match        https://members.onepeloton.com/home*
 // @exclude      https://members.onepeloton.com/classes/player/*
 // @grant        none
 // @run-at       document-idle
@@ -53,6 +54,36 @@
         params.set('difficulty_level', DIFFICULTY_LEVEL);
         params.set('has_workout', HAS_WORKOUT);
         return pathPart + '?' + params.toString();
+    }
+
+    // Label → slug map for the home-page discipline tiles. The tiles
+    // are React buttons (no anchors) so we can't reach them via the
+    // href-rewrite path; we look up the slug by the visible <h1>
+    // text. Most labels match the slug after lower-casing, but
+    // "Tread Bootcamp" notably maps to plain `bootcamp` (Peloton's
+    // original Bootcamp class type), and the "Bike"/"Row" variants
+    // get explicit slugs. Derived by walking the /classes nav and
+    // pairing each tab's text against its `/classes/<slug>` href.
+    const DISCIPLINE_SLUGS = {
+        'strength':       'strength',
+        'pilates':        'pilates',
+        'yoga':           'yoga',
+        'stretching':     'stretching',
+        'cycling':        'cycling',
+        'cardio':         'cardio',
+        'meditation':     'meditation',
+        'walking':        'walking',
+        'running':        'running',
+        'rowing':         'rowing',
+        'outdoor':        'outdoor',
+        'tread bootcamp': 'bootcamp',
+        'bike bootcamp':  'bike_bootcamp',
+        'row bootcamp':   'row_bootcamp',
+    };
+
+    function slugForDisciplineLabel(label) {
+        if (!label) return null;
+        return DISCIPLINE_SLUGS[label.trim().toLowerCase()] || null;
     }
 
     function rewriteCategoryHref(a) {
@@ -124,6 +155,34 @@
             ? href
             : buildFilteredHref(href);
         console.log(TAG, 'category click → navigating to', target);
+        location.assign(target);
+    }, true);
+
+    // Home-page discipline tiles are <div role="button"
+    // data-test-id="fitnessDisciplinePortalCard"> rather than anchors.
+    // React handles their click in its own bubble-phase handler and
+    // navigates via the Next.js router; we intercept the same way as
+    // the category-tab anchors above — capture-phase, preventDefault,
+    // hard-navigate to the filtered /classes/<slug> URL.
+    document.addEventListener('click', function (e) {
+        if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) {
+            return;
+        }
+        const card = e.target && e.target.closest &&
+            e.target.closest('[data-test-id="fitnessDisciplinePortalCard"]');
+        if (!card) return;
+        const labelEl = card.querySelector('h1');
+        const label = labelEl ? labelEl.textContent : '';
+        const slug = slugForDisciplineLabel(label);
+        if (!slug) {
+            console.log(TAG, 'discipline tile click: unknown label', JSON.stringify(label),
+                        '— letting React handle it');
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        const target = buildFilteredHref('/classes/' + slug);
+        console.log(TAG, 'discipline tile click →', label, '→', target);
         location.assign(target);
     }, true);
 })();

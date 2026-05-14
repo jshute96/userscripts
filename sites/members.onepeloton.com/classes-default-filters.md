@@ -3,25 +3,32 @@
 ## Summary
 
 Rewrites Peloton's category-tab links (`/classes/strength`,
-`/classes/yoga`, `/classes/stretching`, …) so that clicking any of
-them lands on the target category with default filters preset:
-Difficulty = Intermediate + Advanced, plus the Taken/Not-Taken switch
-set to "Not Taken". No filter dialog is opened or inspected — the
-filters are encoded directly in the URL query string Peloton already
-honours on page load.
+`/classes/yoga`, `/classes/stretching`, …) and intercepts clicks on
+the home-page discipline tiles so that any in-app navigation into a
+class category lands with default filters preset: Difficulty =
+Intermediate + Advanced, plus the Taken/Not-Taken switch set to "Not
+Taken". No filter dialog is opened or inspected — the filters are
+encoded directly in the URL query string Peloton already honours on
+page load.
 
 ## Visible changes
 
-- Clicking any category tab navigates to e.g.
+- Clicking any category tab on a `/classes/*` page navigates to e.g.
   `/classes/yoga?difficulty_level=["intermediate","advanced"]&has_workout=["false"]`,
   with the corresponding filters already active when the page renders.
+- Clicking a discipline tile on `/home` (Strength, Yoga, Cycling,
+  Tread Bootcamp, etc.) does the same: navigates to the matching
+  `/classes/<slug>` URL with filters preset.
 - The dialog is never auto-opened — the page just lands filtered.
-- Right-clicking → "Copy link" / "Open in new tab" / middle-click also
-  produces a filtered URL, because the DOM `href` is rewritten in
-  addition to clicks being intercepted.
+- Right-clicking → "Copy link" / "Open in new tab" / middle-click on a
+  category tab also produces a filtered URL, because the DOM `href` is
+  rewritten in addition to clicks being intercepted. (Home-page
+  discipline tiles aren't anchors, so they don't expose a context-menu
+  link to copy; only the plain-click path applies there.)
 - Visiting bare `/classes/<category>` directly (typing the URL,
   bookmark, external link) is left alone — only navigation *via the
-  in-page category tabs* gets filters applied automatically.
+  in-page category tabs or home-page tiles* gets filters applied
+  automatically.
 - Class-detail links (`?classId=…&modal=classDetailsModal`) are not
   touched, since they open a single-class overlay rather than a
   filtered listing.
@@ -57,6 +64,20 @@ honours on page load.
   carry a `classId=…` query parameter (and usually `&modal=…`). They
   open a single-class overlay, not a filtered listing, so we skip
   them.
+- The home-page discipline tiles are *not* anchors — they're
+  `<div data-test-id="fitnessDisciplinePortalCard" role="button">`
+  elements with an `<h1>` label inside. React routes through its own
+  onClick handler using state-derived URLs, so neither an href
+  rewrite nor an anchor-`closest` click handler can reach them. We
+  identify the destination by reading the tile's `<h1>` text and
+  mapping it to a slug.
+- Discipline-tile labels mostly match the URL slug after lower-casing
+  (Strength → `strength`, Yoga → `yoga`, …), but three don't:
+  "Tread Bootcamp" maps to `bootcamp` (the original Bootcamp class
+  type predates the Bike/Row variants), "Bike Bootcamp" to
+  `bike_bootcamp`, and "Row Bootcamp" to `row_bootcamp`. The map was
+  derived by reading each tab's text alongside its `/classes/<slug>`
+  href on the `/classes` page.
 
 ### What we assume stays stable
 
@@ -66,6 +87,13 @@ honours on page load.
   `/classes` or `/classes/<slug>`.
 - Class-detail anchors continue to be identifiable by the presence of
   a `classId=` parameter.
+- Home-page discipline tiles continue to be identifiable by
+  `data-test-id="fitnessDisciplinePortalCard"` and to carry their
+  visible label in a child `<h1>`.
+- Peloton's discipline slugs continue to use the values in
+  `DISCIPLINE_SLUGS`. New disciplines will be ignored (and logged)
+  until the map is updated, but the tile will still navigate via
+  Peloton's own handler — just without filters.
 
 ### How we modify the page
 
@@ -86,6 +114,13 @@ honours on page load.
   through untouched so their browser-native semantics ("open in new
   tab/window") still apply — and because of the DOM rewrite above
   they'll still land at the filtered URL.
+- **Home-page discipline tiles** — A second capture-phase `click`
+  listener checks for `e.target.closest('[data-test-id="fitnessDisciplinePortalCard"]')`,
+  reads the tile's `<h1>` text, looks the slug up in
+  `DISCIPLINE_SLUGS`, and `location.assign`s the filtered
+  `/classes/<slug>` URL. If the label isn't in the map (e.g. a new
+  discipline ships), we log the unknown label and let React handle
+  the click as usual.
 - Each click triggers a full page reload to the filtered URL. That's
   slightly slower than Peloton's in-app SPA navigation but matches
   the user-visible latency of a category switch (~1.5s for the
