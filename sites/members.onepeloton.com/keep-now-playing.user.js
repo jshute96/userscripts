@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         Peloton Player: Keep Now-Playing widget visible
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.0
+// @version      1.1.0
 // @description  Keep the Now-Playing song widget (top-left of the Peloton class player) visible at all times. Other overlays — the top-right toolbar and the bottom status/seek bar — keep their normal hide-on-idle behaviour.
 // @author       Jeff Shute <jshute@gmail.com>
-// @match        https://members.onepeloton.com/classes/player/*
+// @match        https://members.onepeloton.com/*
 // @grant        none
 // @run-at       document-idle
 // @noframes
@@ -17,6 +17,13 @@
 
     const TAG = '[peloton player]';
     console.log(TAG, 'init', location.pathname);
+
+    // Peloton is a SPA: a user can land on /home and SPA-navigate into
+    // /classes/player/<id> with no document reload. @match is broadened
+    // to the site root so this script is registered regardless of the
+    // initial page. The CSS rule below targets a player-only selector
+    // (`[data-test-id="videoSongContainer"]`) so it's a no-op on other
+    // pages, and the <style> stays in <head> across SPA navigations.
 
     // Peloton's player toggles the class `slide-out-when-inactive` on the
     // Now-Playing widget when the mouse has been idle for a few seconds.

@@ -25,8 +25,25 @@ written down before, that's the bar for recording it.
 
 ## Skills
 
-* `tampermonkey` is a public plugin with general guidance on userscript syntax and development
-  - Read this for advice whenever writing or reviewing userscripts.
+* `tampermonkey` is a public plugin with general guidance on userscript
+  syntax and development. Read it (via `/tampermonkey:tampermonkey` or
+  by reading `SKILL.md`) whenever writing or reviewing userscripts —
+  its `references/` directory has focused, well-organised material we
+  shouldn't duplicate here.
+  - **`references/common-pitfalls.md`** — `@match` too broad, not
+    waiting for elements (SPA), memory leaks in observers,
+    over-aggressive DOM modifications, hardcoded selectors, sandbox
+    context confusion, CSP, etc. Skim it before writing a new
+    script, and again when reviewing one that misbehaves.
+  - **`references/patterns.md`** — Canonical idioms: `waitForElement`,
+    SPA URL-change detection (both the `window.onurlchange` grant and
+    History-API interception), route-based handlers, debounced
+    observer, custom styles, persistent settings, keyboard shortcuts.
+  - **`references/url-matching.md`** — `@match` / `@include` /
+    `@exclude` semantics and corner cases.
+  - **`references/header-reference.md`**, **`sandbox-modes.md`**,
+    **`browser-compatibility.md`** — load on demand when the question
+    is specifically about that area.
 * `userscript` is my skill with my tools and conventions, how to install them, etc
 
 ## Git workflow
@@ -78,6 +95,106 @@ skip the change if it already matches:
 
 Pure action buttons (download, navigate, submit) have no current
 state to compare against — this guideline doesn't apply to them.
+
+## SPA sites: broaden `@match`, gate inside the script
+
+Most modern sites we target (Peloton, Garmin Connect, Feedly, NYT, …)
+are single-page applications: the browser fetches one HTML document
+on initial load, and from then on in-page JS swaps content and calls
+`history.pushState()` to update the URL. The browser never loads a
+new document, so userscripts only ever get one chance to inject — at
+the initial document load.
+
+That has a consequence for `@match`:
+
+* If `@match` is narrow (e.g. only `/app/activity/*`) and the user
+  starts on a different page (`/app/home`), then SPA-navigates into
+  an activity, **the script never runs** — its `@match` was checked
+  once, against the initial document URL, and the URL has since
+  changed without a document reload.
+* Reloading the page fixes it (the new URL now matches at document
+  load), but expecting the user to reload before every interesting
+  page is a bad UX.
+
+The standard fix is to **broaden `@match` to the site root** and gate
+behaviour inside the script:
+
+1. `@match https://site.com/*` (or the smallest prefix that covers
+   every page the script *might* care about).
+2. Inside the script, do an initial dispatch keyed on
+   `location.pathname` and re-dispatch on URL changes.
+3. Listen for both `popstate` (back/forward, bfcache restore) and a
+   custom event fired from monkey-patched `pushState` / `replaceState`
+   — neither of those history methods fires `popstate`, so without
+   the wrapper you miss in-app navigations.
+
+Idiom (paste at the top of any SPA script). Pick an event name
+scoped to *this* script — `<script-slug>:urlchange` — so scripts
+don't collide on a shared name. Each script stacks its own
+history wrapper, but with 2–3 scripts on a page the cost is
+negligible (a function call per `pushState`) and there's no
+coordination required between scripts.
+
+```js
+const URL_CHANGE_EVENT = 'my-script:urlchange';  // <-- name to this script
+
+function onUrlChange() {
+    // dispatch on location.pathname; idempotent — handlers must
+    // tolerate being called repeatedly on the same URL.
+}
+for (const m of ['pushState', 'replaceState']) {
+    const orig = history[m];
+    history[m] = function (...a) {
+        const r = orig.apply(this, a);
+        window.dispatchEvent(new Event(URL_CHANGE_EVENT));
+        return r;
+    };
+}
+window.addEventListener('popstate', onUrlChange);
+window.addEventListener(URL_CHANGE_EVENT, onUrlChange);
+onUrlChange(); // initial
+```
+
+Cleaner alternative when targeting Tampermonkey specifically: add
+`// @grant window.onurlchange` to the header and listen for the
+native `urlchange` event — Tampermonkey fires it on any history
+mutation, no monkey-patching required. (Not portable to other
+userscript managers; see the tampermonkey skill's `patterns.md` →
+"SPA Navigation Handling" for the full code.) For most of our
+scripts the History-API patch above is fine and we don't bother
+with the grant.
+
+What this implies for the rest of the script:
+
+* **Idempotency is mandatory.** Anything that runs on URL change
+  must check "is my work already done?" before doing it — anchor
+  rewrites should skip already-rewritten anchors, button inserters
+  should bail if `document.getElementById(BUTTON_ID)` exists, style
+  injection should check for an existing `<style>` it owns (e.g.
+  via a stable `data-<script-slug>` marker on the element).
+  Otherwise you'll multiply state on every in-app navigation.
+* **Listeners are global, not per-page.** Register
+  `document.addEventListener('click', …, true)` once at script init,
+  not inside `onUrlChange()`. The listener self-gates by reading
+  `location.pathname` (or by checking which element the click hit).
+* **MutationObservers also self-gate.** When the SPA tears down and
+  rebuilds the DOM on navigation, the observer fires; have the
+  callback re-check the URL before acting.
+* **Don't rely on `@exclude` to keep the script off a sibling page.**
+  If a script is `@match site.com/*` but `@exclude /classes/player/*`,
+  it will still run on `/home`, and from `/home` the user can
+  SPA-navigate into `/classes/player/123` with the script already
+  loaded. `@exclude` only filters initial-document loads — once the
+  script is running, *it* must decide whether to act based on the
+  current path.
+* **One script per site, dispatching by path** is often cleaner than
+  N narrow-match scripts. They'd all need this same SPA dance
+  individually, and broadening their `@match` makes them all load on
+  every page anyway.
+
+Cost: the script's init runs on every page of the site, not just the
+relevant ones. For our scripts that's ~1ms of JS plus a couple of
+event listeners; almost always fine.
 
 ## When a script stops working
 

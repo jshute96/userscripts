@@ -1,12 +1,10 @@
 // ==UserScript==
 // @name         Peloton Classes: Default filters
 // @namespace    https://github.com/jshute96/userscripts
-// @version      2.1.0
+// @version      2.2.0
 // @description  Rewrite Peloton category-tab links (and intercept home-page discipline tiles) so navigating to any /classes/<category> page lands with default filters preset (Difficulty=Intermediate+Advanced, has-workout=Not Taken).
 // @author       Jeff Shute <jshute@gmail.com>
-// @match        https://members.onepeloton.com/classes*
-// @match        https://members.onepeloton.com/home*
-// @exclude      https://members.onepeloton.com/classes/player/*
+// @match        https://members.onepeloton.com/*
 // @grant        none
 // @run-at       document-idle
 // @noframes
@@ -25,7 +23,14 @@
     }
     window.__pelotonFiltersLoaded = true;
 
-    console.log(TAG, 'init');
+    // Peloton is a SPA: navigating between /home, /classes/<category>,
+    // /profile, etc. happens via pushState, no document reload. @match
+    // is broadened to the site root so this script is present no matter
+    // which page the user initially landed on. The two mechanisms below
+    // (document-level capture-phase click handlers, MutationObserver
+    // for href rewrites) self-gate by element and run harmlessly on
+    // pages that don't have category links or discipline tiles.
+    console.log(TAG, 'init on', location.pathname);
 
     // Filter params we splice into every category-tab href. Peloton's
     // listing pages encode multi-valued filters as JSON arrays in the
@@ -110,9 +115,18 @@
     // initial hydration), so we observe DOM changes and re-walk. We
     // coalesce to one pass per animation frame to avoid hammering the
     // DOM during big renders.
+    //
+    // We skip the class-player page: the video player mutates the DOM
+    // every frame (timestamps, controls, progress bar), and there are
+    // no category anchors there to rewrite. Avoid the per-frame rAF +
+    // querySelectorAll cost entirely.
+    const PLAYER_PATH_RE = /^\/classes\/player\//;
+    const isPlayerPage = () => PLAYER_PATH_RE.test(location.pathname);
+
     let scheduled = false;
     function schedule() {
         if (scheduled) return;
+        if (isPlayerPage()) return;
         scheduled = true;
         requestAnimationFrame(() => {
             scheduled = false;

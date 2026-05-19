@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name         Garmin Connect: One-click TCX download on activity page
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.1.1
+// @version      0.2.0
 // @description  On a Garmin Connect activity page, adds a Download button next to the gear ("More...") menu that triggers Export to TCX in one click.
 // @author       Jeff Shute <jshute@gmail.com>
-// @match        https://connect.garmin.com/app/activity/*
+// @match        https://connect.garmin.com/app/*
 // @grant        none
 // @noframes
 // @run-at       document-idle
@@ -24,6 +24,12 @@
     // path geometry. We match by class prefix.
     const GEAR_CONTAINER_SELECTOR = '[class*="ActivitySettingsMenu_menuContainer"]';
     const TCX_LABEL = /^export to tcx$/i;
+
+    // Garmin Connect is a SPA: navigating between Activities, Home, and
+    // an activity page does pushState only, no document reload. We
+    // broaden @match to /app/* and gate on the pathname instead.
+    const ACTIVITY_PATH_RE = /^\/app\/activity\//;
+    const isActivityPage = () => ACTIVITY_PATH_RE.test(location.pathname);
 
     console.log(TAG, 'init on', location.pathname);
 
@@ -117,6 +123,7 @@
     }
 
     function ensureButton() {
+        if (!isActivityPage()) return false;
         if (document.getElementById(BUTTON_ID)) return false;
         const gear = findGearButton();
         if (!gear) return false;
@@ -129,14 +136,41 @@
         return true;
     }
 
-    if (!ensureButton()) {
+    function onUrlChange() {
+        // ensureButton() self-gates on isActivityPage(). If the toolbar
+        // isn't in the DOM yet, the MutationObserver below will pick it
+        // up as Garmin renders the activity view.
+        ensureButton();
+    }
+
+    // Wrap pushState/replaceState so we get notified of SPA navigations
+    // (popstate alone misses programmatic navigation). The event name is
+    // script-scoped so other userscripts on the same origin can use the
+    // same pattern without colliding on a shared event.
+    const URL_CHANGE_EVENT = 'garmin-tcx:urlchange';
+    for (const m of ['pushState', 'replaceState']) {
+        const orig = history[m];
+        history[m] = function (...a) {
+            const r = orig.apply(this, a);
+            window.dispatchEvent(new Event(URL_CHANGE_EVENT));
+            return r;
+        };
+    }
+    window.addEventListener('popstate', onUrlChange);
+    window.addEventListener(URL_CHANGE_EVENT, onUrlChange);
+
+    if (isActivityPage() && !ensureButton()) {
         console.log(TAG, 'gear not found yet; watching for it');
     }
 
     // The activity page is inside a SPA — switching to a different
     // activity rebuilds the toolbar, which would drop our button.
+    // ensureButton() self-gates on the current pathname, so this is a
+    // no-op on non-activity pages.
     const observer = new MutationObserver(() => {
-        if (!document.getElementById(BUTTON_ID)) ensureButton();
+        if (isActivityPage() && !document.getElementById(BUTTON_ID)) {
+            ensureButton();
+        }
     });
     observer.observe(document.body, { childList: true, subtree: true });
 })();

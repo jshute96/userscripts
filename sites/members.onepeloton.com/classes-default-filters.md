@@ -79,6 +79,18 @@ page load.
   derived by reading each tab's text alongside its `/classes/<slug>`
   href on the `/classes` page.
 
+- Peloton's site is a single-page app: clicking around between
+  `/home`, `/classes/<category>`, `/profile`, etc. only changes the
+  URL via `pushState`, with no document reload. A narrow `@match`
+  (e.g. only `/classes*` and `/home*`) means the script never loads
+  if the user's initial document was a different page. We broaden
+  `@match` to `members.onepeloton.com/*` so the script is always
+  registered for whatever page the user first opened. The two work
+  mechanisms — document-level capture-phase click listeners and a
+  body-level `MutationObserver` for href rewrites — are global and
+  self-gate by element, so they cost nothing on pages that don't
+  contain category links or discipline tiles.
+
 ### What we assume stays stable
 
 - Filter values are encoded as URL query params with the JSON-array

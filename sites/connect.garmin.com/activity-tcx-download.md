@@ -46,6 +46,13 @@ What we depend on:
 * The Garmin SPA rebuilds the toolbar when navigating between
   activities. A `MutationObserver` on `document.body` re-adds our
   button whenever it disappears.
+* Garmin Connect is a single-page app. `@match` is broadened to
+  `/app/*` so the script is registered on whatever page the user
+  initially loaded, and we re-evaluate on every SPA navigation
+  (`popstate` plus a wrapper around `history.pushState` /
+  `replaceState`). All work paths (initial run, URL-change handler,
+  MutationObserver) gate on `/^\/app\/activity\//` against
+  `location.pathname` so the script no-ops outside activity pages.
 
 Click sequence:
 

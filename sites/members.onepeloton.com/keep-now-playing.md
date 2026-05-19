@@ -80,3 +80,11 @@ mouse-idle" behaviour.
   so a JS-driven attribute scrub would fight every re-render. A
   static CSS rule wins on specificity (with `!important`) and never
   has to run again.
+
+- Peloton is a single-page app. `@match` is broadened to
+  `members.onepeloton.com/*` (rather than only
+  `/classes/player/*`) so the script is registered no matter which
+  page the user initially opened. The injected CSS targets a
+  player-only `data-test-id`, so it's inert on non-player pages, and
+  the `<style>` element stays in `<head>` across SPA navigations —
+  no URL-change listener needed here.
