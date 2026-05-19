@@ -1,0 +1,17 @@
+[
+  "sites/cnrfc.noaa.gov/precip-default-view.user.js",
+  "sites/connect.garmin.com/activity-tcx-download.user.js",
+  "sites/connect.garmin.com/download-activities-button.user.js",
+  "sites/example.com/bold-on-hover.user.js",
+  "sites/example.com/throw-on-avoid-click.user.js",
+  "sites/example.com/throw-on-load.user.js",
+  "sites/feedly.com/sort-filter-presets.user.js",
+  "sites/members.onepeloton.com/classes-default-filters.user.js",
+  "sites/members.onepeloton.com/keep-now-playing.user.js",
+  "sites/news.ycombinator.com/better-comment-navigation.user.js",
+  "sites/nytimes.com/spelling-bee.user.js",
+  "sites/pinkbike.com/article-image-navigation.user.js",
+  "sites/pinkbike.com/better-comment-navigation.user.js",
+  "sites/pinkbike.com/close-sticky-footer-ad.user.js",
+  "sites/techcrunch.com/close-newsletter-popup.user.js"
+]
