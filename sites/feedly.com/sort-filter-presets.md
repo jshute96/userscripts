@@ -14,7 +14,9 @@ combination in one click, so we don't have to walk the three-dots menu.
 - "Oldest": sets Sort by → Oldest and turns Filter by → Unread only on.
 - "Newest": sets Sort by → Newest and turns Filter by → Unread only off.
 - Only active on subscription/feed pages
-  (`feedly.com/i/subscription/content/feed*`).
+  (`feedly.com/i/subscription/content/feed*`). The script loads on
+  every Feedly page so it survives in-app navigation, but does
+  nothing on non-feed paths.
 
 ## Implementation
 
@@ -75,6 +77,13 @@ combination in one click, so we don't have to walk the three-dots menu.
 
 ### How we modify the page
 
+- Feedly is a SPA, so `@match` is the site root
+  (`https://feedly.com/*`) and the script self-gates on
+  `location.pathname` matching `/i/subscription/content/feed*`.
+  `injectButtons()` is a no-op on other paths. We also wrap
+  `history.pushState`/`replaceState` (and listen for `popstate`) so
+  navigations into a feed page from elsewhere in the app trigger an
+  immediate re-injection attempt, not just the next mutation tick.
 - A `MutationObserver` on `document.body` watches for the header
   appearing or being re-rendered (e.g. when navigating between feeds
   in this SPA). Each tick we look for a marked button via the

@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         Feedly: Sort/Filter presets
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.5
+// @version      1.1.0
 // @description  Add Oldest/Newest preset buttons to a Feedly feed's header toolbar that combine sort order and unread-only filter.
 // @author       Jeff Shute <jshute@gmail.com>
-// @match        https://feedly.com/i/subscription/content/feed*
+// @match        https://feedly.com/*
 // @grant        none
+// @noframes
 // @run-at       document-idle
 // @updateURL    https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/feedly.com/sort-filter-presets.user.js
 // @downloadURL  https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/feedly.com/sort-filter-presets.user.js
@@ -22,10 +23,17 @@
     }
     window.__feedlyPresetsLoaded = true;
 
-    console.log(TAG, 'init');
+    console.log(TAG, 'init on', location.pathname);
 
     // Attribute that flags buttons we've added so we can detect re-renders.
     const MARK = 'data-jshute-preset';
+
+    // Feedly is a SPA: clicking between My Feedly, a feed, a board,
+    // etc. pushState's without a document reload. We broaden @match to
+    // the site root and gate work on the pathname instead. Subscription
+    // feed pages look like /i/subscription/content/feed%2F<url-encoded>.
+    const FEED_PATH_RE = /^\/i\/subscription\/content\/feed/;
+    const isFeedPage = () => FEED_PATH_RE.test(location.pathname);
 
     // Main menu items live in role="menuitem" elements with a child
     // <span> holding the visible label ("Sort by", "Filter by", etc).
@@ -249,6 +257,7 @@
     }
 
     function injectButtons() {
+        if (!isFeedPage()) return false;
         const container = findToolbarContainer();
         if (!container) return false;
         // Already injected for this header instance?
@@ -280,6 +289,24 @@
 
     const observer = new MutationObserver(scheduleInject);
     observer.observe(document.body, { childList: true, subtree: true });
+
+    // SPA navigation hooks. popstate covers back/forward; the
+    // pushState/replaceState wrapper covers programmatic navigation
+    // (which is how Feedly switches between feeds/boards/home). Event
+    // name is script-scoped so we don't collide with any other
+    // userscript that uses the same idiom on this origin.
+    const URL_CHANGE_EVENT = 'feedly-presets:urlchange';
+    for (const m of ['pushState', 'replaceState']) {
+        const orig = history[m];
+        history[m] = function (...a) {
+            const r = orig.apply(this, a);
+            window.dispatchEvent(new Event(URL_CHANGE_EVENT));
+            return r;
+        };
+    }
+    window.addEventListener('popstate', scheduleInject);
+    window.addEventListener(URL_CHANGE_EVENT, scheduleInject);
+
     // Initial attempt — header may not yet exist at document-idle.
     scheduleInject();
 })();
