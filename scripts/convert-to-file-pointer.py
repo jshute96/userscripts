@@ -30,11 +30,10 @@ def convert(path: Path) -> str:
 
     header = lines[start : end + 1]
 
-    if any(re.match(r"^//\s*@require\b", ln) for ln in header):
-        raise SystemExit(f"error: {path}: script already has an @require; not converting")
-
     # Strip auto-update directives — the pointer script is local-only and
-    # should not try to fetch updates from the original URL.
+    # should not try to fetch updates from the original URL. Pre-existing
+    # @require lines are kept verbatim: the pointer's added file:// @require
+    # for the body sits alongside them and Tampermonkey loads each in order.
     header = [ln for ln in header if not re.match(r"^//\s*@(updateURL|downloadURL)\b", ln)]
 
     name_idx = next(

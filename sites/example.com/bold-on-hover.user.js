@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         example.com: bold word on hover
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.1
+// @version      1.1.0
 // @description  Bold the single word under the mouse cursor while hovering text on example.com.
 // @author       Jeff Shute <jshute@gmail.com>
 // @match        https://example.com/*
@@ -9,6 +9,8 @@
 // @run-at       document-idle
 // @grant        none
 // @noframes
+// @icon         example-icon.png
+// @require      installed-list.js
 // @updateURL    https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/example.com/bold-on-hover.user.js
 // @downloadURL  https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/example.com/bold-on-hover.user.js
 // ==/UserScript==
@@ -147,6 +149,8 @@
     }, { passive: true });
 
     document.addEventListener('mouseleave', clearHighlight);
+
+    jshuteAddInstalledScript('bold-on-hover.user.js', 'bolds and reddens the word under the cursor on hover');
 
     console.log(TAG, 'ready');
 })();

@@ -303,6 +303,29 @@ if it's missing; it makes the next break diagnose itself.
   `.click()` may not toggle the menu — keyboard activation
   `focus()` + `Enter` works there as a fallback when needed.)
 
+* `@require` for shared helpers within a site: drop a plain `.js`
+  file (no UserScript header) next to the scripts that need it and
+  reference it from each script with a bare relative path, e.g.
+  `// @require installed-list.js`. SourceMonkey resolves it relative
+  to the userscript's source URL, so the same line works for a
+  github-raw install (sibling file in the same directory) and an
+  `install-pointer` install (sibling file in the local directory).
+  The helper runs in each userscript's sandbox
+  immediately before the body, so top-level `function`s and `const`s
+  in the helper are visible to the script body. Per-userscript state
+  is sandboxed; cross-script collaboration goes through the live DOM
+  (use stable IDs / `data-` markers, and have helpers be idempotent
+  by ID lookup).
+  - `scripts/convert-to-file-pointer.py` preserves any existing
+    `@require` lines verbatim and adds its own `file://` `@require`
+    for the body, so a script with a shared-helper `@require` still
+    installs cleanly as a local-file pointer.
+  - The Playwright fixture (`loadUserscript`) strips the metadata
+    block and does *not* fetch `@require`'d files. Tests that depend
+    on the helper need to inject it as a separate
+    `page.addInitScript` (or have the fixture extended) — none of
+    our specs do this yet.
+
 ## Testing
 
 Tests run against a real browser using Playwright. Tests for a script
