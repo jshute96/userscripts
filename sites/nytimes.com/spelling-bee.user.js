@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         NYT Spelling Bee: tweaks
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.11
+// @version      1.0.13
 // @description  UI tweaks for the NYT Spelling Bee game: show definitions when hovering or clicking a word, add a Buddy link to the toolbar, and auto-dismiss splash screens.
 // @author       Jeff Shute <jshute@gmail.com>
 // @match        https://www.nytimes.com/puzzles/spelling-bee*
@@ -286,7 +286,7 @@
         const safeWord = escapeHtml(word);
         let body;
         if (result.error) {
-            body = '<p class="msg">Could not load definition. ' +
+            body = '<p class="msg">Could not load definition for <b>' + safeWord + '</b>. ' +
                 '<a href="' + safeUrl + '">Open on Cambridge Dictionary</a>.</p>';
         } else if (result.missing || !result.entries) {
             body = '<p class="msg">No definition found for <b>' + safeWord + '</b>. ' +
@@ -356,12 +356,18 @@
         popupPinned = false;
     }
 
-    function attachWordInteractions(wordEl, word) {
+    // Read the word at hover/click time rather than capturing it in the
+    // closure. The Buddy page reuses the same row elements across tabs
+    // (A/C/D/E/…), only updating the `.word` text; if we cached the word
+    // at wire-up we'd look up the original tab's word forever.
+    function attachWordInteractions(wordEl, getWord) {
         wordEl.addEventListener('mouseenter', () => {
             if (hoverTimer) clearTimeout(hoverTimer);
             if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
             hoverTimer = setTimeout(() => {
                 hoverTimer = null;
+                const word = getWord();
+                if (!word) return;
                 showDefinitionPopup(word, wordEl);
             }, HOVER_DELAY_MS);
         });
@@ -375,6 +381,8 @@
             // "Reveal clue" toggle on the tile list).
             e.stopPropagation();
             if (hoverTimer) { clearTimeout(hoverTimer); hoverTimer = null; }
+            const word = getWord();
+            if (!word) return;
             // Click on the currently-pinned word: toggle off.
             if (popupPinned && popupWord === word && popupEl &&
                 popupEl.style.display !== 'none') {
@@ -404,9 +412,7 @@
         // Spelling Bee puzzle page: found-words list and Yesterday's Answers modal.
         document.querySelectorAll(WORDLIST_ITEM_SELECTOR).forEach((span) => {
             if (span.hasAttribute(LOOKUP_MARKER_ATTR)) return;
-            const word = (span.textContent || '').trim().toLowerCase();
-            if (!word) return;
-            attachWordInteractions(span, word);
+            attachWordInteractions(span, () => (span.textContent || '').trim().toLowerCase());
             span.setAttribute(LOOKUP_MARKER_ATTR, '1');
             added++;
         });
@@ -416,9 +422,7 @@
         document.querySelectorAll(BUDDY_FOUND_ROW_SELECTOR).forEach((row) => {
             const wordEl = row.querySelector(BUDDY_WORD_SELECTOR);
             if (!wordEl || wordEl.hasAttribute(LOOKUP_MARKER_ATTR)) return;
-            const word = (wordEl.textContent || '').replace(/\s+/g, '').toLowerCase();
-            if (!word) return;
-            attachWordInteractions(wordEl, word);
+            attachWordInteractions(wordEl, () => (wordEl.textContent || '').replace(/\s+/g, '').toLowerCase());
             wordEl.setAttribute(LOOKUP_MARKER_ATTR, '1');
             added++;
         });

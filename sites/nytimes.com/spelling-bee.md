@@ -113,6 +113,15 @@ In this table, the word is plain text inside a `<td class="word">`.
 Pangrams add an extra class on the row (e.g. `.pangram`) but we
 don't differentiate.
 
+The bar-graph rows have a starting-letter tab control above them
+(A / C / D / E / G / H / N — whichever letters apply to the
+puzzle). Switching tabs **reuses the same `<tr class="row
+user-found">` elements** and just updates the `.word` text and bar
+widths in place; the row count and DOM identity stay the same.
+That means our lookup handler must read the word at hover/click
+time — caching the word at wire-up gives stale lookups after a
+tab switch.
+
 Combining the two, our buddy-page selector is
 `.word-row.found, .row.user-found`. In both cases the word lives
 inside a child element with class `.word`; reading
