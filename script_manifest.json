@@ -5,14 +5,20 @@
   "sites/example.com/bold-on-hover.user.js",
   "sites/example.com/error-button.user.js",
   "sites/example.com/error-on-load.user.js",
+  "sites/example.com/show-gm-info.user.js",
   "sites/example.com/updated-script.user.js",
   "sites/feedly.com/sort-filter-presets.user.js",
   "sites/members.onepeloton.com/classes-default-filters.user.js",
+  "sites/members.onepeloton.com/hide-video-overlay.user.js",
   "sites/members.onepeloton.com/keep-now-playing.user.js",
   "sites/news.ycombinator.com/keyboard-comment-navigation.user.js",
+  "sites/nytimes.com/athletic-keyboard-comment-navigation.user.js",
+  "sites/nytimes.com/keyboard-comment-navigation.user.js",
   "sites/nytimes.com/spelling-bee.user.js",
   "sites/pinkbike.com/article-image-navigation.user.js",
-  "sites/pinkbike.com/keyboard-comment-navigation.user.js",
   "sites/pinkbike.com/close-sticky-footer-ad.user.js",
-  "sites/techcrunch.com/close-newsletter-popup.user.js"
+  "sites/pinkbike.com/keyboard-comment-navigation.user.js",
+  "sites/reddit.com/keyboard-comment-navigation.user.js",
+  "sites/techcrunch.com/close-newsletter-popup.user.js",
+  "sites/washingtonpost.com/keyboard-comment-navigation.user.js"
 ]
