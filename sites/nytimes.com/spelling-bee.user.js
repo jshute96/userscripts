@@ -1,11 +1,11 @@
 // ==UserScript==
 // @name         NYT Spelling Bee: tweaks
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.13
+// @version      1.0.14
 // @description  UI tweaks for the NYT Spelling Bee game: show definitions when hovering or clicking a word, add a Buddy link to the toolbar, and auto-dismiss splash screens.
 // @author       Jeff Shute <jshute@gmail.com>
-// @match        https://www.nytimes.com/puzzles/spelling-bee*
-// @match        https://www.nytimes.com/interactive/2023/upshot/spelling-bee-buddy.html*
+// @match        https://www.nytimes.com/puzzles/spelling-bee
+// @match        https://www.nytimes.com/interactive/2023/upshot/spelling-bee-buddy.html
 // @grant        GM_xmlhttpRequest
 // @connect      api.dictionaryapi.dev
 // @run-at       document-idle
