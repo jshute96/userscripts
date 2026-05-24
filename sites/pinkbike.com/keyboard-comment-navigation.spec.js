@@ -1,4 +1,4 @@
-// Tests for better-comment-navigation.user.js.
+// Tests for keyboard-comment-navigation.user.js.
 //
 // Pinkbike articles are public — no login needed. Run the launcher in
 // one terminal and leave it running:
@@ -17,7 +17,7 @@
 const path = require('path');
 const { test, expect } = require('../../test/fixtures');
 
-const SCRIPT_PATH = path.join(__dirname, 'better-comment-navigation.user.js');
+const SCRIPT_PATH = path.join(__dirname, 'keyboard-comment-navigation.user.js');
 
 const ARTICLE_URL = process.env.PINKBIKE_ARTICLE_URL
     || 'https://www.pinkbike.com/news/new-vision-same-mountain-mammoth-mountain-to-reimagine-bike-park.html';

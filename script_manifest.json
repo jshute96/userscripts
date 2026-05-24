@@ -9,10 +9,10 @@
   "sites/feedly.com/sort-filter-presets.user.js",
   "sites/members.onepeloton.com/classes-default-filters.user.js",
   "sites/members.onepeloton.com/keep-now-playing.user.js",
-  "sites/news.ycombinator.com/better-comment-navigation.user.js",
+  "sites/news.ycombinator.com/keyboard-comment-navigation.user.js",
   "sites/nytimes.com/spelling-bee.user.js",
   "sites/pinkbike.com/article-image-navigation.user.js",
-  "sites/pinkbike.com/better-comment-navigation.user.js",
+  "sites/pinkbike.com/keyboard-comment-navigation.user.js",
   "sites/pinkbike.com/close-sticky-footer-ad.user.js",
   "sites/techcrunch.com/close-newsletter-popup.user.js"
 ]

@@ -1,4 +1,4 @@
-# HN: better comment navigation
+# HN: keyboard comment navigation
 
 ## Summary
 
@@ -15,6 +15,9 @@ navigation and additional navigation links.
 * Reorder the links in order of increasing scope:
   `down | up | next | prev | parent | parent-next | root | root-next`.
 * Add a keyboard shortcut for each, shown in the link label.
+  - `j=down, k=up, h=next, l=prev, p=parent, n=parent-next, r=root, m=root-next`.
+  - `c` jumps to the top of the comments list (no on-page link
+    rendered for it — keyboard-only, to match other sites).
   - Keyboard navigation acts on the first comment visible on screen.
   - Clicking a link acts on that link's own comment.
 * On a top-level comment (no `parent-next` / `root-next` shown),
@@ -114,8 +117,10 @@ On `document-idle`:
    configured key to a logical action:
    - `j` / `k` (`down` / `up`) — find the comment row to navigate
      **from** (first row whose `div.comment` intersects the viewport),
-     locate it in the full `tr.athing.comtr` list, and `scrollIntoView`
-     the next/previous sibling.
+     locate it in the visible `tr.athing.comtr` list, and smooth-scroll
+     to the next/previous sibling.
+   - `c` — smooth-scroll to the first comment row (top of the
+     comments tree). Keyboard-only; no on-page link.
    - All other keys — find the same "current" row, look up
      `a[data-nav-name="<name>"]` inside its `.navs`, and `.click()` it.
      Clicking lets HN's own handler do the smooth scroll. Falls back
@@ -125,7 +130,27 @@ On `document-idle`:
    Modifier keys (Ctrl/Meta/Alt) and typing into inputs/textareas/
    contenteditables suppress the handler.
 
-5. **Idempotency.** A `window.__hnNavLinksLoaded` guard prevents a
+5. **Chained presses during a smooth scroll.** With `behavior:
+   'smooth'`, the viewport hasn't caught up to the scroll target by
+   the time a chained keypress fires; a pure viewport check would
+   re-pick the same source row and the script would look stuck.
+   The script remembers the most recent target row in
+   `lastJumpTarget` and treats it as "current" until invalidated.
+   Invalidators are passive `wheel` / `touchmove` listeners on
+   `window`, and any non-nav keypress (PageUp/Down, arrows, Home/End,
+   space, …). For the anchor-click keys (`h`/`l`/`p`/`n`/`r`/`m`)
+   HN does the scroll itself, but the script still parses the
+   destination out of the link's `href="#<id>"` and pins
+   `lastJumpTarget` to that row. See the
+   `add-comment-navigation-script` skill for the general treatment.
+
+6. **Hidden / collapsed comments.** `commentRows()` filters out rows
+   inside a `display: none` ancestor with `offsetParent === null`,
+   so that `j` from a comment immediately before a collapsed thread
+   doesn't target a zero-rect hidden row (which would no-op the
+   scroll and look stuck on the next press).
+
+7. **Idempotency.** A `window.__hnNavLinksLoaded` guard prevents a
    second run on the same page (e.g. if both the raw and pointer
    versions of the script are installed). The script does not observe
    the DOM for later mutations, since HN serves the comments tree

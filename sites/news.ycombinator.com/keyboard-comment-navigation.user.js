@@ -1,14 +1,15 @@
 // ==UserScript==
-// @name         Hacker News: Better comment navigation
+// @name         Hacker News: Keyboard comment navigation
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.9
+// @version      1.1.0
 // @description  Improve comment navigation with keyboard shortcuts and additional links
 // @author       Jeff Shute <jshute@gmail.com>
 // @match        https://news.ycombinator.com/item*
 // @grant        none
 // @run-at       document-idle
-// @updateURL    https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/news.ycombinator.com/better-comment-navigation.user.js
-// @downloadURL  https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/news.ycombinator.com/better-comment-navigation.user.js
+// @noframes
+// @updateURL    https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/news.ycombinator.com/keyboard-comment-navigation.user.js
+// @downloadURL  https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/news.ycombinator.com/keyboard-comment-navigation.user.js
 // ==/UserScript==
 
 (function () {
@@ -155,11 +156,39 @@
         console.log(TAG, `rebuilt ${count} nav rows`);
     }
 
+    function commentRows() {
+        // Filter out collapsed / hidden rows: when HN collapses a thread,
+        // descendant rows are display:none. `offsetParent === null`
+        // catches any hidden ancestor without us caring which class HN
+        // uses (avoids j getting stuck on a zero-area row — see the
+        // add-comment-navigation-script skill's "hidden / collapsed" note).
+        return [...document.querySelectorAll('tr.athing.comtr')]
+            .filter(tr => tr.offsetParent !== null);
+    }
+
+    // Remember the last row we scrolled to. With smooth scrolling the
+    // viewport hasn't caught up by the time the next keypress fires, so
+    // a pure viewport-intersection check would re-pick the same source
+    // row and look stuck. Invalidate on user-initiated scroll
+    // (wheel/touchmove) or any non-nav keypress. See the
+    // add-comment-navigation-script skill.
+    let lastJumpTarget = null;
+
+    function invalidateJumpTarget() {
+        lastJumpTarget = null;
+    }
+    window.addEventListener('wheel',     invalidateJumpTarget, { passive: true });
+    window.addEventListener('touchmove', invalidateJumpTarget, { passive: true });
+
     function findCurrentRow() {
-        // First comtr whose div.comment intersects the viewport.
-        const all = document.querySelectorAll('tr.athing.comtr');
+        const rows = commentRows();
+        if (lastJumpTarget && rows.includes(lastJumpTarget)) return lastJumpTarget;
+        // First comtr whose div.comment intersects the viewport. We
+        // anchor on div.comment, not the whole tr, because the row
+        // includes the metadata header / reply form and would stay
+        // "intersecting" long after we've visually scrolled past it.
         const vh = window.innerHeight;
-        for (const tr of all) {
+        for (const tr of rows) {
             const c = tr.querySelector('div.comment');
             if (!c) continue;
             const rect = c.getBoundingClientRect();
@@ -189,12 +218,13 @@
         return null;
     }
 
-    function commentRows() {
-        return document.querySelectorAll('tr.athing.comtr');
+    function smoothScrollToRow(row) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        lastJumpTarget = row;
     }
 
     function jumpItemFrom(fromRow, direction) {
-        const rows = [...commentRows()];
+        const rows = commentRows();
         if (!rows.length) {
             console.log(TAG, 'no comment rows found');
             return;
@@ -208,11 +238,12 @@
             return;
         }
         console.log(TAG, `scrolling to ${direction} item id=${target.id || '?'}`);
-        target.scrollIntoView({ block: 'start' });
+        smoothScrollToRow(target);
     }
 
     function jumpItem(direction) {
-        // Keyboard path: navigate relative to the first on-screen comment.
+        // Keyboard path: navigate relative to the first on-screen comment
+        // (or the last jump target if a smooth scroll is still in flight).
         jumpItemFrom(findCurrentRow(), direction);
     }
 
@@ -221,12 +252,39 @@
         return a;
     }
 
+    function jumpToCommentsTop() {
+        // First comment row is the top of the comments tree. HN doesn't
+        // render a distinct "N comments" header above it.
+        const first = commentRows()[0];
+        if (!first) {
+            console.log(TAG, 'c: no comments on page');
+            return;
+        }
+        console.log(TAG, `c -> first comment id=${first.id}`);
+        // Don't set lastJumpTarget — c is "jump to the top", and the
+        // next j should advance from whatever comment the viewport
+        // actually lands on, not stay anchored to the first.
+        first.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
     function onKeyDown(e) {
         if (e.ctrlKey || e.metaKey || e.altKey) return;
         if (isTypingTarget(e.target)) return;
 
+        if (e.key === 'c') {
+            e.preventDefault();
+            jumpToCommentsTop();
+            return;
+        }
+
         const name = nameForKey(e.key);
-        if (!name) return;
+        if (!name) {
+            // Any other key (PageUp/Down, arrows, Home/End, space, …) means
+            // the user is moving the viewport themselves — drop the stored
+            // jump target so the next j/k re-reads from the viewport.
+            invalidateJumpTarget();
+            return;
+        }
         const cfg = KEYS[name];
 
         if (cfg.action === 'scroll-next') {
@@ -259,11 +317,20 @@
             return;
         }
         e.preventDefault();
-        console.log(TAG, `key "${e.key}" -> ${resolvedName} -> ${link.getAttribute('href')}`);
+        const href = link.getAttribute('href');
+        console.log(TAG, `key "${e.key}" -> ${resolvedName} -> ${href}`);
         link.click();
+        // HN's own anchor-click handler does the smooth scroll; we don't
+        // call scrollIntoView. Pin lastJumpTarget to the destination so
+        // chained presses advance from there rather than re-finding the
+        // pre-jump row in the viewport.
+        if (href && href.startsWith('#')) {
+            const target = document.getElementById(href.slice(1));
+            if (target) lastJumpTarget = target;
+        }
     }
 
     rebuildAll();
     document.addEventListener('keydown', onKeyDown);
-    console.log(TAG, 'keys: j=down, k=up, h=next, l=prev, p=parent, n=parent-next, r=root, m=root-next');
+    console.log(TAG, 'keys: j=down, k=up, h=next, l=prev, p=parent, n=parent-next, r=root, m=root-next, c=comments-top');
 })();

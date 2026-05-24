@@ -1,15 +1,15 @@
 // ==UserScript==
-// @name         Pinkbike: Better comment navigation
+// @name         Pinkbike: Keyboard comment navigation
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.1
+// @version      1.1.0
 // @description  Keyboard shortcuts for navigating comments on Pinkbike articles.
 // @author       Jeff Shute <jshute@gmail.com>
 // @match        https://www.pinkbike.com/news/*
 // @grant        none
 // @run-at       document-idle
 // @noframes
-// @updateURL    https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/pinkbike.com/better-comment-navigation.user.js
-// @downloadURL  https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/pinkbike.com/better-comment-navigation.user.js
+// @updateURL    https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/pinkbike.com/keyboard-comment-navigation.user.js
+// @downloadURL  https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/pinkbike.com/keyboard-comment-navigation.user.js
 // ==/UserScript==
 
 (function () {
@@ -26,7 +26,11 @@
     console.log(TAG, 'initializing');
 
     function commentRows() {
-        return [...document.querySelectorAll('.cmcont')];
+        // Filter out comments inside a display:none ancestor (collapsed
+        // threads, hidden tabs). Their zero-area rects can make j look
+        // stuck — see add-comment-navigation-script skill.
+        return [...document.querySelectorAll('.cmcont')]
+            .filter(el => el.offsetParent !== null);
     }
 
     function isReply(el) {
@@ -41,14 +45,27 @@
         return false;
     }
 
+    // Remember the last comment we scrolled to so chained smooth-scrolls
+    // advance instead of re-targeting the same comment. Invalidated by
+    // wheel/touchmove (user-driven scroll) and any non-nav keypress.
+    let lastJumpTarget = null;
+
+    function invalidateJumpTarget() {
+        lastJumpTarget = null;
+    }
+    window.addEventListener('wheel',     invalidateJumpTarget, { passive: true });
+    window.addEventListener('touchmove', invalidateJumpTarget, { passive: true });
+
     function findCurrentRow() {
+        const rows = commentRows();
+        if (lastJumpTarget && rows.includes(lastJumpTarget)) return lastJumpTarget;
         // First .cmcont whose .comtext body is at least partly in view.
         // We use the inner .comtext rather than the .cmcont container because
         // a .cmcont includes the avatar column and reply-box footer, which can
         // remain barely-intersected with the viewport long after we've
         // visually scrolled into the next comment.
         const vh = window.innerHeight;
-        for (const el of commentRows()) {
+        for (const el of rows) {
             const body = el.querySelector('.comtext') || el;
             const rect = body.getBoundingClientRect();
             if (rect.bottom > 0 && rect.top < vh) return el;
@@ -58,6 +75,7 @@
 
     function smoothScrollTo(el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        lastJumpTarget = el;
     }
 
     function jumpNextPrev(direction) {
@@ -136,12 +154,23 @@
             return;
         }
         console.log(TAG, `c -> ${target.className || '#' + target.id}`);
-        smoothScrollTo(target);
+        // Don't store comments-top in lastJumpTarget — it isn't a .cmcont
+        // and we want subsequent j/k to resume from the viewport.
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
+
+    const NAV_KEYS = new Set(['j', 'k', 'p', 'n', 'c']);
 
     function onKeyDown(e) {
         if (e.ctrlKey || e.metaKey || e.altKey) return;
         if (isTypingTarget(e.target)) return;
+        if (!NAV_KEYS.has(e.key)) {
+            // Manual scroll keys (PageUp/Down, arrows, space, Home/End)
+            // mean the user is moving the viewport themselves; the jump
+            // target is no longer authoritative.
+            invalidateJumpTarget();
+            return;
+        }
 
         switch (e.key) {
             case 'j': e.preventDefault(); jumpNextPrev('next'); return;

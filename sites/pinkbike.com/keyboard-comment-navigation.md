@@ -1,4 +1,4 @@
-# Pinkbike: better comment navigation
+# Pinkbike: keyboard comment navigation
 
 ## Summary
 
@@ -94,6 +94,27 @@ For each keypress:
 
 All `scrollIntoView` calls use `{ behavior: 'smooth', block: 'start'
 }`.
+
+### Chained presses during a smooth scroll
+
+A pure viewport-intersection test re-targets the same comment on
+chained keypresses: with `behavior: 'smooth'`, the viewport hasn't
+caught up to the previous scroll target when the next `j` fires, so
+`j j j j` would advance by one. We remember the last comment we
+scrolled to (`lastJumpTarget`) and treat it as "current" until
+something invalidates it: passive `wheel` / `touchmove` on the
+window, or any non-nav keypress (PageUp/Down, arrows, space, etc.).
+See the `add-comment-navigation-script` skill for the canonical
+treatment.
+
+### Hidden / collapsed comments
+
+`commentRows()` filters with `el.offsetParent === null` so any
+`.cmcont` inside a `display: none` ancestor (a collapsed thread, a
+hidden tab) is excluded. Without this, `j` from a comment
+immediately before a hidden one would target the hidden comment,
+the scroll would no-op, and the next press would pick it again —
+classic "stuck" behaviour.
 
 ### Logging
 

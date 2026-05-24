@@ -11,9 +11,9 @@ already have, so they don't have to learn a different set per site.
 
 Existing references in the repo (read whichever is closest in structure to the
 new site before starting):
-- `sites/news.ycombinator.com/better-comment-navigation.user.js` — nested
+- `sites/news.ycombinator.com/keyboard-comment-navigation.user.js` — nested
   threads, server-rendered, full key set, rebuilds existing nav links.
-- `sites/pinkbike.com/better-comment-navigation.user.js` — flat threads,
+- `sites/pinkbike.com/keyboard-comment-navigation.user.js` — flat threads,
   server-rendered, minimal key set.
 - `sites/nytimes.com/keyboard-comment-navigation.user.js` — flat threads in a
   fixed side-panel drawer with its own scroll container and a sticky header
