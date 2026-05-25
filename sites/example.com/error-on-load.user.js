@@ -16,12 +16,12 @@
 // ==/UserScript==
 
 (function () {
-    'use strict';
+  'use strict';
 
-    const TAG = '[error load]';
-    console.log(TAG, 'init');
+  const TAG = '[error load]';
+  console.log(TAG, 'init');
 
-    jshuteAddInstalledScript('error-on-load.user.js', 'throws during init');
+  jshuteAddInstalledScript('error-on-load.user.js', 'throws during init');
 
-    throw new Error('error-on-load: intentional failure during init');
+  throw new Error('error-on-load: intentional failure during init');
 })();

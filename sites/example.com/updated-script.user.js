@@ -16,18 +16,18 @@
 // ==/UserScript==
 
 (function () {
-    'use strict';
+  'use strict';
 
-    // Edit this and reload the page. If the bullet under "Installed
-    // userscripts" updates to match, the new script body is being
-    // picked up. If it doesn't, the install is stale (raw install
-    // instead of pointer install, or browser cache, etc.).
-    const VERSION_LABEL = 'version 10';
+  // Edit this and reload the page. If the bullet under "Installed
+  // userscripts" updates to match, the new script body is being
+  // picked up. If it doesn't, the install is stale (raw install
+  // instead of pointer install, or browser cache, etc.).
+  const VERSION_LABEL = 'version 10';
 
-    const TAG = '[updated]';
-    console.log(TAG, 'init —', VERSION_LABEL);
+  const TAG = '[updated]';
+  console.log(TAG, 'init —', VERSION_LABEL);
 
-    jshuteAddInstalledScript('updated-script.user.js', `change-detection probe — ${VERSION_LABEL}`);
+  jshuteAddInstalledScript('updated-script.user.js', `change-detection probe — ${VERSION_LABEL}`);
 
-    console.log(TAG, 'ready');
+  console.log(TAG, 'ready');
 })();

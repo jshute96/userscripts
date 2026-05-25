@@ -9,20 +9,20 @@
 const { defineConfig } = require('@playwright/test');
 
 module.exports = defineConfig({
-    // Each site's userscript has its tests next to the script.
-    testMatch: 'sites/**/*.spec.js',
+  // Each site's userscript has its tests next to the script.
+  testMatch: 'sites/**/*.spec.js',
 
-    // We share a single browser context (the user's logged-in profile)
-    // across all tests, so parallel workers would step on each other.
-    fullyParallel: false,
-    workers: 1,
+  // We share a single browser context (the user's logged-in profile)
+  // across all tests, so parallel workers would step on each other.
+  fullyParallel: false,
+  workers: 1,
 
-    use: {
-        // Generous timeouts; SPA renders can be slow on cold start.
-        actionTimeout: 10000,
-        navigationTimeout: 30000,
-    },
+  use: {
+    // Generous timeouts; SPA renders can be slow on cold start.
+    actionTimeout: 10000,
+    navigationTimeout: 30000,
+  },
 
-    reporter: [['list']],
-    timeout: 60000,
+  reporter: [['list']],
+  timeout: 60000,
 });

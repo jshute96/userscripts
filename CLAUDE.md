@@ -246,6 +246,8 @@ if it's missing; it makes the next break diagnose itself.
 
 ## Tips
 
+* Use two-space indents.
+
 * When writing userscripts, add `console.log` logging to give more debugging visibility.
   - Use a short `[name]` prefix, two words at most.
   - Log when the script initializes.

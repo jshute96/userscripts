@@ -23,38 +23,38 @@ const JSHUTE_INSTALLED_HEADING_ID = 'jshute-installed-userscripts-heading';
 const JSHUTE_INSTALLED_LIST_ID = 'jshute-installed-userscripts-list';
 
 function jshuteCode(text) {
-    const el = document.createElement('code');
-    el.textContent = text;
-    return el;
+  const el = document.createElement('code');
+  el.textContent = text;
+  return el;
 }
 
 function jshuteAddInstalledScript(filename, ...descriptionParts) {
-    let list = document.getElementById(JSHUTE_INSTALLED_LIST_ID);
-    if (!list) {
-        const heading = document.createElement('h2');
-        heading.id = JSHUTE_INSTALLED_HEADING_ID;
-        heading.textContent = 'Installed userscripts';
-        document.body.appendChild(heading);
+  let list = document.getElementById(JSHUTE_INSTALLED_LIST_ID);
+  if (!list) {
+    const heading = document.createElement('h2');
+    heading.id = JSHUTE_INSTALLED_HEADING_ID;
+    heading.textContent = 'Installed userscripts';
+    document.body.appendChild(heading);
 
-        list = document.createElement('ul');
-        list.id = JSHUTE_INSTALLED_LIST_ID;
-        document.body.appendChild(list);
-    }
+    list = document.createElement('ul');
+    list.id = JSHUTE_INSTALLED_LIST_ID;
+    document.body.appendChild(list);
+  }
 
-    const item = document.createElement('li');
-    item.appendChild(jshuteCode(filename));
-    item.appendChild(document.createTextNode(': '));
-    for (const part of descriptionParts) {
-        item.appendChild(part instanceof Node ? part : document.createTextNode(String(part)));
-    }
-    list.appendChild(item);
+  const item = document.createElement('li');
+  item.appendChild(jshuteCode(filename));
+  item.appendChild(document.createTextNode(': '));
+  for (const part of descriptionParts) {
+    item.appendChild(part instanceof Node ? part : document.createTextNode(String(part)));
+  }
+  list.appendChild(item);
 }
 
 function jshuteAppendAboveInstalledList(node) {
-    const heading = document.getElementById(JSHUTE_INSTALLED_HEADING_ID);
-    if (heading) {
-        document.body.insertBefore(node, heading);
-    } else {
-        document.body.appendChild(node);
-    }
+  const heading = document.getElementById(JSHUTE_INSTALLED_HEADING_ID);
+  if (heading) {
+    document.body.insertBefore(node, heading);
+  } else {
+    document.body.appendChild(node);
+  }
 }

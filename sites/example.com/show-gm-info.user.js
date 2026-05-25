@@ -16,49 +16,49 @@
 // ==/UserScript==
 
 (function () {
-    'use strict';
+  'use strict';
 
-    const TAG = '[gm info]';
-    const BUTTON_ID = 'jshute-show-gm-info-button';
-    const OUTPUT_ID = 'jshute-show-gm-info-output';
+  const TAG = '[gm info]';
+  const BUTTON_ID = 'jshute-show-gm-info-button';
+  const OUTPUT_ID = 'jshute-show-gm-info-output';
 
-    console.log(TAG, 'init');
+  console.log(TAG, 'init');
 
-    if (document.getElementById(BUTTON_ID)) {
-        console.log(TAG, 'button already present, skipping');
-        return;
+  if (document.getElementById(BUTTON_ID)) {
+    console.log(TAG, 'button already present, skipping');
+    return;
+  }
+
+  const button = document.createElement('button');
+  button.id = BUTTON_ID;
+  button.type = 'button';
+  button.textContent = 'Show GM_info';
+  button.addEventListener('click', () => {
+    const li = button.closest('li');
+    if (!li) {
+      console.log(TAG, 'no enclosing <li>, cannot render output');
+      return;
     }
+    const existing = document.getElementById(OUTPUT_ID);
+    if (existing) {
+      existing.remove();
+      console.log(TAG, 'output hidden');
+      return;
+    }
+    const pre = document.createElement('pre');
+    pre.id = OUTPUT_ID;
+    pre.style.marginLeft = '2em';
+    pre.style.whiteSpace = 'pre-wrap';
+    pre.style.wordBreak = 'break-word';
+    pre.textContent = JSON.stringify(GM_info, null, 2);
+    li.appendChild(pre);
+    console.log(TAG, 'output shown');
+  });
 
-    const button = document.createElement('button');
-    button.id = BUTTON_ID;
-    button.type = 'button';
-    button.textContent = 'Show GM_info';
-    button.addEventListener('click', () => {
-        const li = button.closest('li');
-        if (!li) {
-            console.log(TAG, 'no enclosing <li>, cannot render output');
-            return;
-        }
-        const existing = document.getElementById(OUTPUT_ID);
-        if (existing) {
-            existing.remove();
-            console.log(TAG, 'output hidden');
-            return;
-        }
-        const pre = document.createElement('pre');
-        pre.id = OUTPUT_ID;
-        pre.style.marginLeft = '2em';
-        pre.style.whiteSpace = 'pre-wrap';
-        pre.style.wordBreak = 'break-word';
-        pre.textContent = JSON.stringify(GM_info, null, 2);
-        li.appendChild(pre);
-        console.log(TAG, 'output shown');
-    });
+  jshuteAddInstalledScript(
+    'show-gm-info.user.js',
+    'adds ', button, ' button',
+  );
 
-    jshuteAddInstalledScript(
-        'show-gm-info.user.js',
-        'adds ', button, ' button',
-    );
-
-    console.log(TAG, 'ready');
+  console.log(TAG, 'ready');
 })();

@@ -16,31 +16,31 @@
 // ==/UserScript==
 
 (function () {
-    'use strict';
+  'use strict';
 
-    const TAG = '[error button]';
-    const BUTTON_ID = 'jshute-error-button';
+  const TAG = '[error button]';
+  const BUTTON_ID = 'jshute-error-button';
 
-    console.log(TAG, 'init');
+  console.log(TAG, 'init');
 
-    if (document.getElementById(BUTTON_ID)) {
-        console.log(TAG, 'button already present, skipping');
-        return;
-    }
+  if (document.getElementById(BUTTON_ID)) {
+    console.log(TAG, 'button already present, skipping');
+    return;
+  }
 
-    const button = document.createElement('button');
-    button.id = BUTTON_ID;
-    button.type = 'button';
-    button.textContent = 'Error';
-    button.addEventListener('click', () => {
-        console.log(TAG, 'clicked — about to throw');
-        throw new Error('error-button: intentional failure on click');
-    });
+  const button = document.createElement('button');
+  button.id = BUTTON_ID;
+  button.type = 'button';
+  button.textContent = 'Error';
+  button.addEventListener('click', () => {
+    console.log(TAG, 'clicked — about to throw');
+    throw new Error('error-button: intentional failure on click');
+  });
 
-    jshuteAddInstalledScript(
-        'error-button.user.js',
-        'adds ', button, ' button that throws when clicked',
-    );
+  jshuteAddInstalledScript(
+    'error-button.user.js',
+    'adds ', button, ' button that throws when clicked',
+  );
 
-    console.log(TAG, 'ready');
+  console.log(TAG, 'ready');
 })();
