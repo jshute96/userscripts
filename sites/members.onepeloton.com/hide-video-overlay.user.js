@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Peloton Player: Hide cinematic-vignette video overlay
 // @namespace    https://github.com/jshute96/userscripts
-// @version      2.0.0
-// @description  Remove Peloton's cf_video_overlay_with_timeline.png — a 1920×1080 vignette PNG that gets painted onto the player at natural size. On any player taller than 1080 pixels, it leaves a visible horizontal seam where the PNG ends.
+// @version      2.0.1
+// @description  Fix a bug in Peloton's video player where, on large high-res monitors, a fixed-size overlay is painted on top of the video and creates an ugly horizontal seam across it.
 // @author       Jeff Shute <jshute@gmail.com>
 // @match        https://members.onepeloton.com/*
 // @grant        none

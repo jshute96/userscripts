@@ -2,11 +2,16 @@
 
 ## Summary
 
-Removes Peloton's `cf_video_overlay_with_timeline.png`, a fixed-size
-vignette image painted on top of the class video. The PNG is
-1920×1080 and is applied at its natural size; on any player that
-isn't exactly 1920×1080 a hard-edged horizontal seam is visible
-where the PNG ends.
+Fixes a bug in Peloton's video player where, on large
+high-res monitors, a fixed-size overlay is painted on top of the
+video and creates an ugly horizontal seam across it.
+
+The overlay is `cf_video_overlay_with_timeline.<hash>.png` ([example](https://members.onepeloton.com/_next/static/media/cf_video_overlay_with_timeline.6c8a2f88.png)),
+a 1920×1080 cinematic-vignette image applied at its natural size. On any
+player taller than 1080 pixels (common on tall or 4K monitors),
+the PNG only covers the top 1080 px and its dark perimeter leaves
+a hard-edged horizontal seam where the image ends. We remove the
+overlay so the video renders edge-to-edge at full brightness.
 
 ## Visible changes
 
