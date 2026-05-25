@@ -27,15 +27,18 @@ npx playwright install chromium
 To run tests:
 
 ```
-# terminal 1: launch the browser, log in to test sites, leave running
-scripts/open-browser.sh https://feedly.com
+# Open the browser the tests use, with a persistent session.
+# You may need to log in to sites the tests need to access.
+scripts/open-browser.sh
 
-# terminal 2:
 npm test                                                  # all tests
 npx playwright test sites/feedly.com                      # one site's tests
 npx playwright test sites/feedly.com/sort-filter-presets.spec.js  # one file
 npx playwright test -g "Newest preset"                    # by test name
 ```
+
+`npm test`'s pretest hook launches the browser if it isn't already running on CDP 9233; subsequent runs reuse it. 
+The direct `npx playwright test …` invocations skip the pretest hook, so launch the browser yourself for those.
 
 See `CLAUDE.md`'s "Testing" section for why we don't let Playwright
 launch the browser itself, and `test/fixtures.js` for the shared

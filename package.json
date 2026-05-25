@@ -3,6 +3,7 @@
   "private": true,
   "description": "Personal userscripts collection with a Playwright-based test harness.",
   "scripts": {
+    "pretest": "node scripts/test-preflight.mjs",
     "test": "playwright test",
     "open-browser": "scripts/open-browser.sh"
   },
