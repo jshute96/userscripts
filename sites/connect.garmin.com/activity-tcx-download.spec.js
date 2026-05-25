@@ -1,8 +1,8 @@
 // Tests for activity-tcx-download.user.js.
 //
-// Needs a Garmin Connect login in the persistent profile. The default
-// activity ID below is the one the script was developed against; override
-// via the GARMIN_ACTIVITY_ID env var to test against your own.
+// Needs a Garmin Connect login in the persistent profile. The tests
+// pick whichever activity appears first on /app/activities — no need to
+// hardcode an ID. Override via GARMIN_ACTIVITY_ID for ad-hoc runs.
 //
 //     scripts/open-browser.sh https://connect.garmin.com/app/home
 //     npm test
@@ -11,9 +11,30 @@ const path = require('path');
 const { test, expect } = require('../../test/fixtures');
 
 const SCRIPT_PATH = path.join(__dirname, 'activity-tcx-download.user.js');
-const ACTIVITY_ID = process.env.GARMIN_ACTIVITY_ID || '22814530018';
-const ACTIVITY_URL = `https://connect.garmin.com/app/activity/${ACTIVITY_ID}`;
 const BUTTON_ID = 'jshute-garmin-tcx-download-btn';
+
+// Cache the discovered activity id across tests in this worker so we
+// only visit /app/activities once.
+let cachedActivityId = null;
+async function getActivityId(page) {
+    if (cachedActivityId) return cachedActivityId;
+    if (process.env.GARMIN_ACTIVITY_ID) {
+        cachedActivityId = process.env.GARMIN_ACTIVITY_ID;
+        return cachedActivityId;
+    }
+    await page.goto('https://connect.garmin.com/app/activities');
+    const href = await page.locator('a[href*="/app/activity/"]').first()
+        .getAttribute('href', { timeout: 30000 });
+    const m = href && href.match(/\/app\/activity\/(\d+)/);
+    if (!m) {
+        throw new Error(
+            `Couldn't find an activity link on /app/activities (href=${href}). ` +
+            `Are you logged in to Garmin Connect in the persistent profile?`
+        );
+    }
+    cachedActivityId = m[1];
+    return cachedActivityId;
+}
 
 test.describe('Garmin Connect: TCX download button on activity page', () => {
     test.beforeEach(async ({ loadUserscript }) => {
@@ -21,7 +42,8 @@ test.describe('Garmin Connect: TCX download button on activity page', () => {
     });
 
     test('inserts a download button to the right of the gear ("More…") icon', async ({ page }) => {
-        await page.goto(ACTIVITY_URL);
+        const activityId = await getActivityId(page);
+        await page.goto(`https://connect.garmin.com/app/activity/${activityId}`);
         const btn = page.locator('#' + BUTTON_ID);
         await expect(btn).toBeVisible({ timeout: 15000 });
 
@@ -39,7 +61,8 @@ test.describe('Garmin Connect: TCX download button on activity page', () => {
     });
 
     test('click triggers a TCX download for the activity', async ({ page }) => {
-        await page.goto(ACTIVITY_URL);
+        const activityId = await getActivityId(page);
+        await page.goto(`https://connect.garmin.com/app/activity/${activityId}`);
         const btn = page.locator('#' + BUTTON_ID);
         await expect(btn).toBeVisible({ timeout: 15000 });
 
@@ -47,6 +70,6 @@ test.describe('Garmin Connect: TCX download button on activity page', () => {
         await btn.click();
         const download = await downloadPromise;
         // Garmin names the file activity_<id>.tcx
-        expect(download.suggestedFilename()).toBe(`activity_${ACTIVITY_ID}.tcx`);
+        expect(download.suggestedFilename()).toBe(`activity_${activityId}.tcx`);
     });
 });

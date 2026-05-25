@@ -10,18 +10,36 @@
 //
 //     npm test
 //
-// You can override the feed under test with the FEEDLY_FEED_URL env
-// var; otherwise we use a public-ish feed the user is subscribed to.
+// The tests pick whichever feed appears first on /i/feedIndex — no
+// need to hardcode a subscription URL. Override via FEEDLY_FEED_URL
+// for ad-hoc runs.
 
 const path = require('path');
 const { test, expect } = require('../../test/fixtures');
 
 const SCRIPT_PATH = path.join(__dirname, 'sort-filter-presets.user.js');
 
-// A subscription/feed page in the user's Feedly. Override via env var
-// for ad-hoc testing of a different feed.
-const FEED_URL = process.env.FEEDLY_FEED_URL
-    || 'https://feedly.com/i/subscription/content/feed%2Fhttps%3A%2F%2Fgarbageday.substack.com%2Ffeed%2F';
+// Cache the discovered feed URL across tests in this worker so we
+// only visit /i/feedIndex once.
+let cachedFeedUrl = null;
+async function getFeedUrl(page) {
+    if (cachedFeedUrl) return cachedFeedUrl;
+    if (process.env.FEEDLY_FEED_URL) {
+        cachedFeedUrl = process.env.FEEDLY_FEED_URL;
+        return cachedFeedUrl;
+    }
+    await page.goto('https://feedly.com/i/feedIndex');
+    const href = await page.locator('a[href*="/i/subscription/content/feed"]').first()
+        .getAttribute('href', { timeout: 30000 });
+    if (!href) {
+        throw new Error(
+            "Couldn't find a subscription/feed link on /i/feedIndex. " +
+            "Are you logged in to Feedly in the persistent profile?"
+        );
+    }
+    cachedFeedUrl = new URL(href, 'https://feedly.com').href;
+    return cachedFeedUrl;
+}
 
 // Open the three-dots menu and read back the current Sort by / Filter
 // by summary text from the main menu — the <p> sibling of each label
@@ -71,7 +89,7 @@ test.describe('feedly sort/filter presets', () => {
     });
 
     test('injects Oldest and Newest buttons in the header toolbar', async ({ page }) => {
-        await page.goto(FEED_URL);
+        await page.goto(await getFeedUrl(page));
         // The header has to render before our MutationObserver finds it.
         await expect(page.locator('.FeedPage header')).toBeVisible();
         const oldest = page.locator('button[data-jshute-preset="oldest"]');
@@ -83,7 +101,7 @@ test.describe('feedly sort/filter presets', () => {
     });
 
     test('Newest preset sets Sort=Newest, Filter=0 enabled', async ({ page }) => {
-        await page.goto(FEED_URL);
+        await page.goto(await getFeedUrl(page));
         await clickPresetAndWait(page, 'newest');
         const state = await readMenuState(page);
         expect(state.sort).toBe('Newest');
@@ -91,7 +109,7 @@ test.describe('feedly sort/filter presets', () => {
     });
 
     test('Oldest preset sets Sort=Oldest, Filter≥1 enabled', async ({ page }) => {
-        await page.goto(FEED_URL);
+        await page.goto(await getFeedUrl(page));
         await clickPresetAndWait(page, 'oldest');
         const state = await readMenuState(page);
         expect(state.sort).toBe('Oldest');
