@@ -450,9 +450,13 @@ look up the tree.
 Each userscript has a sibling `.md` with three sections: `Summary`,
 `Visible changes`, `Implementation`.
 
-* **Summary**: one or two sentences. Brief and scannable. Example:
-  "Improve navigation on Hacker News comments pages by adding keyboard
-  navigation and additional navigation links."
+* **Summary**:
+  - First paragraph: One or two sentences. A brief and scannable description
+    of the user-facing behavior (not implementation details). Example:
+    "Improve navigation on Hacker News comments pages by adding keyboard
+    navigation and additional navigation links."
+  - Second paragraph (if helpful): Short high-level description of what it
+    changes or how it works.
 * **Visible changes**: a short bulleted list of user-visible behaviour
   changes. Brief — readers should be able to scan it. Group related
   points; don't over-explain.
