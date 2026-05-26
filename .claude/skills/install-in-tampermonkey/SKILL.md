@@ -1,5 +1,5 @@
 ---
-name: userscript
+name: install-in-tampermonkey
 description: Interact with the Tampermonkey chrome extension for installing or editing usersripts.
 ---
 

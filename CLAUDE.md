@@ -44,7 +44,7 @@ written down before, that's the bar for recording it.
   - **`references/header-reference.md`**, **`sandbox-modes.md`**,
     **`browser-compatibility.md`** — load on demand when the question
     is specifically about that area.
-* `userscript` is my skill with my tools and conventions, how to install them, etc
+* `install-in-tampermonkey` is my skill commands to install scripts in TamperMonkey
 
 ## Git workflow
 
@@ -74,8 +74,8 @@ maybe HTML), follow this flow:
    the `loadUserscript` fixture does, confirm the button appears,
    click it, watch logs and effects. If you get stuck, stop and
    report exactly where — don't guess.
-5. **Suggest install** via the `userscript` skill's `install-pointer`
-   action, so the user can iterate by reloading.
+5. **Suggest install** via the `install-in-tampermonkey` skill's
+   `install-pointer` action, so the user can iterate by reloading.
 6. **Write a Playwright spec** (`<name>.spec.js`) once the user
    confirms it works in their normal browser. The spec is for
    reproducible regression — write it after the human-confirmed pass,
@@ -271,7 +271,7 @@ if it's missing; it makes the next break diagnose itself.
 * To get scripts to update from github, increment the `@version` (in the last number field) before final commit and push.
 
 * After creating the first version of a userscript, suggest the user install it.
-  Use the `userscript` skill, and do `install-pointer` action for this script.
+  Use the `install-in-tampermonkey` skill, and do `install-pointer` action for this script.
   Then the user can get incremental updates just by doing Reload in the browser.
 
 * NOTE: If the header changes (`@match` rules, permissions, etc), the userscript needs to be reinstalled.
