@@ -7,8 +7,6 @@
 // @match        https://techcrunch.com/*
 // @grant        none
 // @run-at       document-idle
-// @updateURL    https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/techcrunch.com/close-newsletter-popup.user.js
-// @downloadURL  https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/techcrunch.com/close-newsletter-popup.user.js
 // ==/UserScript==
 
 (function () {

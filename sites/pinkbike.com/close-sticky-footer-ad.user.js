@@ -7,8 +7,6 @@
 // @match        https://www.pinkbike.com/*
 // @grant        none
 // @run-at       document-idle
-// @updateURL    https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/pinkbike.com/close-sticky-footer-ad.user.js
-// @downloadURL  https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/pinkbike.com/close-sticky-footer-ad.user.js
 // ==/UserScript==
 
 (function () {

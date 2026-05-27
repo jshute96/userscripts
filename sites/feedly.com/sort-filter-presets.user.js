@@ -8,8 +8,6 @@
 // @grant        none
 // @noframes
 // @run-at       document-idle
-// @updateURL    https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/feedly.com/sort-filter-presets.user.js
-// @downloadURL  https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/feedly.com/sort-filter-presets.user.js
 // ==/UserScript==
 
 (function () {

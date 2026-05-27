@@ -260,12 +260,6 @@ if it's missing; it makes the next break diagnose itself.
     so a permanent break is distinguishable from "still loading."
     Otherwise a renamed selector looks identical to a slow SPA.
 
-* To make a script updatable, include update URLs in the header pointing at the corresponding path in github, like:
-```
-// @updateURL    https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/example.com/script.user.js
-// @downloadURL  https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/example.com/script.user.js
-```
-
 * During development, if the userscript is installed as a pointer-to-local-file, the user just needs to click Reload in the browser to get updates.
 
 * To get scripts to update from github, increment the `@version` (in the last number field) before final commit and push.

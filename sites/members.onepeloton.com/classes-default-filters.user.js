@@ -13,8 +13,6 @@
 // @grant        window.onurlchange
 // @run-at       document-idle
 // @noframes
-// @updateURL    https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/members.onepeloton.com/classes-default-filters.user.js
-// @downloadURL  https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/members.onepeloton.com/classes-default-filters.user.js
 // ==/UserScript==
 
 (function () {

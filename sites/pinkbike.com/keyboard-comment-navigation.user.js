@@ -8,8 +8,6 @@
 // @grant        none
 // @run-at       document-idle
 // @noframes
-// @updateURL    https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/pinkbike.com/keyboard-comment-navigation.user.js
-// @downloadURL  https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/pinkbike.com/keyboard-comment-navigation.user.js
 // ==/UserScript==
 
 (function () {

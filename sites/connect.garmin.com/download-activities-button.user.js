@@ -8,8 +8,6 @@
 // @grant        GM_openInTab
 // @noframes
 // @run-at       document-idle
-// @updateURL    https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/connect.garmin.com/download-activities-button.user.js
-// @downloadURL  https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/connect.garmin.com/download-activities-button.user.js
 // ==/UserScript==
 
 (function () {

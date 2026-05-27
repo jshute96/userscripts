@@ -11,8 +11,6 @@
 // @noframes
 // @icon         example-icon.png
 // @require      installed-list.js
-// @updateURL    https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/example.com/show-gm-info.user.js
-// @downloadURL  https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/example.com/show-gm-info.user.js
 // ==/UserScript==
 
 (function () {

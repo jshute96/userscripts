@@ -9,8 +9,6 @@
 // @grant        GM_xmlhttpRequest
 // @connect      api.dictionaryapi.dev
 // @run-at       document-idle
-// @updateURL    https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/nytimes.com/spelling-bee.user.js
-// @downloadURL  https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/nytimes.com/spelling-bee.user.js
 // ==/UserScript==
 
 (function () {

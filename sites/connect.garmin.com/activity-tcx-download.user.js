@@ -8,8 +8,6 @@
 // @grant        none
 // @noframes
 // @run-at       document-idle
-// @updateURL    https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/connect.garmin.com/activity-tcx-download.user.js
-// @downloadURL  https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/connect.garmin.com/activity-tcx-download.user.js
 // ==/UserScript==
 
 (function () {

@@ -7,8 +7,6 @@
 // @match        https://www.cnrfc.noaa.gov/ol.php?type=precip*
 // @grant        none
 // @run-at       document-idle
-// @updateURL    https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/cnrfc.noaa.gov/precip-default-view.user.js
-// @downloadURL  https://github.com/jshute96/userscripts/raw/refs/heads/main/sites/cnrfc.noaa.gov/precip-default-view.user.js
 // ==/UserScript==
 
 (function () {
