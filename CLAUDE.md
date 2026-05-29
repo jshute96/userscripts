@@ -44,7 +44,10 @@ written down before, that's the bar for recording it.
   - **`references/header-reference.md`**, **`sandbox-modes.md`**,
     **`browser-compatibility.md`** — load on demand when the question
     is specifically about that area.
-* `install-in-tampermonkey` is my skill commands to install scripts in TamperMonkey
+* `install-in-SourceMonkey` is my skill commands to install scripts in SourceMonkey,
+  my preferred userscript manager.
+* `install-in-tampermonkey` is my skill commands to install scripts in Tampermonkey,
+  an alternative userscript manager.
 
 ## Git workflow
 
@@ -74,7 +77,12 @@ maybe HTML), follow this flow:
    the `loadUserscript` fixture does, confirm the button appears,
    click it, watch logs and effects. If you get stuck, stop and
    report exactly where — don't guess.
-5. **Suggest install** via the `install-in-tampermonkey` skill's
+5. **Suggest install**
+   - If using SourceMonkey (the default), the directory should be installed already.
+     Just run the `install-in-SourceMonkey` skill's `refresh` command.
+     - Also update `./script_manifest.json` to include the relative path to the
+       new script.
+   - If using Tampermonkey, use the `install-in-tampermonkey` skill's
    `install-pointer` action, so the user can iterate by reloading.
 6. **Write a Playwright spec** (`<name>.spec.js`) once the user
    confirms it works in their normal browser. The spec is for
