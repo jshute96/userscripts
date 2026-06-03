@@ -178,6 +178,8 @@ The script will break if any of these change:
    (`https://api.dictionaryapi.dev/api/v2/entries/en/<word>`)
    stays online and free, returns a stable JSON shape, and 404s
    cleanly for unknown words.
+8. The URL match has `spelling-bee*` because sometimes it shows up
+   with `?auth` arguments after the page.
 
 ### What we change
 
