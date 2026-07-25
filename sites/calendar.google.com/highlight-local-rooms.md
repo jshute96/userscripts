@@ -86,6 +86,28 @@ with any location at all was highlighted. Two rules follow:
 - Match only against the visible text leaves, never a container's `textContent`.
 - Skip anything inside `span.XuJrye` or `[aria-hidden="true"]`.
 
+### Why `data-text` is load-bearing
+
+Skipping the hidden label depends on recognising `span.XuJrye` — a build hash
+with the same rotation risk as `iGpjxc`. Simulating that rotation (stripping the
+class from the capture) shows why it needs a backstop: the label stops being
+"ignorable", becomes an ordinary text leaf, and — sorting *before* the address in
+document order — gets picked as the location element. The result is that the
+feature silently does nothing, and a short regex highlights the invisible
+`Location:` label instead. Both failure modes reproduce the original `CA` bug in
+a form you cannot see on screen.
+
+So `getLocationTextEl()` does not simply take the first leaf. It prefers the leaf
+whose normalised text equals `#xDetDlgLoc`'s own `data-text`, falling back to the
+first leaf only when that attribute is missing. With the cross-check in place,
+deleting `XuJrye` from the capture leaves behaviour unchanged: the address still
+highlights, and `/CA/i` still matches nothing.
+
+A more general alternative — identifying visually hidden elements by their
+clipped ~1×1 geometry rather than by class — was considered and rejected for now:
+it cannot be verified against a saved snapshot, because Google's external CSS
+does not load offline, so computed styles there do not reflect the live page.
+
 ### What we assume stays stable
 
 - `div#xDetDlg` is the details card, and `span#rAECCd` (or any `[role="heading"]`
@@ -93,9 +115,12 @@ with any location at all was highlighted. Two rules follow:
 - `div#xDetDlgLoc` is the location field, and the visible address is in a
   text-only leaf element inside it. The script finds that leaf structurally
   (`visibleTextLeaves`) rather than by class, so a hash rotation on `UfeRlc`
-  does not break it. `#xDetDlgLoc[data-text]` also mirrors the raw address and
-  is a useful cross-check when debugging.
-- `span.XuJrye` marks visually hidden label text.
+  does not break it.
+- `#xDetDlgLoc[data-text]` holds the location string verbatim, and is used to
+  pick the right leaf — see "Why `data-text` is load-bearing" below.
+- `span.XuJrye` marks visually hidden label text. This is a build hash, and the
+  one dependency whose failure used to be both silent and harmful; `data-text`
+  is its safety net.
 - Room lists inside a text location carry a capacity marker such as `(16)`,
   which is how `looksLikeRoomList()` tells a room blob from a street address.
 - Each booked room is a single element holding building, room and floor, found
@@ -156,7 +181,9 @@ rooms and no `#xDetDlgLoc` at all, which is the case in this snapshot.
 1. `span.iGpjxc:not(#xDetDlgLoc span)` — current, verified.
 2. Map links — `a[aria-label]` matching `/meeting room/i`, taking the anchor's
    parent, which is the same span. Verified by deleting the `iGpjxc` class from
-   the snapshot and confirming both rooms still highlight.
+   the snapshot and confirming both rooms still highlight. Note `aria-label` is
+   **localised**: this candidate only works on an English Calendar UI, and goes
+   dead (leaving just the warning) in other locales.
 
 `iGpjxc` is a rotating build hash, hence the second candidate. Finding no rooms
 is *not* logged as an error, because most events book none — but if

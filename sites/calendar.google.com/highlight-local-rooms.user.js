@@ -49,7 +49,9 @@
   //
   // Candidates are tried in order. `iGpjxc` is a rotating build hash, so the
   // second entry re-derives the same spans from the map link's aria-label,
-  // which describes purpose rather than styling.
+  // which describes purpose rather than styling. Note that aria-label is
+  // localised: the /meeting room/i test only holds for an English Calendar UI,
+  // and the fallback goes dead (falling back to the warning) in other locales.
   const ROOM_BLOCK_CANDIDATES = [
     {
       name: 'span.iGpjxc room entries',
@@ -298,7 +300,21 @@
     if (existing) return existing.parentElement;
 
     const leaves = visibleTextLeaves(locEl);
-    return leaves.length > 0 ? leaves[0] : null;
+    if (leaves.length === 0) return null;
+
+    // Cross-check against the row's own `data-text`, which holds the location
+    // string verbatim. This is the safety net for `span.XuJrye` rotating: that
+    // class is how we recognise the hidden "Location:" label, and without it
+    // the label becomes an ordinary text leaf that sorts *before* the address
+    // and would be picked instead — silently killing the feature, and matching
+    // "Lo(ca)tion" all over again. Falling back to the first leaf keeps the
+    // previous behaviour when `data-text` is absent.
+    const wanted = (locEl.dataset.text || '').replace(/\s+/g, ' ').trim();
+    if (wanted) {
+      const exact = leaves.find((el) => matchableText(el) === wanted);
+      if (exact) return exact;
+    }
+    return leaves[0];
   }
 
   function resetLocationFormatting(dialog) {
