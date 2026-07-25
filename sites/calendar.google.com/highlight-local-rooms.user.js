@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         calendar.google.com: highlight local rooms
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.7.1
+// @version      1.7.2
 // @description  Highlight meeting locations matching a configurable regex, to make it easy to find the local room in a long room list. Where room lists are shown as comma-separated text blobs, reformat them one per line.
 // @author       Jeff Shute <jshute@gmail.com>
 // @match        https://calendar.google.com/calendar/*
@@ -27,6 +27,7 @@
 
   const DIALOG_ID = 'xDetDlg';
   const LOC_ID = 'xDetDlgLoc';
+  const ROOM_ID = 'xDetDlgRoom';
 
   // Text we must never match against or highlight. `span.XuJrye` is Calendar's
   // visually-hidden accessibility label; inside the location row it reads
@@ -35,11 +36,32 @@
   // had any location at all. `[aria-hidden="true"]` covers the icon wrappers.
   const IGNORED_TEXT_SELECTOR = 'span.XuJrye, [aria-hidden="true"]';
 
-  // Room resource rows: the previously used `span.iGpjxc` has already rotated
-  // away, so it is only a legacy candidate. Absence of rooms is the normal case
-  // for most events, so a miss here is not an error.
+  // Each booked room is one `span.iGpjxc`, wrapping the building name plus a
+  // map link holding the room name and floor ("AAA-BBB-BLDG1 Aspen 3-C").
+  // That whole span is the unit we match and highlight; its sibling
+  // `div[role="tooltip"]` repeats the room name and must stay out of the text.
+  //
+  // Rooms are spread across several `div.nBzcnc.OcVpRe` rows and only the first
+  // carries `#xDetDlgRoom`, so the search is dialog-wide with the location
+  // field excluded — scoping to `#xDetDlgRoom` silently drops every room after
+  // the first. (`OcVpRe` is not room-specific either; the location row in an
+  // event with no rooms also has it.)
+  //
+  // Candidates are tried in order. `iGpjxc` is a rotating build hash, so the
+  // second entry re-derives the same spans from the map link's aria-label,
+  // which describes purpose rather than styling.
   const ROOM_BLOCK_CANDIDATES = [
-    { name: 'legacy iGpjxc class', find: (d) => d.querySelectorAll(`span.iGpjxc:not(#${LOC_ID} span)`) },
+    {
+      name: 'span.iGpjxc room entries',
+      find: (d) => d.querySelectorAll(`span.iGpjxc:not(#${LOC_ID} span)`),
+    },
+    {
+      name: 'room map links (aria-label)',
+      find: (d) => Array.from(d.querySelectorAll(`a[aria-label]:not(#${LOC_ID} a)`))
+        .filter((a) => /meeting room/i.test(a.getAttribute('aria-label')))
+        .map((a) => a.parentElement)
+        .filter((el) => el !== null),
+    },
   ];
 
   console.log(TAG, 'init');
@@ -177,6 +199,13 @@
     return el.getBoundingClientRect().height > 0;
   }
 
+  // Text to run the regex against. Room entries join their parts with
+  // non-breaking spaces, so a pattern typed with an ordinary space
+  // ("BLDG1 Aspen") would not match the raw textContent.
+  function matchableText(el) {
+    return (el.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+
   // The leaf elements actually holding visible text, skipping hidden a11y
   // labels and icon wrappers. Matching these rather than a container's
   // textContent is what keeps hidden label text out of the regex.
@@ -232,12 +261,26 @@
     return [];
   }
 
+  let missingRoomsLogged = false;
+
   function highlightRoomResources(dialog) {
-    // Most events have no room resources at all, so finding none is normal and
-    // is not reported as a failure. The location field is handled separately.
-    for (const textBlock of findRoomTextBlocks(dialog)) {
-      const text = textBlock.textContent || '';
-      setHighlight(textBlock, targetRoomRegex.test(text), 'room');
+    const textBlocks = findRoomTextBlocks(dialog);
+
+    if (textBlocks.length === 0) {
+      // Most events book no rooms, so finding none is normal. But if the rooms
+      // row itself is present, rooms exist and every candidate selector failed
+      // — that is a real break worth saying out loud, once.
+      const roomRow = dialog.querySelector(`#${ROOM_ID}`);
+      if (roomRow && roomRow.textContent.trim() && !missingRoomsLogged) {
+        missingRoomsLogged = true;
+        console.warn(TAG, `#${ROOM_ID} is present but no room entries matched any known selector — selectors have changed`);
+      }
+      return;
+    }
+    missingRoomsLogged = false;
+
+    for (const textBlock of textBlocks) {
+      setHighlight(textBlock, targetRoomRegex.test(matchableText(textBlock)), 'room');
     }
   }
 
@@ -281,7 +324,7 @@
     const existingLines = targetEl.querySelectorAll(`[${ROOM_LINE_ATTR}] > span`);
     if (existingLines.length > 0) {
       for (const roomLine of existingLines) {
-        setHighlight(roomLine, targetRoomRegex.test(roomLine.textContent), 'location line');
+        setHighlight(roomLine, targetRoomRegex.test(matchableText(roomLine)), 'location line');
       }
       return;
     }
@@ -290,7 +333,7 @@
     if (!rawText) return;
 
     if (!looksLikeRoomList(rawText)) {
-      setHighlight(targetEl, targetRoomRegex.test(rawText), 'location');
+      setHighlight(targetEl, targetRoomRegex.test(matchableText(targetEl)), 'location');
       return;
     }
 
@@ -313,7 +356,7 @@
       roomLine.textContent = room;
       roomLine.style.display = 'inline-block';
       roomLine.style.cursor = 'pointer';
-      if (targetRoomRegex.test(room)) {
+      if (targetRoomRegex.test(room.replace(/\s+/g, ' '))) {
         roomLine.classList.add(HIGHLIGHT_CLASS);
         keepHighlighted.add(roomLine);
         highlighted++;

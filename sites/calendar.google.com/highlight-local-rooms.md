@@ -11,8 +11,9 @@ splits it into one room per line before highlighting.
 
 ## Visible changes
 
-- Locations matching the configured regex get a soft yellow background, slightly
-  darker on hover.
+- Booked meeting rooms and locations matching the configured regex get a soft
+  yellow background, slightly darker on hover. A room is matched on its full
+  "building room floor" text, e.g. `AAA-BBB-BLDG1 Aspen 3-C`.
 - A location field holding a comma-separated room list is reformatted to one
   room per line. The split ignores commas inside bracketed detail lists, e.g.
   `[Video Conf, Not Wheelchair Accessible]`, and only matching lines are
@@ -97,20 +98,70 @@ with any location at all was highlighted. Two rules follow:
 - `span.XuJrye` marks visually hidden label text.
 - Room lists inside a text location carry a capacity marker such as `(16)`,
   which is how `looksLikeRoomList()` tells a room blob from a street address.
+- Each booked room is a single element holding building, room and floor, found
+  via `span.iGpjxc` or via the `/meeting room/i` map-link `aria-label`, and the
+  room name is repeated in an `aria-hidden` tooltip sibling that must be
+  excluded.
+- `#xDetDlgRoom` marks the first room row, and is used only to tell "this event
+  has no rooms" apart from "the room selectors broke".
 
-### Known gap: room resource rows
+### Room resource rows
 
-`highlightRoomResources()` previously found room resource blocks via
-`span.iGpjxc`. **That class no longer exists anywhere in the page** — confirmed
-by the snapshot (0 occurrences), so this feature is currently inert. The
-`meeting_room` Material ligature the old code's comment referred to is also
-absent; detail-row icons are inline SVG.
+Verified against a second snapshot, of an event with two rooms booked. Each
+booked room renders as:
 
-The selector lives in `ROOM_BLOCK_CANDIDATES`, a list tried in order, with the
-dead class kept as the only (legacy) entry. To fix it properly we need a
-snapshot of an event that actually *has* booked room resources, to see which row
-id and text element they render into. Finding no room blocks is not logged as an
-error, because most events legitimately have none.
+```html
+<div class="nBzcnc OcVpRe">                      <!-- one row per room -->
+  <div aria-hidden="true">…inline svg building icon…</div>
+  <div class="toUqff" id="xDetDlgRoom">          <!-- FIRST room row only -->
+    … <div class="UfeRlc">
+        <span data-is-tooltip-wrapper="true">
+          <span class="iGpjxc">                  <!-- the room entry -->
+            <span class="muGyXc">AAA-BBB-BLDG1</span>       <!-- building -->
+            <a class="…a1YAZe…" href="https://…/?q=…"
+               aria-label="Link to the meeting room Aspen in building AAA-BBB-BLDG1 on a map">
+              <span>Aspen</span><span>3-C</span>            <!-- room, floor -->
+            </a>
+          </span>
+          <div role="tooltip" aria-hidden="true">Aspen</div>
+        </span>
+      </div>
+      <div class="AzuXid"><i …>people</i>10</div>  <!-- capacity, separate -->
+  </div>
+</div>
+```
+
+Three things drive the implementation:
+
+- **`span.iGpjxc` is the unit to match and highlight.** Its text is
+  `"AAA-BBB-BLDG1 Aspen 3-C"`. Its *sibling* `div[role="tooltip"]` repeats the
+  room name, so matching any higher container would double-count it.
+- **Rooms span several `div.nBzcnc.OcVpRe` rows, and only the first carries
+  `#xDetDlgRoom`.** Scoping the search to `#xDetDlgRoom` silently drops every
+  room after the first — we hit exactly that bug while writing this. The search
+  is therefore dialog-wide, excluding `#xDetDlgLoc`. `OcVpRe` is not
+  room-specific either: the location row of a room-less event also carries it.
+- **The parts are joined with non-breaking spaces**, so a pattern typed with an
+  ordinary space (`BLDG1 Aspen`) would not match the raw `textContent`. All
+  regex tests run against whitespace-normalised text (`matchableText()`).
+
+Note the capacity (`10`) renders in a separate `div.AzuXid` with a people icon,
+*not* as `(10)` inside the room text. The `(N)` signature that
+`looksLikeRoomList()` keys on belongs to the location-field blob format only —
+the two features see different renderings and are independent. An event can have
+rooms and no `#xDetDlgLoc` at all, which is the case in this snapshot.
+
+`ROOM_BLOCK_CANDIDATES` holds the selectors, tried in order:
+
+1. `span.iGpjxc:not(#xDetDlgLoc span)` — current, verified.
+2. Map links — `a[aria-label]` matching `/meeting room/i`, taking the anchor's
+   parent, which is the same span. Verified by deleting the `iGpjxc` class from
+   the snapshot and confirming both rooms still highlight.
+
+`iGpjxc` is a rotating build hash, hence the second candidate. Finding no rooms
+is *not* logged as an error, because most events book none — but if
+`#xDetDlgRoom` is present and non-empty while every candidate comes up empty,
+rooms exist and the selectors have broken, and that is warned about once.
 
 ### How we modify the page
 
@@ -150,7 +201,9 @@ error, because most events legitimately have none.
   `highlight-local-rooms:first-run-prompted` (a boolean latch).
 - **Value shape**: a string holding a regular expression, compiled with the `i`
   flag and matched *anywhere* in the text — it is not anchored, so a short
-  pattern like `CA` matches substrings. The prompt says so.
+  pattern like `CA` matches substrings. The prompt says so. Text is
+  whitespace-normalised before matching, so a literal space in the pattern
+  matches the non-breaking spaces Calendar uses between room name parts.
 - **Built-in default**: `BUILDING[12]`, a placeholder that matches nobody's real
   rooms.
 - **Validation**: non-empty and must compile as a `RegExp`. A failure alerts
