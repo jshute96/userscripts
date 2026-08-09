@@ -70,7 +70,7 @@ maybe HTML), follow this flow:
    userscripts" below, snapshot every relevant state up front
    (closed, each menu open, hover/focus). This avoids multiple
    fix-and-fail cycles.
-3. **Write the script** under `sites/<domain>/`, with its sibling
+3. **Write the script** under `sites/<site>/`, with its sibling
    `.md` doc.
 4. **Manually verify in Playwright.** Inject the script the same way
    the `loadUserscript` fixture does, confirm the button appears,
@@ -332,7 +332,7 @@ if it's missing; it makes the next break diagnose itself.
 ## Testing
 
 Tests run against a real browser using Playwright. Tests for a script
-live next to it: `sites/<domain>/<name>.spec.js`. Shared fixtures are
+live next to it: `sites/<site>/<name>.spec.js`. Shared fixtures are
 in `test/fixtures.js`.
 
 * Workflow:
