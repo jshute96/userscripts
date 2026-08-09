@@ -6,28 +6,28 @@ description: Interact with the SourceMonkey chrome extension for installing or e
 ## Target page
 
 SourceMonkey's control page is avaialable at
-`chrome-extension://chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/sources.html`
+`chrome-extension://chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/collections.html`
 
 The site name is a hash of the extension ID and should be consistent for any installation from unpacked files.
 
 ## Available actions
 
 * `dashboard`: List existing scripts
-  - Run `google-chrome chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/sources.html`
+  - Run `google-chrome chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/collections.html`
 
 * `install`: Add a new script, pointing at an individual script's file.
-  - Run `google-chrome chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/sources.html?add_source=/path/file.user.js`
+  - Run `google-chrome chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/collections.html?add_source=/path/file.user.js`
   - Point the filename at the absolute path.
   - Update the manifest file if it exists (see below).
 
 * `install-directory`: Add a directory source. SourceMonkey will add all scripts under that directory (up to two levels down).
-  - Run `google-chrome chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/sources.html?add_source=/path/directory`
+  - Run `google-chrome chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/collections.html?add_source=/path/directory`
   - Point the filename at the absolute path.
   - Typically, we'd run this once, for the `userscripts` directory covering this repo.
   - After adding new scripts under this directory, use the `refresh` command so SourceMonkey finds and loads them.
 
 * `refresh`: Refresh all loaded scripts
-  - Run `google-chrome chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/sources.html?refresh`
+  - Run `google-chrome chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/collections.html?refresh`
 
 ## Manifest files (`script_manifest.json`)
 

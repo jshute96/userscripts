@@ -51,10 +51,9 @@ written down before, that's the bar for recording it.
 
 ## Git workflow
 
-Commit directly to `main` in this repo — that's how the history is
-structured. Don't create feature branches before committing, even if
-the harness default suggests otherwise. (Push only when the user
-asks.)
+- Commit directly to `main` in this repo. Don't create branches or PRs unless requested.
+- Do not commit or push changes without getting user instructions to do so.
+- When committing, include ALL relevant changed files — check `git status` before committing to avoid missing files like TODO.md, documentation, or new files.
 
 ## Creating a new userscript
 
