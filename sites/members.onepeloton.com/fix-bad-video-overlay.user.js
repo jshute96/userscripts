@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Peloton Player: Hide cinematic-vignette video overlay
+// @name         Peloton Player: Fix bad video overlay
 // @namespace    https://github.com/jshute96/userscripts
 // @version      2.0.1
-// @description  Fix a bug in Peloton's video player where, on large high-res monitors, a fixed-size overlay is painted on top of the video and creates an ugly horizontal seam across it.
+// @description  Fix a bug in Peloton's video player where, on large high-res monitors, a fixed-size "cinematic vignette" overlay is painted on top of the video, creating an ugly horizontal seam across it.
 // @author       Jeff Shute <jshute@gmail.com>
 // @match        https://members.onepeloton.com/*
 // @grant        none
@@ -59,7 +59,7 @@
   }
 
   // SPA: hook history mutations and re-arm on URL changes.
-  const URL_CHANGE_EVENT = 'peloton-hide-video-overlay:urlchange';
+  const URL_CHANGE_EVENT = 'peloton-fix-bad-video-overlay:urlchange';
   for (const m of ['pushState', 'replaceState']) {
     const orig = history[m];
     history[m] = function (...a) {

@@ -523,6 +523,15 @@ described.
   into the doc's background with no visible edge. Add a 1px black
   border to each: `convert x.png -bordercolor black -border 1 x.png`.
   Images grow by 2px in both directions, but stay matched in size.
+  Skip it for dark captures (a video player, say) — they already
+  have an edge, and a black border on them is invisible.
+
+* **Size and format.** Full-screen captures off a HiDPI display come
+  in enormous (3841×1976 for one browser window). Downscale them to
+  about a quarter — `convert x.jpg -resize 25% -quality 88 out.jpg`
+  — which is still legible in the doc. Keep photographic content
+  (video frames) as `.jpg`; UI captures of text and flat colour stay
+  `.png`, where it's both sharper and smaller.
 
 * **Layout.** If the images are small, show before and after
   side-by-side in an HTML table (GitHub renders raw HTML in
