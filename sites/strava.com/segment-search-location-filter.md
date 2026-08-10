@@ -14,22 +14,22 @@ has hundreds of pages), the script also replaces Strava's paginator
 with one growing list: it fetches following result pages in the
 background and merges their rows into the table you're looking at.
 
-Search page before:
+**Search page before:**
 
 ![Before](screenshots/segment-search-location-filter-search-page-before.png)
 
-Search page after:
+**Search page after:**
 
 ![After](screenshots/segment-search-location-filter-search-page-after.png)
 
 The global header search gets the same treatment when its mode
 dropdown is set to Segments.
 
-Title bar before:
+**Title bar before:**
 
 ![Header before](screenshots/segment-search-location-filter-header-before.png)
 
-Title bar after:
+**Title bar after:**
 
 ![Header after](screenshots/segment-search-location-filter-header-after.png)
 

@@ -16,15 +16,15 @@ if gain shows as zero, recompute actual gain from the profile.
 Everything here is computed from an elevation stream the page already has
 loaded; nothing extra is fetched.
 
-Segment page before:
+**Segment page before:**
 
 ![Before](screenshots/show-elevation-loss-segment-before.png)
 
-Segment page after:
+**Segment page after:**
 
 ![After](screenshots/show-elevation-loss-segment-after.png)
 
-Activity page before and after:
+**Activity page before and after:**
 
 <table>
   <tr><td><b>Before</b></td><td><b>After</b></td></tr>

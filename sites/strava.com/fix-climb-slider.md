@@ -15,11 +15,11 @@ tell which categories the two slider handles have selected. This is
 purely a styling patch — the slider itself still works, and nothing
 about the search or its results is touched.
 
-Search page before:
+**Search page before:**
 
 ![Before](screenshots/fix-climb-slider-before.png)
 
-Search page after:
+**Search page after:**
 
 ![After](screenshots/fix-climb-slider-after.png)
 

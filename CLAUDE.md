@@ -502,7 +502,9 @@ described.
 * **Labels.** Label each image with what it is — `<what> before:` /
   `<what> after:` for a pair, `Example:` for a single one — where
   `<what>` names the page or surface being shown (`Search page`,
-  `Title bar`, `Activity page`). Keep it to that.
+  `Title bar`, `Activity page`). Keep it to that. Set the label
+  **bold** on its own line, so it doesn't read as body text next to
+  the image. (Bold rather than a markdown heading.)
   **Don't narrate what's visible in the image**; the reader is
   looking at it. Add prose only for something the picture can't say
   on its own.
@@ -512,6 +514,11 @@ described.
   differs only in the thing that changed is far easier to compare
   than one where everything shifts. (Exception when the shape of the
   captured items changed.)
+
+* **Borders.** Most page captures are white-on-white and dissolve
+  into the doc's background with no visible edge. Add a 1px black
+  border to each: `convert x.png -bordercolor black -border 1 x.png`.
+  Images grow by 2px in both directions, but stay matched in size.
 
 * **Layout.** If the images are small, show before and after
   side-by-side in an HTML table (GitHub renders raw HTML in
@@ -532,11 +539,11 @@ described.
 Stacked pair:
 
 ```markdown
-Search page before:
+**Search page before:**
 
 ![Before](screenshots/fix-climb-slider-before.png)
 
-Search page after:
+**Search page after:**
 
 ![After](screenshots/fix-climb-slider-after.png)
 ```
