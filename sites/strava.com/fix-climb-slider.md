@@ -8,12 +8,9 @@ to a horizontal layout, with the
 category icons (uncategorised, 4, 3, 2, 1, HC) sitting under the slider
 positions they correspond to.
 
-Strava currently serves that widget with **no CSS at all**, so it falls
-back to default block layout: the labels, the slider and all six
-category icons stack in a single narrow column, and there's no way to
-tell which categories the two slider handles have selected. This is
-purely a styling patch — the slider itself still works, and nothing
-about the search or its results is touched.
+Strava currently (August 2026) serves that widget with **no CSS at all**, so it
+falls back to a default block layout that stacks the icons vertically,
+which looks ugly and makes the filter unusable.
 
 **Search page before:**
 

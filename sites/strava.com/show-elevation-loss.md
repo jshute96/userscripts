@@ -3,15 +3,15 @@
 ## Summary
 
 Adds **elevation loss** next to Strava's elevation gain for each segment
-on the segment and activity pages.  Add +/- prefixes to make the numbers
+on the segment and activity pages.  Also add +/- prefixes to make the numbers
 clearer.
 
-Strava reports climbing but never descending, and the figure it puts on
-an activity effort row isn't climbing at all — it's the segment's high
-minus low, unsigned, so a descent reads like a climb.
+Strava reports climbing but never descending for segments, and the figure it
+puts on the activity page isn't climbing either — it's the segment's high minus
+low elevation, unsigned.
 
-Also fix a bug where Strava sometimes incorrectly reports zero elevation gain;
-if gain shows as zero, recompute actual gain from the profile.
+This also fixes a bug where Strava sometimes incorrectly reports zero elevation
+gain; if gain shows as zero, this recomputes actual gain from the profile.
 
 Everything here is computed from an elevation stream the page already has
 loaded; nothing extra is fetched.

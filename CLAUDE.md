@@ -458,6 +458,10 @@ Each userscript has a sibling `.md` with three sections: `Summary`,
     navigation and additional navigation links."
   - Second paragraph (if helpful): Short high-level description of what it
     changes or how it works.
+  - Keep it plain and short. State what's wrong and what the script
+    does; don't spell out the consequences a reader can infer, and
+    don't restate what the screenshots already show. Detail and
+    caveats belong in `Implementation`.
 * **Visible changes**: a short bulleted list of user-visible behaviour
   changes. Brief — readers should be able to scan it. Group related
   points; don't over-explain.

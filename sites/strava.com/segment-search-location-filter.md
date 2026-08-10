@@ -2,17 +2,17 @@
 
 ## Summary
 
-Adds a **Location** box to Strava's segment search, so a name search
-like "south leaf" can be narrowed to the segments that are actually
-where you ride, instead of returning similarly-named trails worldwide.
-Strava's own keyword box does no location filtering at all — extra
-words like "california" don't restrict anything.
+Adds a **Location** box to Strava's segment search, so segment searches
+can be narrowed to state, city, etc, instead of returning similarly-named
+segments all over the world.
 
-The filter runs in the browser over the Location column of the results
-table. Because Strava paginates results 30 at a time (a common query
-has hundreds of pages), the script also replaces Strava's paginator
-with one growing list: it fetches following result pages in the
-background and merges their rows into the table you're looking at.
+Strava's search box does no location filtering at all. Including location words
+like "california" doesn't work because all words are combined with OR.
+
+The location filter runs in the browser over the Location column of the results
+table.  Strava paginates results 30 at a time.  This script also replaces
+Strava's paginator with one growing result list, and fetches more pages in the
+background to find more post-filtering search results.
 
 **Search page before:**
 
@@ -21,9 +21,6 @@ background and merges their rows into the table you're looking at.
 **Search page after:**
 
 ![After](screenshots/segment-search-location-filter-search-page-after.png)
-
-The global header search gets the same treatment when its mode
-dropdown is set to Segments.
 
 **Title bar before:**
 
