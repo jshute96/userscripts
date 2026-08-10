@@ -16,6 +16,27 @@ if gain shows as zero, recompute actual gain from the profile.
 Everything here is computed from an elevation stream the page already has
 loaded; nothing extra is fetched.
 
+Segment page before:
+
+![Before](screenshots/show-elevation-loss-segment-before.png)
+
+Segment page after:
+
+![After](screenshots/show-elevation-loss-segment-after.png)
+
+Activity page before and after:
+
+<table>
+  <tr><td><b>Before</b></td><td><b>After</b></td></tr>
+  <tr>
+    <td><img src="screenshots/show-elevation-loss-activity-before.png" alt="Before"></td>
+    <td><img src="screenshots/show-elevation-loss-activity-after.png" alt="After"></td>
+  </tr>
+</table>
+
+Note that the number shown before was the elevation *range* (highest minus lowest), which
+wasn't the climbing or descending total.
+
 ## Visible changes
 
 ### Segment page (`/segments/<id>`)

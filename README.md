@@ -21,6 +21,10 @@ Scripts are organized by site under `sites/`:
 - `sites/<site>/<name>.user.js` - the userscript
 - `sites/<site>/<name>.md` - documentation describing what it does and how it works
 - `sites/<site>/<name>.spec.js` - (sometimes) a test
+- `sites/<site>/screenshots/` - (sometimes) before/after screenshots shown in the documentation
+
+Screenshots are referenced in a script's docs when a picture explains the change
+better than prose does.
 
 ### My typical workflow
 

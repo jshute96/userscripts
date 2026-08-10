@@ -475,3 +475,80 @@ Each userscript has a sibling `.md` with three sections: `Summary`,
 
 * Refer to the things we write as "userscripts", not "Tampermonkey
   scripts" or other branded names.
+
+### Screenshots in doc files
+
+Screenshots are optional — include them when a picture makes the
+change clearer than prose (layout fixes, added UI, restyled
+elements). Skip them when the change is invisible or trivially
+described.
+
+* **Location and naming.** Put images in a `screenshots/`
+  subdirectory of the script's site directory:
+  `sites/<site>/screenshots/`. Name them after the script:
+  - `<script-basename>-before.png` / `<script-basename>-after.png`
+    when there's a single pair.
+  - `<script-basename>-<what>-before.png` /
+    `<script-basename>-<what>-after.png` when showing more than one
+    aspect, where `<what>` names the page, state, or condition.
+  - A single unpaired image is just `<script-basename>.png`, or
+    `<script-basename>-<what>.png`.
+
+* **Where they go in the doc.** In the `Summary` section, usually at
+  the end of it — they're part of the user-facing description, not
+  the implementation notes. (Implementation-only diagnostic images
+  can go in `Implementation` instead.)
+
+* **Labels.** Label each image with what it is — `<what> before:` /
+  `<what> after:` for a pair, `Example:` for a single one — where
+  `<what>` names the page or surface being shown (`Search page`,
+  `Title bar`, `Activity page`). Keep it to that.
+  **Don't narrate what's visible in the image**; the reader is
+  looking at it. Add prose only for something the picture can't say
+  on its own.
+
+* **Matching dimensions.** Capture before and after at the same width
+  and height, framing the same region of the page — a pair that
+  differs only in the thing that changed is far easier to compare
+  than one where everything shifts. (Exception when the shape of the
+  captured items changed.)
+
+* **Layout.** If the images are small, show before and after
+  side-by-side in an HTML table (GitHub renders raw HTML in
+  Markdown); otherwise stack them.
+
+* **Capturing them.** The user can capture images with SeeWhatISee,
+  cropping them and highlighting regions in that tool.
+  If they capture full-page screenshots, you could crop them appropriately.
+  Alternatively, you could capture screenshots yourself in the
+  Playwright browser.
+
+* **Framing.** Prefer screenshots focused on the relevant
+  section over full-page captures, but include enough surrounding
+  context that it's clear where on the page you're looking. If the
+  difference isn't obvious at a glance, add a highlight (box or
+  arrow) to the image.
+
+Stacked pair:
+
+```markdown
+Search page before:
+
+![Before](screenshots/fix-climb-slider-before.png)
+
+Search page after:
+
+![After](screenshots/fix-climb-slider-after.png)
+```
+
+Side-by-side pair:
+
+```markdown
+<table>
+  <tr><td><b>Before</b></td><td><b>After</b></td></tr>
+  <tr>
+    <td><img src="screenshots/fix-climb-slider-before.png" alt="Before"></td>
+    <td><img src="screenshots/fix-climb-slider-after.png" alt="After"></td>
+  </tr>
+</table>
+```
