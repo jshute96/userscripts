@@ -13,6 +13,10 @@ combination in one click, so we don't have to walk the three-dots menu.
   Add-to-Favorites, and the three-dots menu).
 - "Oldest": sets Sort by → Oldest and turns Filter by → Unread only on.
 - "Newest": sets Sort by → Newest and turns Filter by → Unread only off.
+- If a preset fails part-way (see the failure mode described under
+  "What we assume stays stable"), its button border flashes red for
+  1.5 s. Before this, a half-applied preset was silent unless DevTools
+  was open.
 - Only active on subscription/feed pages
   (`feedly.com/i/subscription/content/feed*`). The script loads on
   every Feedly page so it survives in-app navigation, but does
@@ -47,7 +51,9 @@ combination in one click, so we don't have to walk the three-dots menu.
 - Activating "Sort by" or "Filter by" *replaces* the main menu with a
   submenu (it doesn't stack). The submenu's first `<li>` is a
   breadcrumb containing a `<button role="menuitem"
-  aria-label="Back to Main Menu">` and the parent label as text;
+  aria-label="Back to main menu">` and the parent label as text
+  (Feedly shipped this label as "Back to Main Menu" and later re-cased
+  it — see "What we assume stays stable" below);
   subsequent items are the actual options. Filter options use
   `role="checkbox"` (Sort options use `role="radio"`), with the
   visible label directly as `textContent` and current state on
@@ -71,9 +77,18 @@ combination in one click, so we don't have to walk the three-dots menu.
   (Filter) and their `textContent` contains the visible label
   ("Oldest", "Newest", "Unread Only"). We match case-insensitively to
   absorb future capitalization changes.
-- `button[aria-label="Mark as read"]` exists in the same toolbar
+- `button[aria-label="mark as read" i]` exists in the same toolbar
   container — we use it as the second anchor when locating where to
   inject our buttons.
+- **`aria-label` values keep their words, not their capitalization.**
+  Feedly re-cased "Back to Main Menu" → "Back to main menu", which
+  broke every preset that had to change the sort: `openMoreMenu()`
+  didn't recognise the submenu state, fell through to the "menu is
+  closed" branch, clicked the trigger (which doesn't restore the main
+  menu from a submenu) and timed out in `waitFor`. All `aria-label`
+  selectors here now use the CSS case-insensitive flag, e.g.
+  `button[aria-label="back to main menu" i]`. Use that form for any
+  new label selector.
 
 ### How we modify the page
 
@@ -96,8 +111,8 @@ combination in one click, so we don't have to walk the three-dots menu.
 - Clicking a preset:
   1. Ensure the more-menu is open on its main page. Three branches:
      if the main-menu "Sort by" item is already in the DOM we're done;
-     if a submenu is showing we click its `aria-label="Back to Main
-     Menu"` button (Feedly does not auto-return after a selection,
+     if a submenu is showing we click its `aria-label="back to main
+     menu" i` button (Feedly does not auto-return after a selection,
      and clicking the trigger from a submenu state goes back one
      level rather than fully closing); otherwise we click the
      three-dots trigger to open the menu.
@@ -118,3 +133,19 @@ combination in one click, so we don't have to walk the three-dots menu.
   every animation frame until a 2-second timeout. All transitions
   emit `[feedly presets]` console logs so failures (timeouts, missing
   selectors) are visible without DevTools breakpoints.
+- The button injection path is watched by a MutationObserver, which is
+  also the normal startup path — on first paint the header genuinely
+  isn't there yet. So "container not found" is expected for a while and
+  indistinguishable from a permanent break. After `MISSING_WARN_MS`
+  (10 s) on a feed page with still no container, the script logs once,
+  naming which of the three anchors is missing:
+
+  ```
+  [feedly presets] still no toolbar container after 10000 ms — header: true
+  three-dots button: true mark-as-read button: false — the first false is
+  the selector that broke.
+  ```
+
+  Verified by renaming the mark-as-read `aria-label` on a live page and
+  confirming the log named it. Without this, a broken script looks
+  exactly like a slow-loading one.

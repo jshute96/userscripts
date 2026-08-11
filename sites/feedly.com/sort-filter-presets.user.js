@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Feedly: Sort/Filter presets
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.1.0
+// @version      1.2.0
 // @description  Add Oldest/Newest preset buttons to a Feedly feed's header toolbar that combine sort order and unread-only filter.
 // @author       Jeff Shute <jshute@gmail.com>
 // @match        https://feedly.com/*
@@ -38,12 +38,19 @@
   // Submenu options are matched separately by findOption() below
   // since Feedly uses a mix of role values for them.
   function findMainMenuItem(label) {
+    const wanted = label.trim().toLowerCase();
     return [...document.querySelectorAll('[role="menuitem"]')].find(el => {
       // Match strictly on the first-level label span. The same menuitem
       // also contains a <p> with the current value (e.g. "Oldest"), and
       // we don't want to confuse those.
+      //
+      // Case-insensitive: Feedly re-cases UI strings between deploys (it
+      // did exactly that to the back-button's aria-label, which broke
+      // every preset that had to change the sort). If "Sort by" ever
+      // becomes "Sort By", an exact match here would break the script
+      // outright, since openMoreMenu() waits on this.
       const span = el.querySelector('span');
-      return span && span.textContent.trim() === label;
+      return span && span.textContent.trim().toLowerCase() === wanted;
     });
   }
 
@@ -119,10 +126,15 @@
     //      main menu after a selection, and toggling the trigger
     //      from the submenu state doesn't reliably land us back on
     //      the main menu either) → click the breadcrumb's
-    //      "Back to Main Menu" button.
+    //      "Back to main menu" button.
     //   3. Menu closed → click the trigger to open.
     if (findMainMenuItem('Sort by')) return;
-    const back = document.querySelector('button[aria-label="Back to Main Menu"]');
+    // Matched case-insensitively (the `i` flag): Feedly shipped this as
+    // "Back to Main Menu" and later re-cased it to "Back to main menu",
+    // which silently broke every preset that had to change the sort —
+    // openMoreMenu() fell through to the "menu is closed" branch and
+    // clicking the trigger doesn't restore the main menu from a submenu.
+    const back = document.querySelector('button[aria-label="back to main menu" i]');
     if (back) {
       console.log(TAG, 'returning from submenu to main');
       back.click();
@@ -154,8 +166,12 @@
     if (!sortBy) throw new Error('no Sort by item');
     // Already in the chosen state? The current value is shown in the <p>
     // sibling of the label span; skip the click if it already matches.
+    // Compared case-insensitively for the same reason as findMainMenuItem:
+    // a re-cased summary would silently defeat this state check, and
+    // re-selecting the sort that's already active can have side effects
+    // (scroll jumps, refetches).
     const currentValue = sortBy.querySelector('p')?.textContent.trim();
-    if (currentValue === value) {
+    if (currentValue && currentValue.toLowerCase() === value.toLowerCase()) {
       console.log(TAG, 'sort already', value);
       return;
     }
@@ -187,7 +203,17 @@
     await closeMoreMenu();
   }
 
-  async function applyPreset(preset) {
+  // Failures used to be console-only. When Feedly re-cased an aria-label,
+  // presets half-applied (sort changed, filter didn't) with nothing to see
+  // unless DevTools was open. Flash the button so a failure is visible.
+  function flashFailure(btn) {
+    if (!btn) return;
+    const original = btn.style.borderColor;
+    btn.style.borderColor = '#d33';
+    setTimeout(() => { btn.style.borderColor = original; }, 1500);
+  }
+
+  async function applyPreset(preset, btn) {
     try {
       console.log(TAG, 'applying preset', preset);
       if (preset === 'oldest') {
@@ -200,6 +226,7 @@
       console.log(TAG, 'preset applied:', preset);
     } catch (err) {
       console.log(TAG, 'failed to apply preset', preset, err);
+      flashFailure(btn);
       // Try to leave the menu closed even on error.
       try { await closeMoreMenu(); } catch (_) { /* ignore */ }
     }
@@ -229,7 +256,7 @@
     btn.addEventListener('click', e => {
       e.preventDefault();
       e.stopPropagation();
-      applyPreset(preset);
+      applyPreset(preset, btn);
     });
     return btn;
   }
@@ -242,7 +269,9 @@
     const header = getFeedHeader();
     if (!header) return null;
     const more = getMoreButton();
-    const markAsRead = header.querySelector('button[aria-label="Mark as read"]');
+    // Case-insensitive for the same reason as the back button above:
+    // Feedly re-cases these labels between deploys.
+    const markAsRead = header.querySelector('button[aria-label="mark as read" i]');
     if (!more || !markAsRead) return null;
     let container = more.parentElement;
     while (container && container !== header) {
@@ -254,10 +283,42 @@
     return null;
   }
 
+  // The MutationObserver below is also the normal startup path: on first
+  // paint the header genuinely isn't there yet, so "container not found"
+  // is expected for a while. Without a deadline log, a renamed selector
+  // looks exactly like a slow SPA — which is how a broken version of this
+  // script went unnoticed. Log once if we're still empty-handed after
+  // MISSING_WARN_MS on a feed page.
+  const MISSING_WARN_MS = 10000;
+  let missingSince = 0;
+  let warnedMissing = false;
+
+  function warnIfStillMissing() {
+    if (warnedMissing || !isFeedPage() || findToolbarContainer()) return;
+    warnedMissing = true;
+    console.log(
+      TAG, 'still no toolbar container after', MISSING_WARN_MS, 'ms —',
+      'header:', !!getFeedHeader(),
+      'three-dots button:', !!getMoreButton(),
+      'mark-as-read button:',
+      !!(getFeedHeader() || document).querySelector('button[aria-label="mark as read" i]'),
+      '— the first false is the selector that broke.'
+    );
+  }
+
   function injectButtons() {
     if (!isFeedPage()) return false;
     const container = findToolbarContainer();
-    if (!container) return false;
+    if (!container) {
+      if (!missingSince) {
+        missingSince = Date.now();
+        // Timer as well as the observer: if the DOM goes quiet the
+        // observer stops firing and we'd never reach the deadline.
+        setTimeout(warnIfStillMissing, MISSING_WARN_MS);
+      }
+      return false;
+    }
+    missingSince = 0;
     // Already injected for this header instance?
     if (container.querySelector(`[${MARK}]`)) return true;
 
