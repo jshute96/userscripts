@@ -78,9 +78,9 @@ maybe HTML), follow this flow:
    report exactly where — don't guess.
 5. **Suggest install**
    - If using SourceMonkey (the default), the directory should be installed already.
-     Just run the `install-in-SourceMonkey` skill's `refresh` command.
-     - Also update `./script_manifest.json` to include the relative path to the
-       new script.
+     Add the new script to `./script_manifest.json` (relative path), then run
+     the `install-in-SourceMonkey` skill's `refresh` command once so SourceMonkey
+     picks up the new file.
    - If using Tampermonkey, use the `install-in-tampermonkey` skill's
    `install-pointer` action, so the user can iterate by reloading.
 6. **Write a Playwright spec** (`<name>.spec.js`) once the user
@@ -269,7 +269,9 @@ if it's missing; it makes the next break diagnose itself.
 
 * Do not include any personal data, user content, account IDs, etc in tests, scripts, or docs. (Script author info is okay.)
 
-* During development, if the userscript is installed as a pointer-to-local-file, the user just needs to click Reload in the browser to get updates.
+* **Getting an edit to take effect depends on the userscript manager —
+  defer to the relevant skill** (e.g. `install-in-SourceMonkey` or
+  `install-in-tampermonkey`) for how to trigger refresh.
 
 * To get scripts to update from github, increment the `@version` (in the last number field) before final commit and push.
 
@@ -277,7 +279,10 @@ if it's missing; it makes the next break diagnose itself.
   Use the `install-in-tampermonkey` skill, and do `install-pointer` action for this script.
   Then the user can get incremental updates just by doing Reload in the browser.
 
-* NOTE: If the header changes (`@match` rules, permissions, etc), the userscript needs to be reinstalled.
+* NOTE: Changing the header — especially the targeting rules
+  (`@match` / `@include` / `@exclude`) — is the case most likely to
+  need a refresh or reinstall rather than just a page reload. See the
+  installer skill for your manager.
 
 * Default to `@noframes` in the header. Sites often embed hidden
   iframes; without `@noframes` the script

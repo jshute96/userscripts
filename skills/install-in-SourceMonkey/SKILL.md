@@ -24,10 +24,18 @@ The site name is a hash of the extension ID and should be consistent for any ins
   - Run `google-chrome chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/collections.html?add_source=/path/directory`
   - Point the filename at the absolute path.
   - Typically, we'd run this once, for the `userscripts` directory covering this repo.
-  - After adding new scripts under this directory, use the `refresh` command so SourceMonkey finds and loads them.
+  - After adding or removing scripts under this directory, use the `refresh` command so SourceMonkey picks up the change.
 
-* `refresh`: Refresh all loaded scripts
+* `refresh`: Re-scan the installed sources for scripts and their targeting
   - Run `google-chrome chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/collections.html?refresh`
+  - It opens a browser tab, so don't fire it speculatively — one
+    refresh once the change is complete, not one per edit.
+
+## Picking up edits to a script
+
+SourceMonkey re-reads local script files on every page load, so for a
+page the script *already* targets, the user just reloads the page. 
+`refresh` is needed for new script files or changed targeting metadata.
 
 ## Manifest files (`script_manifest.json`)
 

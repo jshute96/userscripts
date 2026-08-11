@@ -36,3 +36,14 @@ The site name is a hash of the extension ID and should be consistent for everyon
 * `reinstall`: Redo install steps from above to update a script.
   - This works the same, but we need to give the user an additional task:
     "After saving, remove or disable the old version."
+
+## Picking up edits to a script
+
+* If installed with `install-pointer` (the default during development):
+  the body is re-read from the local file, so the user just reloads
+  the target page. **No action needed after an edit.**
+  - Exception: the metadata block lives in the *installed* stub, not
+    the local file, so changes to `@match`, `@grant`, `@require` etc.
+    need a `reinstall`.
+* If installed with `install-raw`: the full script contents were copied
+  into Tampermonkey, so *any* edit needs a `reinstall` to take effect.
