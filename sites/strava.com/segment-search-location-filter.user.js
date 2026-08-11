@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         Strava: Segment search location filter and unpaged view
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.2.2
+// @version      0.2.3
 // @description  Adds a Location box to Strava's segment search (and to Segment search from the title bar) that filters results by Location, and replaces Strava's paginator with a growing list with load-more controls.
 // @author       Jeff Shute <jshute@gmail.com>
+// @license      MIT
 // @match        https://www.strava.com/*
 // @grant        none
 // @noframes

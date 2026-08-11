@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         Feedly: Sort/Filter presets
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.2.0
+// @version      1.2.1
 // @description  Add Oldest/Newest preset buttons to a Feedly feed's header toolbar that combine sort order and unread-only filter.
 // @author       Jeff Shute <jshute@gmail.com>
+// @license      MIT
 // @match        https://feedly.com/*
 // @grant        none
 // @noframes

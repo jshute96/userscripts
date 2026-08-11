@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         Hacker News: Keyboard comment navigation
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.1.0
+// @version      1.1.1
 // @description  Improve comment navigation with keyboard shortcuts and additional links
 // @author       Jeff Shute <jshute@gmail.com>
+// @license      MIT
 // @match        https://news.ycombinator.com/item*
 // @grant        none
 // @run-at       document-idle

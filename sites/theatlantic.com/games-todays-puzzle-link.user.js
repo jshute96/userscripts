@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         The Atlantic games: Today's Puzzle link
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.0
+// @version      1.0.1
 // @description  Adds a "Today's Puzzle" link (the dateless game URL) below "Return to Puzzle" on the puzzle-completed endsheet.
 // @author       Jeff Shute <jshute@gmail.com>
+// @license      MIT
 // @match        https://www.theatlantic.com/games/*
 // @grant        none
 // @run-at       document-idle

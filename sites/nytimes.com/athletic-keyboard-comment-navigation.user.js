@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         The Athletic: Keyboard comment navigation
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.3
+// @version      1.0.4
 // @description  Keyboard shortcuts for navigating comments on The Athletic articles.
 // @author       Jeff Shute <jshute@gmail.com>
+// @license      MIT
 // @match        https://www.nytimes.com/athletic/*
 // @grant        none
 // @run-at       document-idle

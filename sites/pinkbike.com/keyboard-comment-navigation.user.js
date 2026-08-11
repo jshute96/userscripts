@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         Pinkbike: Keyboard comment navigation
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.1.0
+// @version      1.1.1
 // @description  Keyboard shortcuts for navigating comments on Pinkbike articles.
 // @author       Jeff Shute <jshute@gmail.com>
+// @license      MIT
 // @match        https://www.pinkbike.com/news/*
 // @grant        none
 // @run-at       document-idle

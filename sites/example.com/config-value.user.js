@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         example.com: config value with context-menu update
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.0
+// @version      1.0.1
 // @description  Test fixture: adds a "the message_value is: <value>" bullet whose value is set via the userscript context menu and saved in GM storage.
 // @author       Jeff Shute <jshute@gmail.com>
+// @license      MIT
 // @match        *://example.com/*
 // @run-at       document-idle
 // @grant        GM_getValue

@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         example.com: error button
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.1.0
+// @version      1.1.1
 // @description  Test fixture: adds "Error" buttons that throw when clicked — one from the script body, one from @require'd code.
 // @author       Jeff Shute <jshute@gmail.com>
+// @license      MIT
 // @match        https://example.com/*
 // @match        http://example.com/*
 // @run-at       document-idle

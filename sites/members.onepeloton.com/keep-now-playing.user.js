@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         Peloton Player: Keep Now-Playing widget visible
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.1.0
+// @version      1.1.1
 // @description  Keep the Now-Playing song widget (top-left of the Peloton class player) visible at all times.
 // @author       Jeff Shute <jshute@gmail.com>
+// @license      MIT
 // @match        https://members.onepeloton.com/*
 // @grant        none
 // @run-at       document-idle

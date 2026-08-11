@@ -284,6 +284,11 @@ if it's missing; it makes the next break diagnose itself.
   need a refresh or reinstall rather than just a page reload. See the
   installer skill for your manager.
 
+* Include `// @license MIT` in every userscript header, on the
+  line after `@author`. The repo's `LICENSE` file is MIT, and the
+  header makes that visible anywhere the script is installed or
+  published.
+
 * Default to `@noframes` in the header. Sites often embed hidden
   iframes; without `@noframes` the script
   runs in those too and you'll see init logs from contexts you

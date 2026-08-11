@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         Garmin Connect: Improve UI in MTB Dynamics jumps view
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.1.0
+// @version      0.1.1
 // @description  On a Garmin Connect activity page with MTB Dynamics, numbers the jump popups on the map ("Jump 12"), makes each row of the jumps table clickable to open that jump's map popup, and adds a Hide Charts button so the map and the jumps table can be seen together.
 // @author       Jeff Shute <jshute@gmail.com>
+// @license      MIT
 // @match        https://connect.garmin.com/app/*
 // @grant        none
 // @noframes

@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         NYT: Keyboard comment navigation
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.1
+// @version      1.0.2
 // @description  Keyboard shortcuts for navigating the comments panel on nytimes.com articles.
 // @author       Jeff Shute <jshute@gmail.com>
+// @license      MIT
 // @match        https://www.nytimes.com/*
 // @exclude      https://www.nytimes.com/athletic/*
 // @grant        none

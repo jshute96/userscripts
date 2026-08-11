@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         Strava: Show elevation gain *and loss* for each segment
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.3.0
+// @version      0.3.1
 // @description  Strava shows climbing but never descending. This adds Elevation Loss next to Elevation Gain on the segment and activity pages, with +/- prefixes to make the numbers clearer.
 // @author       Jeff Shute <jshute@gmail.com>
+// @license      MIT
 // @match        https://www.strava.com/activities/*
 // @match        https://www.strava.com/segments/*
 // @grant        none

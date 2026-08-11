@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         example.com: error on load
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.0
+// @version      1.0.1
 // @description  Test fixture: throws an unhandled error during initial injection.
 // @author       Jeff Shute <jshute@gmail.com>
+// @license      MIT
 // @match        https://example.com/*
 // @match        http://example.com/*
 // @run-at       document-idle

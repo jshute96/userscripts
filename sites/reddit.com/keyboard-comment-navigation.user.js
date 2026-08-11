@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         Reddit: Keyboard comment navigation
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.3
+// @version      1.0.4
 // @description  Keyboard shortcuts for navigating comments on reddit posts. Overrides reddit's built-in j/k.
 // @author       Jeff Shute <jshute@gmail.com>
+// @license      MIT
 // @match        https://www.reddit.com/*
 // @grant        none
 // @run-at       document-idle

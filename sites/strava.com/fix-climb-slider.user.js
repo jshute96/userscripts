@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         Strava: Fix climb slider
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.1.0
+// @version      0.1.1
 // @description  Bug fix for broken layout on Strava's segment search page: the climb-category slider (Flat/Downhill … Climb) is served with no CSS, so it stacks into an unusable vertical column. This restores the horizontal layout and lines the category icons up with the slider positions. It warns in the console and does nothing if Strava fixes the page.
 // @author       Jeff Shute <jshute@gmail.com>
+// @license      MIT
 // @match        https://www.strava.com/segments/search*
 // @grant        none
 // @noframes

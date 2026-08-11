@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         calendar.google.com: highlight local rooms
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.7.2
+// @version      1.7.3
 // @description  Highlight meeting locations matching a configurable regex, to make it easy to find the local room in a long room list. Where room lists are shown as comma-separated text blobs, reformat them one per line.
 // @author       Jeff Shute <jshute@gmail.com>
+// @license      MIT
 // @match        https://calendar.google.com/calendar/*
 // @run-at       document-idle
 // @grant        GM_getValue

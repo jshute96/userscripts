@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         example.com: bold word on hover
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.1.0
+// @version      1.1.1
 // @description  Bold the single word under the mouse cursor while hovering text on example.com.
 // @author       Jeff Shute <jshute@gmail.com>
+// @license      MIT
 // @match        https://example.com/*
 // @match        http://example.com/*
 // @run-at       document-idle

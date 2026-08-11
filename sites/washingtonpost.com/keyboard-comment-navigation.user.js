@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         Washington Post: Keyboard comment navigation
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.4
+// @version      1.0.5
 // @description  Keyboard shortcuts (j/k/c) for navigating the Coral comments drawer on WaPo articles.
 // @author       Jeff Shute <jshute@gmail.com>
+// @license      MIT
 // @match        https://www.washingtonpost.com/*
 // @grant        none
 // @run-at       document-idle

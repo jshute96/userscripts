@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         Pinkbike: Article image navigation
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.3
+// @version      1.0.4
 // @description  Keyboard shortcuts (i / Shift-I) for paging through the large photos and videos in a Pinkbike article.
 // @author       Jeff Shute <jshute@gmail.com>
+// @license      MIT
 // @match        https://www.pinkbike.com/news/*
 // @grant        none
 // @run-at       document-idle

@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         Peloton Player: Fix bad video overlay
 // @namespace    https://github.com/jshute96/userscripts
-// @version      2.0.1
+// @version      2.0.2
 // @description  Fix a bug in Peloton's video player where, on large high-res monitors, a fixed-size "cinematic vignette" overlay is painted on top of the video, creating an ugly horizontal seam across it.
 // @author       Jeff Shute <jshute@gmail.com>
+// @license      MIT
 // @match        https://members.onepeloton.com/*
 // @grant        none
 // @run-at       document-idle

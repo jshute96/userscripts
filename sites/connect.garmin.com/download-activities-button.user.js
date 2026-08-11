@@ -1,9 +1,10 @@
 // ==UserScript==
 // @name         Garmin Connect: Download activities button
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.1.2
+// @version      0.1.3
 // @description  Adds a "Download activities" button to the top toolbar that jumps to the Activities list and opens Strava's upload page in a background tab.
 // @author       Jeff Shute <jshute@gmail.com>
+// @license      MIT
 // @match        https://connect.garmin.com/app/*
 // @grant        GM_openInTab
 // @noframes
