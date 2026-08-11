@@ -2,7 +2,7 @@
 // @name         Peloton Player: Keep Now-Playing widget visible
 // @namespace    https://github.com/jshute96/userscripts
 // @version      1.1.0
-// @description  Keep the Now-Playing song widget (top-left of the Peloton class player) visible at all times. Other overlays — the top-right toolbar and the bottom status/seek bar — keep their normal hide-on-idle behaviour.
+// @description  Keep the Now-Playing song widget (top-left of the Peloton class player) visible at all times.
 // @author       Jeff Shute <jshute@gmail.com>
 // @match        https://members.onepeloton.com/*
 // @grant        none

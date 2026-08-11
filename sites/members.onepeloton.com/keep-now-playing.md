@@ -2,11 +2,13 @@
 
 ## Summary
 
-Keeps the Now-Playing song widget (top-left of Peloton's class video
-player) visible at all times, so you can always see which song is
-playing. Other overlays — the top-right toolbar and the bottom
-status/seek bar — keep their normal "hide after a few seconds of
-mouse-idle" behaviour.
+Peloton's class player auto-hides the Now-Playing widget so you
+can't see what song is playing.
+
+This script disables that, so Now-Playing always stays visible.
+
+Other overlays at the top and bottom keep their normal "hide after a few
+seconds of mouse-idle" behaviour.
 
 ## Visible changes
 
