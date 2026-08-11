@@ -3,6 +3,7 @@
   "sites/cnrfc.noaa.gov/precip-default-view.user.js",
   "sites/connect.garmin.com/activity-tcx-download.user.js",
   "sites/connect.garmin.com/download-activities-button.user.js",
+  "sites/connect.garmin.com/mtb-jumps-map-link.user.js",
   "sites/example.com/bold-on-hover.user.js",
   "sites/example.com/error-button.user.js",
   "sites/example.com/error-on-load.user.js",
