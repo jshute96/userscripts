@@ -251,7 +251,7 @@ loading" from the outside — see the logging tip below about
 periodic "still waiting" logs for poll loops. Add that log first
 if it's missing; it makes the next break diagnose itself.
 
-## Tips
+## Tips and rules
 
 * Use two-space indents.
 
@@ -266,6 +266,8 @@ if it's missing; it makes the next break diagnose itself.
     on first paint), log once after N seconds of continued failure
     so a permanent break is distinguishable from "still loading."
     Otherwise a renamed selector looks identical to a slow SPA.
+
+* Do not include any personal data, user content, account IDs, etc in tests, scripts, or docs. (Script author info is okay.)
 
 * During development, if the userscript is installed as a pointer-to-local-file, the user just needs to click Reload in the browser to get updates.
 

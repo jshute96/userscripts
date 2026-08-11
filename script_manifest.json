@@ -8,6 +8,7 @@
   "sites/example.com/error-on-load.user.js",
   "sites/example.com/show-gm-info.user.js",
   "sites/example.com/updated-script.user.js",
+  "sites/feedly.com/scroll-index-to-top.user.js",
   "sites/feedly.com/sort-filter-presets.user.js",
   "sites/members.onepeloton.com/classes-default-filters.user.js",
   "sites/members.onepeloton.com/fix-bad-video-overlay.user.js",
