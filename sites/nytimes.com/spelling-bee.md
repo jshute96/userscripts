@@ -153,6 +153,44 @@ The API returns an array of entries, each with `word`, optional
 A 404 means "no definitions found"; we render a fallback message
 linking to the full Cambridge page in that case.
 
+#### Cached 502s, and the cache-busting retry
+
+The API sits behind Cloudflare (a CDN that caches responses at
+edge servers close to the user). When the API's origin server
+hiccups, Cloudflare caches the resulting **502 Bad Gateway**
+against that exact URL. The symptom is distinctive and easy to
+misread as "the API is down": *some specific words* fail on every
+single retry while other words work fine, and the failing set
+stays failing for as long as the cache entry lives.
+
+Observed on 2026-08-13: `/entries/en/colon` returned 502 on three
+consecutive requests, while `/entries/en/noon`, `/entries/en/lion`
+and others returned 200. Requesting `/entries/en/colon?_cb=12345`
+returned 200 immediately — the query param makes a different
+cache key, so it misses the poisoned entry and reaches the origin.
+
+So `fetchWithRetries()` makes up to three attempts per word:
+
+* Attempt 0 uses the plain URL, so a *healthy* cache entry still
+  gets used.
+* Attempts 1 and 2 append a unique `?_cb=<counter>-<timestamp>`
+  param, 400 ms apart.
+* **Only 5xx and transport failures are retried.** Everything else
+  ends the loop, including 404 (a real answer — "no definitions
+  found") and 429 (rate limited). Retrying a 429 would be actively
+  harmful: attempts 1+ bypass the CDN by construction, so a burst
+  of hovers would send three requests to the origin apiece and
+  deepen the rate limit instead of waiting it out.
+* Transport failures (network error, timeout, no `GM_xmlhttpRequest`)
+  carry a `TRANSPORT_FAILURE` sentinel of `-1` rather than `0`.
+  That keeps them distinguishable from an `onload` that simply
+  didn't populate `response.status` — some userscript managers
+  omit it, and that case has to fall through to the JSON parse
+  rather than be treated as a failed lookup.
+
+Each attempt logs its status, so a persistent break is
+distinguishable from a one-off blip in the console.
+
 ### What we assume
 
 The script will break if any of these change:
@@ -187,7 +225,9 @@ The script will break if any of these change:
 7. The Free Dictionary API
    (`https://api.dictionaryapi.dev/api/v2/entries/en/<word>`)
    stays online and free, returns a stable JSON shape, and 404s
-   cleanly for unknown words.
+   cleanly for unknown words. It also has to keep honoring an
+   unknown query param (`?_cb=…`) by ignoring it, since that's
+   what the retry path relies on.
 8. The URL match has `spelling-bee*` because sometimes it shows up
    with `?auth` arguments after the page.
 

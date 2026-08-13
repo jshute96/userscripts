@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         NYT Spelling Bee: Word definitions and other tweaks
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.17
+// @version      1.0.18
 // @description  Shows definitions when you hover or click a word, adds a toolbar link to Spelling Bee Buddy, and closes the splash screens for you.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -41,6 +41,15 @@
   // Hover-popup data source: the Free Dictionary API. JSON, no auth, no
   // ads, and concise — much cleaner than scraping a full dictionary page.
   const DEFINITION_API_URL = 'https://api.dictionaryapi.dev/api/v2/entries/en/';
+  // The API sits behind Cloudflare, and when its origin hiccups Cloudflare
+  // caches the resulting 502 against that exact URL — so the *same* word
+  // then fails on every retry while other words are fine. Appending a
+  // unique query param produces a distinct cache key, which misses the
+  // poisoned entry and reaches the origin again. Observed working: plain
+  // `/entries/en/colon` returned 502 indefinitely, `?_cb=…` returned 200.
+  const DEFINITION_RETRIES = 2;
+  const RETRY_DELAY_MS = 400;
+  let cacheBustCounter = 0;
   const HOVER_DELAY_MS = 250;
   const HIDE_DELAY_MS = 200;
   const POPUP_WIDTH = 480;
@@ -130,55 +139,100 @@
   // (click outside, or click the same word again).
   let popupPinned = false;
 
-  function fetchDefinition(word) {
-    if (definitionCache.has(word)) return definitionCache.get(word);
-    const url = DEFINITION_API_URL + encodeURIComponent(word);
-    const p = new Promise((resolve) => {
+  // A transport-level failure (network error, timeout, no GM API) has no
+  // HTTP status of its own. Use a distinct sentinel rather than 0, so it
+  // stays distinguishable from an `onload` that simply didn't populate
+  // `response.status` — some userscript managers omit it, and that case
+  // must still fall through to the JSON parse.
+  const TRANSPORT_FAILURE = -1;
+
+  // One HTTP round-trip. Resolves to { status, text } — never rejects.
+  function requestOnce(url) {
+    return new Promise((resolve) => {
       try {
         GM_xmlhttpRequest({
           method: 'GET',
           url: url,
           headers: { 'Accept': 'application/json' },
           onload: (response) => {
-            try {
-              const text = response.responseText || '';
-              console.log(TAG, 'definition fetch', word,
-                'status', response.status, 'len', text.length);
-              // The API returns 404 with `{title: "No Definitions Found"}`
-              // for unknown words.
-              if (response.status === 404) {
-                resolve({ entries: null, error: false, missing: true });
-                return;
-              }
-              if (response.status && response.status !== 200) {
-                console.warn(TAG, 'non-200 status for', word,
-                  response.status, '- excerpt:', text.slice(0, 300));
-                resolve({ entries: null, error: true });
-                return;
-              }
-              const data = JSON.parse(text);
-              if (!Array.isArray(data) || data.length === 0) {
-                resolve({ entries: null, error: false, missing: true });
-                return;
-              }
-              resolve({ entries: data, error: false });
-            } catch (err) {
-              console.warn(TAG, 'definition parse failed for', word, err);
-              resolve({ entries: null, error: true });
-            }
+            resolve({ status: response.status, text: response.responseText || '' });
           },
           onerror: (err) => {
-            console.warn(TAG, 'definition fetch failed for', word, err);
-            resolve({ entries: null, error: true });
+            console.warn(TAG, 'definition fetch failed for', url, err);
+            resolve({ status: TRANSPORT_FAILURE, text: '' });
           },
           ontimeout: () => {
-            console.warn(TAG, 'definition fetch timed out for', word);
-            resolve({ entries: null, error: true });
+            console.warn(TAG, 'definition fetch timed out for', url);
+            resolve({ status: TRANSPORT_FAILURE, text: '' });
           },
         });
       } catch (err) {
         console.warn(TAG, 'GM_xmlhttpRequest unavailable', err);
-        resolve({ entries: null, error: true });
+        resolve({ status: TRANSPORT_FAILURE, text: '' });
+      }
+    });
+  }
+
+  function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  // Only a server-side 5xx or a transport failure is worth another
+  // attempt — that's the cached-502 symptom this retry exists for.
+  // Notably 429 (rate limited) and other 4xx are NOT retried: attempts
+  // 1+ bypass the CDN by construction, so retrying them would send three
+  // requests to the origin for every hover and deepen the rate limit
+  // rather than wait it out.
+  function isRetryable(status) {
+    return status === TRANSPORT_FAILURE || (status >= 500 && status <= 599);
+  }
+
+  // Fetch with cache-busting retries. Attempt 0 uses the plain URL so a
+  // healthy edge cache still helps; later attempts add a unique `_cb`
+  // param to route around a cached 502 (see DEFINITION_RETRIES above).
+  async function fetchWithRetries(word) {
+    const base = DEFINITION_API_URL + encodeURIComponent(word);
+    let last = { status: TRANSPORT_FAILURE, text: '' };
+    for (let attempt = 0; attempt <= DEFINITION_RETRIES; attempt++) {
+      const url = attempt === 0 ? base : base + '?_cb=' + (++cacheBustCounter) + '-' + Date.now();
+      if (attempt > 0) await delay(RETRY_DELAY_MS);
+      last = await requestOnce(url);
+      console.log(TAG, 'definition fetch', word, 'attempt', attempt,
+        'status', last.status, 'len', last.text.length);
+      if (!isRetryable(last.status)) return last;
+      console.warn(TAG, 'retryable status for', word, last.status,
+        '- excerpt:', last.text.slice(0, 200));
+    }
+    console.warn(TAG, 'giving up on', word, 'after',
+      DEFINITION_RETRIES + 1, 'attempts');
+    return last;
+  }
+
+  function fetchDefinition(word) {
+    if (definitionCache.has(word)) return definitionCache.get(word);
+    const p = fetchWithRetries(word).then((response) => {
+      try {
+        // The API returns 404 with `{title: "No Definitions Found"}`
+        // for unknown words.
+        if (response.status === 404) {
+          return { entries: null, error: false, missing: true };
+        }
+        // A falsy status from a successful `onload` means the manager
+        // didn't report one — try to parse the body anyway rather than
+        // failing the lookup. This is why transport failures use the
+        // truthy TRANSPORT_FAILURE sentinel and not 0: they land here
+        // as an error, while a status-less success falls through.
+        if (response.status && response.status !== 200) {
+          return { entries: null, error: true };
+        }
+        const data = JSON.parse(response.text);
+        if (!Array.isArray(data) || data.length === 0) {
+          return { entries: null, error: false, missing: true };
+        }
+        return { entries: data, error: false };
+      } catch (err) {
+        console.warn(TAG, 'definition parse failed for', word, err);
+        return { entries: null, error: true };
       }
     });
     // Cache only successful results — transient errors shouldn't poison
