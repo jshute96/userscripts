@@ -2,7 +2,7 @@
 // @name         Hacker News: Keyboard comment navigation
 // @namespace    https://github.com/jshute96/userscripts
 // @version      1.1.1
-// @description  Improve comment navigation with keyboard shortcuts and additional links
+// @description  Adds keyboard shortcuts for moving through a thread by comment, sibling, parent or root, and adds the navigation links HN is missing to each comment.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://news.ycombinator.com/item*

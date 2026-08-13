@@ -28,7 +28,7 @@ written down before, that's the bar for recording it.
 * `tampermonkey` is a public plugin with general guidance on userscript
   syntax and development. Read it (via `/tampermonkey:tampermonkey` or
   by reading `SKILL.md`) whenever writing or reviewing userscripts —
-  its `references/` directory has focused, well-organised material we
+  its `references/` directory has focused, well-organized material we
   shouldn't duplicate here.
   - **`references/common-pitfalls.md`** — `@match` too broad, not
     waiting for elements (SPA), memory leaks in observers,
@@ -71,22 +71,54 @@ maybe HTML), follow this flow:
    (closed, each menu open, hover/focus). This avoids multiple
    fix-and-fail cycles.
 3. **Write the script** under `sites/<site>/`, with its sibling
-   `.md` doc.
-4. **Manually verify in Playwright.** Inject the script the same way
+   `.md` doc. Name and describe it per "Naming and describing a
+   script" below.
+4. **List it in `README.md`.** Add a row to the table under
+   "My userscripts", in site order — see "Keeping the script list
+   current" below.
+5. **Manually verify in Playwright.** Inject the script the same way
    the `loadUserscript` fixture does, confirm the button appears,
    click it, watch logs and effects. If you get stuck, stop and
    report exactly where — don't guess.
-5. **Suggest install**
+6. **Suggest install**
    - If using SourceMonkey (the default), the directory should be installed already.
      Add the new script to `./script_manifest.json` (relative path), then run
      the `install-in-SourceMonkey` skill's `refresh` command once so SourceMonkey
      picks up the new file.
    - If using Tampermonkey, use the `install-in-tampermonkey` skill's
    `install-pointer` action, so the user can iterate by reloading.
-6. **Write a Playwright spec** (`<name>.spec.js`) once the user
+7. **Write a Playwright spec** (`<name>.spec.js`) once the user
    confirms it works in their normal browser. The spec is for
    reproducible regression — write it after the human-confirmed pass,
    not before, so that the spec encodes a known-good state.
+
+### Keeping the script list current
+
+Two files list every script and both have to be updated by hand:
+
+* **`script_manifest.json`** — the path list SourceMonkey loads.
+  One relative path per script, in site order.
+* **`README.md`, under "My userscripts"** — one table per `###`
+  category, each with columns Site / Script / Doc / Description and
+  sorted by site directory. The Script cell links the `@name` to the
+  `.user.js`; the Doc cell links the word "doc" to the `.md`; the
+  Description cell is the `@description`, copied verbatim.
+  - Categories group scripts that do the same job across sites
+    (currently "Keyboard comment navigation"), with
+    "Miscellaneous" holding everything that isn't part of such a
+    family, and "Testing and experimentation" holding the
+    `example.com` fixtures. A category earns its own table once
+    there are a few siblings; until then the script goes in
+    Miscellaneous.
+  - A new category gets a sentence under the heading saying what
+    its scripts have in common, so the grouping explains itself.
+
+Update both when adding a script, removing one, or renaming its files.
+Update the README row **whenever a script's `@name` or
+`@description` changes**, so the table doesn't go stale.
+
+`sites/example.com/` fixtures go in the manifest individually, but
+share a single README row that links the directory.
 
 ### State-checking for option-change scripts
 
@@ -124,7 +156,7 @@ That has a consequence for `@match`:
   page is a bad UX.
 
 The standard fix is to **broaden `@match` to the site root** and gate
-behaviour inside the script:
+behavior inside the script:
 
 1. `@match https://site.com/*` (or the smallest prefix that covers
    every page the script *might* care about).
@@ -254,6 +286,8 @@ if it's missing; it makes the next break diagnose itself.
 ## Tips and rules
 
 * Use two-space indents.
+
+* **US spelling** everywhere we write English.
 
 * When writing userscripts, add `console.log` logging to give more debugging visibility.
   - Use a short `[name]` prefix, two words at most.
@@ -458,29 +492,96 @@ find a meaningful container, then re-find your leaf relative to it.
 A 460-character minified `<path d="…">` prefix is a code smell —
 look up the tree.
 
+## Naming and describing a script
+
+Every script is described at three levels of increasing length, each
+written for a reader who may never see the others. All three are
+user-facing — they're what shows up in the userscript manager, in
+search results, and on the script's page when it's published to a
+repository site like [Greasy Fork](https://greasyfork.org/).
+
+Write all three as a set, and keep them consistent: the doc's `#`
+title must match the `@name`, and the doc's
+`Summary` should include more details on what's in the `@description`.
+
+When any of them changes on an existing script, update the `.md`
+title and the `README.md` table row in the same edit — see "Keeping
+the script list current" above — and bump the `@version`, so
+installed copies pick the new text up.
+
+### 1. `@name` — one line, "Site Name: title"
+
+Many tools show *only* the `@name`, so on its own it has to say what
+site the script is for and what it does, and ideally
+be interesting enough that someone who has that problem stops and
+reads further.
+
+* **Site name**, then a colon. Use the site's own brand name, not its
+  domain — `Google Calendar`, not `calendar.google.com`.
+  Common abbreviations for the site name (`NYT`) are fine.
+  - `Site Name Section/Feature:` is preferred, when the
+    script only applies to one section or feature of a large site:
+    `Peloton Player`, `NYT Spelling Bee`, `The Atlantic Games`.
+    Scripts covering the site as a whole keep the plain site name
+* **Title** after the colon: sentence case, no trailing period.
+  Describe the change or the feature, not the mechanism. Prefer a
+  verb phrase (`Show elevation loss as well as gain`,
+  `Auto-close the newsletter popup`) or a plain noun phrase for a
+  thing that's added (`Keyboard comment navigation`).
+* Keep the whole thing under about 70 characters so it doesn't wrap
+  or get truncated in a script list.
+* Don't put "userscript", "script", or "Tampermonkey" in the name.
+* Where several scripts do the same job on different sites, use the
+  *same* title on each (`Keyboard comment navigation`).
+
+### 2. `@description` — 1–2 sentences, up to ~160 characters
+
+Answers "what is this actually for, and what does it actually add or
+change?" in general terms. This is the blurb shown under the name in
+script lists and search results.
+
+* Say what the script does and, where it's the point of the script,
+  what was wrong or missing without it. A bug-fix script should describe
+  the bug.
+* General terms only — no selectors, no key-by-key listings, no
+  configuration syntax. Those live in the doc.
+* Don't restate the `@name`; assume the reader just read it.
+* No trailing "…on this site" filler, and no first person.
+
+### 3. The doc's `Summary` section — free-form, user-facing
+
+The `.md` file's first `##` section. This is what gets posted as the
+script's description on repository sites, so write it for a stranger
+who found the script in a search, not for us.
+
+* Give a reader enough to decide whether they want the script: what
+  the problem is (what was wrong, missing, or annoying before), and
+  what the script adds or changes.
+* Multiple paragraphs are fine, as are tables, lists, and links.
+  Formatting is free — but keep it readable top to bottom.
+* If the script needs usage instructions to be useful — key bindings,
+  URL parameters, configuration options — put them here, under `###`
+  subsections. Anything a *user* needs goes in `Summary`; anything
+  only a *maintainer* needs goes in `Implementation`.
+* Don't spell out consequences the reader can infer, and don't
+  narrate what the screenshots already show.
+* Screenshots go at the **end** of `Summary` — see below.
+
 ## Documentation files for each userscript
 
-Each userscript has a sibling `.md` with three sections: `Summary`,
+Each userscript has a sibling `.md` whose `#` title is exactly the
+script's `@name`, and which has three sections: `Summary`,
 `Visible changes`, `Implementation`.
 
-* **Summary**:
-  - First paragraph: One or two sentences. A brief and scannable description
-    of the user-facing behavior (not implementation details). Example:
-    "Improve navigation on Hacker News comments pages by adding keyboard
-    navigation and additional navigation links."
-  - Second paragraph (if helpful): Short high-level description of what it
-    changes or how it works.
-  - Keep it plain and short. State what's wrong and what the script
-    does; don't spell out the consequences a reader can infer, and
-    don't restate what the screenshots already show. Detail and
-    caveats belong in `Implementation`.
-* **Visible changes**: a short bulleted list of user-visible behaviour
+* **Summary**: the user-facing description — see "Naming and
+  describing a script" above.
+* **Visible changes**: a short bulleted list of user-visible behavior
   changes. Brief — readers should be able to scan it. Group related
   points; don't over-explain.
 * **Implementation**: the longer section, written for the future
   maintainer (probably us, after the site changes and the script
   breaks). Cover:
-  - What we observed about the page's DOM and behaviour that the
+  - What we observed about the page's DOM and behavior that the
     script depends on (selectors, attributes, structural anchors).
   - What we are assuming will stay stable.
   - How we modify the page to produce the visible changes.
@@ -510,10 +611,18 @@ described.
   - A single unpaired image is just `<script-basename>.png`, or
     `<script-basename>-<what>.png`.
 
-* **Where they go in the doc.** In the `Summary` section, usually at
-  the end of it — they're part of the user-facing description, not
-  the implementation notes. (Implementation-only diagnostic images
-  can go in `Implementation` instead.)
+* **Where they go in the doc.** At the **end** of the `Summary`
+  section — they're part of the user-facing description, not the
+  implementation notes. (Implementation-only diagnostic images can go
+  in `Implementation` instead.)
+  - Keep them in one block at the end, all together, rather than
+    interleaved through the prose. Repository sites like Greasy Fork
+    strip the images out of the description and show them in a
+    separate gallery underneath.
+  - The doc can include short headings above image to label them, like
+    "Page X before:".  These will be removed on the Greasy Fork page,
+    where we'll one header above all the images, like
+    "Pages X and Y, before and after:".
 
 * **Labels.** Label each image with what it is — `<what> before:` /
   `<what> after:` for a pair, `Example:` for a single one — where
@@ -542,7 +651,7 @@ described.
   in enormous (3841×1976 for one browser window). Downscale them to
   about a quarter — `convert x.jpg -resize 25% -quality 88 out.jpg`
   — which is still legible in the doc. Keep photographic content
-  (video frames) as `.jpg`; UI captures of text and flat colour stay
+  (video frames) as `.jpg`; UI captures of text and flat color stay
   `.png`, where it's both sharper and smaller.
 
 * **Layout.** If the images are small, show before and after

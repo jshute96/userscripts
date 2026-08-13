@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Peloton Classes: Default filters
+// @name         Peloton: Default filters on class lists
 // @namespace    https://github.com/jshute96/userscripts
-// @version      3.0.1
-// @description  Set default filters on Peloton classes pages. Defaults are user-configurable (per class type) using the userscript context menu. (Built-in defaults are "Not Taken" and Difficulty=Intermediate+Advanced.)
+// @version      3.0.2
+// @description  Applies your preferred filters on class lists by default, so browsing starts from a useful view. Defaults are configurable per class type from the script menu.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://members.onepeloton.com/*

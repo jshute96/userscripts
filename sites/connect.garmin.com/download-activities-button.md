@@ -2,11 +2,18 @@
 
 ## Summary
 
-Adds a "Download activities" button to the top toolbar of Garmin Connect's
-web app. Clicking it jumps the current page to the Activities list and
-opens Strava's "upload activity" page in a background tab — the two
-pages you almost always want open together when moving recent rides
-from a Garmin device into Strava.
+Adds a **Download activities** button to Garmin Connect's top toolbar
+that sets up both halves of a transfer to Strava in one click.
+
+Moving recent rides off a Garmin device and into Strava means working
+between two pages — Garmin's Activities list to download from, and
+Strava's upload page to drop the files on. The button navigates the
+current tab to the Activities list and opens Strava's upload page in a
+background tab, so both are ready without hunting through menus or
+bookmarks.
+
+Pairs well with the one-click TCX download script, which puts the
+export button on each activity page.
 
 ## Visible changes
 
@@ -46,7 +53,7 @@ every deploy). If no reference button exists on the current page, we
 fall back to a hand-coded inline style approximating Garmin's
 secondary-button look.
 
-Click behaviour:
+Click behavior:
 
 * The Strava tab is opened **first**, while we still have the click's
   user-activation context (otherwise the browser may block it).

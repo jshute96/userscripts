@@ -1,10 +1,14 @@
-# example.com: show GM_info
+# example.com: Show GM_info
 
 ## Summary
 
-Test fixture. Adds a "Show GM_info" button to example.com whose click
-handler dumps the `GM_info` JSON payload as an indented text blob
-under the bullet.
+Test fixture. Adds a "Show GM_info" button to example.com that
+toggles an indented dump of the `GM_info` payload under its bullet.
+
+Exercises the `GM_info` grant, and gives a quick way to see what a
+manager reports about itself and the running script — its version,
+the resolved metadata, the install mode — without opening the
+manager's own dashboard.
 
 ## Visible changes
 

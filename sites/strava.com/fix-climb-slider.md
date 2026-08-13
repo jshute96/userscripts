@@ -1,16 +1,20 @@
-# Strava: Fix climb slider
+# Strava: Fix the broken climb filter on segment search
 
 ## Summary
 
-Bug fix for broken layout on Strava's segment search page. It restores
-the climb-category filter — the "Flat/Downhill … Climb" range slider —
-to a horizontal layout, with the
-category icons (uncategorised, 4, 3, 2, 1, HC) sitting under the slider
-positions they correspond to.
+Repairs the climb-category filter on Strava's segment search page,
+which is currently broken (August 2026).
 
-Strava currently (August 2026) serves that widget with **no CSS at all**, so it
-falls back to a default block layout that stacks the icons vertically,
-which looks ugly and makes the filter unusable.
+The filter is meant to be a horizontal "Flat/Downhill … Climb" slider,
+with the category icons — uncategorised, 4, 3, 2, 1, HC — sitting
+under the positions they select. Strava is serving the widget with
+**no CSS at all**, so it falls back to a default block layout that
+stacks everything into a tall vertical column: ugly, and unusable as a
+filter.
+
+This script restores the intended layout and lines the icons up with
+the slider. It checks first, and does nothing if Strava has already
+fixed the page.
 
 **Search page before:**
 
@@ -69,7 +73,7 @@ the width of its widest text, "Flat/Downhill" — about 82px.
 
 Injected CSS, keyed off the IDs above:
 
-* `#segment-cat-container` becomes a `flex` row with centred items, so
+* `#segment-cat-container` becomes a `flex` row with centered items, so
   the two `.cat-label`s sit either side of the slider column.
 * The unclassed middle div (slider + icons) gets a starting width of
   210px, replaced in the same frame by `sizeSliderToIcons()`: it measures
@@ -95,8 +99,8 @@ off a live `.ui-slider-handle`: Strava's skin gives handles
 `width: 8px; margin-left: -6px`, so a handle is drawn about 2px left of
 the value it represents, and the icons are shifted to match what's on
 screen rather than the abstract percentage. Verified live: with the
-range dragged to categories 2–4, both handle centres land within 1px of
-the corresponding icon centres.
+range dragged to categories 2–4, both handle centers land within 1px of
+the corresponding icon centers.
 
 Both the decision below and re-alignment are driven by two triggers:
 
@@ -115,7 +119,7 @@ Before touching anything, the script compares the bounding boxes of the
 first two `.icon-container`s. If they share a top edge and the second is
 to the right of the first, the widget is already horizontal — Strava
 fixed it — and the script logs a `console.warn` and returns without
-injecting its stylesheet. That's a behavioural check rather than a probe
+injecting its stylesheet. That's a behavioral check rather than a probe
 for a specific rule, so it holds however Strava restores the layout.
 
 The decision is **deferred while the widget is hidden**, because zero-

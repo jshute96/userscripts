@@ -1,10 +1,17 @@
-# Feedly: Sort/Filter presets
+# Feedly: Add Oldest/Newest buttons for single-click order toggle
 
 ## Summary
 
-Adds two preset buttons — "Oldest" and "Newest" — to a Feedly feed
-page's header toolbar. Each button applies a paired Sort by / Filter by
-combination in one click, so we don't have to walk the three-dots menu.
+Adds **Oldest** and **Newest** buttons to a Feedly feed's toolbar,
+each switching the whole reading mode in one click.
+
+Oldest with unread messages included shows the full history from
+the beginning, which isn't usually desired, so selecting the useful
+views takes several clicks setting multiple modes. This provides
+one-click shortcuts.
+
+* **Oldest** — sort by oldest, unread only *on*.
+* **Newest** — sort by newest, unread only *off*.
 
 ## Visible changes
 
@@ -83,7 +90,7 @@ combination in one click, so we don't have to walk the three-dots menu.
 - **`aria-label` values keep their words, not their capitalization.**
   Feedly re-cased "Back to Main Menu" → "Back to main menu", which
   broke every preset that had to change the sort: `openMoreMenu()`
-  didn't recognise the submenu state, fell through to the "menu is
+  didn't recognize the submenu state, fell through to the "menu is
   closed" branch, clicked the trigger (which doesn't restore the main
   menu from a submenu) and timed out in `waitFor`. All `aria-label`
   selectors here now use the CSS case-insensitive flag, e.g.

@@ -1,10 +1,20 @@
-# CNRFC: Default precip view (Bay Area, 24-hour)
+# NOAA CNRFC: Default precipitation map view (Bay Area, 24-hour)
 
 ## Summary
 
-On the CNRFC interactive precipitation map, auto-zoom the map to the SF
-Bay Area and turn on the 24-hour observed precip layer so the page opens
-in a useful default state.
+Opens the precipitation map on NOAA's California Nevada River Forecast
+Center site (CNRFC) with a default mode and location.
+
+The map always loads zoomed out over the whole forecast region, with
+no mode (e.g. precipitation layer) selected, so every visit starts several
+clicks to get to a useful view.
+
+This script opens a default view, currently hardcoded to the San
+Francisco Bay Area, with 24-hour observed precipitation.
+
+The map position is set by constants at the top of the script
+(`CENTER_LAT`, `CENTER_LON`, `TARGET_ZOOM`); edit them for a different
+default view.
 
 ## Visible changes
 

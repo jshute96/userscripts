@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         example.com: show GM_info
+// @name         example.com: Show GM_info
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.1
+// @version      1.0.2
 // @description  Test fixture: adds a "Show GM_info" button that prints the GM_info payload under the bullet.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT

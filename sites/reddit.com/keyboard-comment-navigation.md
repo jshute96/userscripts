@@ -2,26 +2,41 @@
 
 ## Summary
 
-Adds keyboard shortcuts for navigating comments on reddit post pages, matching
-the bindings used by the userscripts on Hacker News and Pinkbike. Overrides
-reddit's built-in `j`/`k` (which navigates posts/comments differently).
+Adds keyboard shortcuts for moving through the comments on a reddit
+post, following the shape of the thread — not just the next comment,
+but the parent, the next sibling at the same depth, and the next
+top-level thread, so a long discussion can be skimmed or read in
+depth without the mouse.
+
+Reddit's own `j` / `k` move linearly through everything and don't let
+you skip a subtree; this script takes those keys over. The bindings
+match the comment-navigation userscripts for other sites.
+
+### Keyboard shortcuts
+
+| Key | Moves to |
+| --- | --- |
+| `j` / `k` | next / previous comment in display order, replies included |
+| `h` / `l` | next / previous sibling at the same depth, skipping the current subtree |
+| `p` | parent of the current comment |
+| `n` | parent's next sibling — continues past the current subtree |
+| `r` | root of the current thread |
+| `m` | next root thread |
+| `c` | top of the comments section (the sort dropdown / "N Comments" row) |
+
+The "current" comment is the first one visible on screen, not whichever
+has focus. Keys are ignored while you're typing in a text box.
 
 ## Visible changes
 
-* `j` / `k` — next / previous comment in display order (replies counted).
-* `h` / `l` — next / previous sibling at the same depth (skips the current
-  subtree).
-* `p` — parent of the current comment.
-* `n` — parent's next sibling (continues past the current subtree).
-* `r` — root of the current thread.
-* `m` — next root thread.
-* `c` — top of the comments section (the sort dropdown / "N Comments" row).
-
-The "current" comment is the first one whose body text intersects the
-visible area below reddit's sticky top banner, not whichever has focus.
-Keys are ignored when a typing target is focused (`input`, `textarea`,
-`select`, contenteditable) or any modifier is held. Scroll uses
-`behavior: 'smooth', block: 'start'`.
+* The keyboard shortcuts above, on reddit post pages.
+* Reddit's built-in `j` / `k` bindings are replaced.
+* No visible markup changes — only scrolling, using
+  `behavior: 'smooth', block: 'start'`.
+* The current comment is the first one whose body text intersects the
+  visible area below reddit's sticky top banner. Keys are ignored when
+  a typing target is focused (`input`, `textarea`, `select`,
+  contenteditable) or any modifier is held.
 
 ## Implementation
 

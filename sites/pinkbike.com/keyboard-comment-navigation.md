@@ -1,23 +1,32 @@
-# Pinkbike: keyboard comment navigation
+# Pinkbike: Keyboard comment navigation
 
 ## Summary
 
-Add keyboard shortcuts for moving through the comments section of a
-Pinkbike news article.
+Adds keyboard shortcuts for moving through the comments on a Pinkbike
+article, so a long discussion can be read or skimmed without reaching
+for the scroll wheel. As well as stepping comment by comment, you can
+jump to a reply's parent or skip the rest of a thread.
+
+The bindings match the comment-navigation userscripts for other sites.
+
+### Keyboard shortcuts
+
+| Key | Moves to |
+| --- | --- |
+| `j` / `k` | next / previous comment in display order, replies included |
+| `p` | the parent (root) of the current reply; does nothing on a root comment |
+| `n` | the root of the next thread |
+| `c` | the `N Comments` line at the top of the comments section |
+
+Keys work anywhere on the article page, and are ignored while you're
+typing in a text box.
 
 ## Visible changes
 
-* Keyboard shortcuts (active anywhere on the article page, except
-  while typing in an input/textarea/contenteditable):
-  - `j` — next comment (in display order, replies counted)
-  - `k` — previous comment
-  - `p` — jump to the parent (root) of the current reply; no-op on a
-    root comment
-  - `n` — jump to the root of the next thread
-  - `c` — jump to the `N Comments` line at the top of the comments
-    section
-* All jumps use smooth scrolling. The script does not modify any
-  visible markup — only attaches a `keydown` listener.
+* The keyboard shortcuts above, using smooth scrolling.
+* No visible markup changes — the script only attaches a `keydown`
+  listener. Keys are ignored while focus is in an
+  input/textarea/contenteditable.
 
 ## Implementation
 
@@ -114,7 +123,7 @@ treatment.
 hidden tab) is excluded. Without this, `j` from a comment
 immediately before a hidden one would target the hidden comment,
 the scroll would no-op, and the next press would pick it again —
-classic "stuck" behaviour.
+classic "stuck" behavior.
 
 ### Logging
 

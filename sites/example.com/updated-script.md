@@ -1,11 +1,13 @@
-# example.com: updated script
+# example.com: Updated script
 
 ## Summary
 
-Test fixture for detecting whether script changes are actually being
-picked up. Has a `VERSION_LABEL` constant near the top of the source
-file; the constant is included in this script's bullet under
-"Installed userscripts".
+Test fixture. Shows the value of a `VERSION_LABEL` constant from its
+own source file in a bullet on example.com.
+
+Exercises change propagation: edit the constant, reload the page, and
+the bullet says whether the manager picked the edit up — which also
+identifies which install mode the script is running under.
 
 ## Visible changes
 

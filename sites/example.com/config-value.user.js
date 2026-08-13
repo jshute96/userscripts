@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         example.com: config value with context-menu update
+// @name         example.com: Config value with context-menu update
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.1
+// @version      1.0.2
 // @description  Test fixture: adds a "the message_value is: <value>" bullet whose value is set via the userscript context menu and saved in GM storage.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -57,7 +57,7 @@
         initial,
       );
       if (entered === null) {
-        console.log(TAG, 'set cancelled');
+        console.log(TAG, 'set canceled');
         return;
       }
       if (entered.length < 4) {

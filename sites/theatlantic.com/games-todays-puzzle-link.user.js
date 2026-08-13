@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         The Atlantic games: Today's Puzzle link
+// @name         The Atlantic Games: Link to today's puzzle
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.1
-// @description  Adds a "Today's Puzzle" link (the dateless game URL) below "Return to Puzzle" on the puzzle-completed endsheet.
+// @version      1.0.2
+// @description  Adds a Today's Puzzle link to the puzzle-completed screen, so you can get to the new puzzle instead of back to the previous one you solved.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://www.theatlantic.com/games/*

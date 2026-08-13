@@ -5,7 +5,7 @@
 Garmin Connect's MTB Dynamics view shows jumps on the map and in a table
 but has no UI to match them up, or find specific jumps.
 
-This script links them.  Jumps in the map get labelled with their ID in
+This script links them.  Jumps in the map get labeled with their ID in
 the table (e.g. "Jump 3"), and clicking them highlights the corresponding
 row in the table.  Clicking rows in the table selects the row and
 also the corresponding jump on the map (scrolling it into view if necessary).
@@ -198,7 +198,7 @@ hidden with no button to bring them back.
   survives it. (This was the first attempt, and it's why jumps kept
   arriving at exactly 45% down.)
 
-  Both boxes sit below centre because the bubble is drawn upwards from
+  Both boxes sit below center because the bubble is drawn upwards from
   the marker and needs ~155px above it. `ACCEPT_BOX`'s top bounds the
   worst case allowed to stay put: 0.5 leaves ~45px of bubble clear,
   0.45 left only ~25px, which still read as jammed.
@@ -207,7 +207,7 @@ hidden with no button to bring them back.
   activate the marker, so Leaflet's focus-pan and popup autoPan see a
   view that already suits them and never fight our position.
 
-  Note the marker's *anchor* is its centre, not the bottom of its
+  Note the marker's *anchor* is its center, not the bottom of its
   icon — measure against the anchor when checking any of this.
 
 * **Framing inside the map isn't enough on its own.** The map is only
@@ -299,4 +299,4 @@ hidden with no button to bring them back.
   selectors go away entirely).
 * `div.activity-charts` wraps the chart stack, with the toolbar as its
   first child and one element per chart after it, and that toolbar
-  holds a button labelled "Customize Charts".
+  holds a button labeled "Customize Charts".

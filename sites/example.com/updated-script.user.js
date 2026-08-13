@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         example.com: updated script
+// @name         example.com: Updated script
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.1
+// @version      1.0.2
 // @description  Test fixture: bullet text includes a version constant so manual edits to the source file are visible on reload.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT

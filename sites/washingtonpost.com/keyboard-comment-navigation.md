@@ -1,26 +1,35 @@
-# Keyboard comment navigation (Washington Post)
+# Washington Post: Keyboard comment navigation
 
 ## Summary
 
-Adds keyboard navigation (`j` / `k` / `c`) to the comments drawer on
-Washington Post articles. Mirrors the bindings used by the
-comment-navigation scripts on other sites in this repo.
+Adds keyboard shortcuts for moving through the comments drawer on a
+Washington Post article, so a discussion can be read without dragging
+the drawer's scrollbar — and `c` opens the drawer in the first place,
+without losing your place in the article.
+
+The bindings match the comment-navigation userscripts for other sites.
+Washington Post threads are flat in practice, so only the flat subset
+of those bindings is used here.
+
+### Keyboard shortcuts
+
+| Key | Moves to |
+| --- | --- |
+| `j` / `k` | next / previous comment |
+| `c` | opens the comments drawer, or jumps to the "N comments" banner at its top |
+
+`j` / `k` only act while the drawer is open; the rest of the time they
+fall through to the page and browser. All keys are ignored while
+you're typing in a text box, so the reply box still works normally.
 
 ## Visible changes
 
-- `j` — scroll to the next comment.
-- `k` — scroll to the previous comment.
-- `c` — open the comments drawer if it's closed; otherwise scroll to
-  the top of the drawer (the "N comments" banner). When opening, the
-  article's scroll position is preserved so the page doesn't jump.
-- `j` / `k` only act while the drawer is open; the rest of the time
-  they fall through to the page / browser.
-- Keys are ignored when focus is in a text input (so typing in the
-  reply box still works normally).
-
-WaPo's Coral threads are flat in practice (no nested replies on the
-articles we've looked at), so the nested-thread keys (`h`, `l`, `p`,
-`n`, `r`, `m`) from the canonical key set are intentionally omitted.
+- The keyboard shortcuts above.
+- When `c` opens the drawer, the article's scroll position is
+  preserved so the page doesn't jump.
+- The nested-thread keys (`h`, `l`, `p`, `n`, `r`, `m`) from the
+  canonical key set are intentionally omitted — no nested replies
+  appear on the articles we've looked at.
 
 ## Implementation
 
@@ -201,7 +210,7 @@ is detected by viewport intersection, not stored index. After the
 user switches filters, the next `j` walks the new list from
 whichever comment happens to be visible.
 
-### SPA behaviour
+### SPA behavior
 
 WaPo article pages are SPA-routed but this script doesn't care:
 it registers one document-level keydown listener at init and the

@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Pinkbike: Article image navigation
+// @name         Pinkbike: Keyboard navigation for article photos
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.4
-// @description  Keyboard shortcuts (i / Shift-I) for paging through the large photos and videos in a Pinkbike article.
+// @version      1.0.5
+// @description  Adds i and Shift-I shortcuts that jump from photo to photo through an article, for nicer viewing in photo-heavy stories.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://www.pinkbike.com/news/*
@@ -135,7 +135,7 @@
     // Match the i-key regardless of Caps Lock state, then use the
     // Shift modifier (not e.key's case) to decide direction. Reading
     // case directly would treat CapsLock+i as Shift-I, which would
-    // be a surprising reversal of behaviour.
+    // be a surprising reversal of behavior.
     if (e.key.toLowerCase() !== 'i') return;
     e.preventDefault();
     jumpImage(e.shiftKey ? 'prev' : 'next');

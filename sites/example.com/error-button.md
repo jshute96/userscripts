@@ -1,10 +1,15 @@
-# example.com: error button
+# example.com: Error button
 
 ## Summary
 
 Test fixture. Adds two "Error" buttons to example.com whose click
-handlers throw unhandled exceptions — one thrown from the script body,
-one from `@require`'d library code.
+handlers throw unhandled exceptions — one thrown from the script
+body, one from `@require`'d library code.
+
+Exercises how a userscript manager reports an error thrown at
+runtime, and in particular whether a stack frame originating in
+`@require`'d code is attributed to that file and its own line
+numbers, or to an offset into the combined injected source.
 
 ## Visible changes
 

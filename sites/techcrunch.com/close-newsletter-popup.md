@@ -1,9 +1,13 @@
-# TechCrunch: auto-close newsletter popup
+# TechCrunch: Auto-close the newsletter popup
 
 ## Summary
 
-Automatically dismisses TechCrunch's "Save your valuable time with
-TechCrunch in your inbox" newsletter popup.
+Closes TechCrunch's "Save your valuable time with TechCrunch in your
+inbox" newsletter popup, as soon as it appears.
+
+The popup interrupts you part-way into an article and has to be
+dismissed by hand every time. This script clicks its close button for
+you, so reading isn't interrupted.
 
 ## Visible changes
 

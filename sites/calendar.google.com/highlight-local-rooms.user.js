@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         calendar.google.com: highlight local rooms
+// @name         Google Calendar: Highlight matching meeting rooms
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.7.3
-// @description  Highlight meeting locations matching a configurable regex, to make it easy to find the local room in a long room list. Where room lists are shown as comma-separated text blobs, reformat them one per line.
+// @version      1.7.4
+// @description  Highlights meeting locations matching a regex you configure, so your own building stands out in a long room list. Also formats the room list one room per line.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://calendar.google.com/calendar/*
@@ -102,7 +102,7 @@
       );
 
       if (entered === null) {
-        console.log(TAG, 'set regex cancelled');
+        console.log(TAG, 'set regex canceled');
         return;
       }
 
@@ -143,7 +143,7 @@
 
   // --- Styles ----------------------------------------------------------
 
-  // An explicit text colour is required: Calendar's dark theme renders text
+  // An explicit text color is required: Calendar's dark theme renders text
   // near-white, which is unreadable on the pale yellow background.
   if (!document.head.querySelector(`style[${STYLE_ATTR}]`)) {
     const style = document.createElement('style');
@@ -305,11 +305,11 @@
 
     // Cross-check against the row's own `data-text`, which holds the location
     // string verbatim. This is the safety net for `span.XuJrye` rotating: that
-    // class is how we recognise the hidden "Location:" label, and without it
+    // class is how we recognize the hidden "Location:" label, and without it
     // the label becomes an ordinary text leaf that sorts *before* the address
     // and would be picked instead — silently killing the feature, and matching
     // "Lo(ca)tion" all over again. Falling back to the first leaf keeps the
-    // previous behaviour when `data-text` is absent.
+    // previous behavior when `data-text` is absent.
     const wanted = (locEl.dataset.text || '').replace(/\s+/g, ' ').trim();
     if (wanted) {
       const exact = leaves.find((el) => matchableText(el) === wanted);

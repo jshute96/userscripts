@@ -1,11 +1,21 @@
-# NYT Spelling Bee: tweaks
+# NYT Spelling Bee: Word definitions and other tweaks
 
 ## Summary
 
-Quality-of-life tweaks for the NYT Spelling Bee puzzle page and
-its Spelling Bee Buddy companion: skip splash screens, add a
-toolbar link to Buddy, and show an inline definition popup when
-you hover or click any found word.
+Three quality-of-life tweaks for the New York Times' Spelling Bee
+puzzle.
+
+**Definitions for the words you find.** Hover or click words to see
+a definition. Look up those weird words! Works on found words in the
+puzzle and Buddy page, and in the 
+
+**Link to Buddy.** Spelling Bee Buddy, the companion page that shows
+hints with live status updates, isn't linked from the puzzle itself.
+This adds a **Buddy ↗** link to the toolbar, next to **Hints ↗**.
+
+**No splash screens.** Two annoying interstitial pages are auto-closed:
+the "Welcome Back" screen when you start, and the congratulation screen 
+shown when the puzzle is only partly done.
 
 ## Visible changes
 

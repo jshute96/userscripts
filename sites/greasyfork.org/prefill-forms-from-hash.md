@@ -1,27 +1,23 @@
-# Greasy Fork: Support URL parameters for all fields in install/update/import form pages
+# Greasy Fork: Fill post/update/import forms from URL parameters
 
 ## Summary
 
-Fill Greasy Fork's script-posting forms from parameters in the URL
-hash, so posting a script, a new version, or a batch import can be
-launched from the command line with `google-chrome '<url>#<params>'`
-instead of typed into the page.
+Fills Greasy Fork's script-posting forms from parameters in the URL
+hash, so a whole submission can be prepared from a URL or command line —
+`google-chrome '<url>#<params>'`.
 
-Covers three pages — **Post a new script**
+This covers three pages — **Post a new script**
 (`/script_versions/new`), **Post a new version**
 (`/scripts/<id>/versions/new`) and **Import scripts** (`/import`).
 
-It fills text fields, enables options, attaches real files to the
-upload inputs, and switches the additional-info pane to Preview. It
-never submits — you preview the filled form and click the button.
+It never submits the form: you get a filled-in page, check it, and
+click the button yourself.
 
-## Parameters
+### Parameters
 
 All parameters go in the URL **hash** (after `#`), as
 `key=value` pairs joined by `&`. Every value must be
-percent-encoded with `encodeURIComponent`. The hash never leaves the
-browser, so script code isn't written to Greasy Fork's request logs
-along the way.
+percent-encoded with `encodeURIComponent`.
 
 Paths starting with `/` are treated as `file:///…`. Anywhere a
 parameter takes a file or URL, both an absolute local path and an
@@ -29,23 +25,17 @@ parameter takes a file or URL, both an absolute local path and an
 [Local files](#local-files) below, because `file://` reads don't work
 in every userscript manager.
 
-One parameter applies on every page:
-
-| Parameter | Value |
-| --- | --- |
-| `keep_hash` | Leave the parameters in the address bar (they're stripped by default). |
-
 Yes/no parameters (`keep_hash`, `adult`, `source_editor`) accept
 `1`/`true`/`yes`/`on` and `0`/`false`/`no`/`off`, and a bare
 `#keep_hash` with no value counts as yes. Anything else is reported in
 the console and ignored, as are misspelled parameter names and
 parameters aimed at a different page.
 
-**There is no auto-submit.** A `submit` parameter is recognised only so
+**There is no auto-submit.** A `submit` parameter is recognized only so
 it can tell you it's disabled — see
 [Why there's no auto-submit](#why-theres-no-auto-submit).
 
-### Post a new script / Post a new version
+#### Post a new script / Post a new version
 
 The two forms are nearly the same; the "Page" column marks the
 parameters that only exist on one of them.
@@ -75,7 +65,7 @@ parameters that only exist on one of them.
 for the `_html` / `_markdown` pairs: whichever is present wins, with
 HTML checked first.
 
-### Import scripts
+#### Import scripts
 
 | Parameter | Value |
 | --- | --- |
@@ -83,7 +73,15 @@ HTML checked first.
 | `language` | `detect`, `js` or `css`. |
 | `sync_type` | `automatic` or `manual`. |
 
-### Behaviour notes
+#### Common parameters
+
+These work on all pages:
+
+| Parameter | Value |
+| --- | --- |
+| `keep_hash` | Leave the parameters in the address bar (they're stripped by default). |
+
+#### Behavior notes
 
 * **Preview.** When Additional info (or the changelog) is filled, that
   pane is switched from Write to Preview, so the rendered markup is
@@ -95,67 +93,52 @@ HTML checked first.
   nothing at all, so the pages behave normally when you browse to
   them by hand.
 
-### Building the URLs
+### Building the URLs with a script
 
 `scripts/greasyfork-url.py` assembles these URLs from file paths and
-launches the browser, which beats percent-encoding a whole doc file by
-hand:
-
-```
-scripts/greasyfork-url.py update 590960 \
-    --code-file sites/strava.com/fix-climb-slider.user.js \
-    --info-file sites/strava.com/fix-climb-slider.md \
-    --image-files sites/strava.com/screenshots/fix-climb-slider-before.png \
-    --image-files sites/strava.com/screenshots/fix-climb-slider-after.png \
-    --changelog-text 'Line the icons up with the slider.'
-
-scripts/greasyfork-url.py import <raw-url> --sync-type automatic
-```
-
-`--code-file` and `--info-file` are read at build time and inlined, so
-they need no browser-side fetch at all; `--info-file` also picks the
-markup mode from the extension. `--image-files` takes a comma-separated
-list and is repeatable, keeping the order given. `--print` shows the URL
-instead of opening it; `--http-base` rewrites local paths to `localhost`
-URLs (see [Local files](#local-files)). Run it with no arguments for a
-usage line per subcommand.
-
-Its flags are named after the hash parameters they set:
-
-| CLI flag | Hash parameter |
-| --- | --- |
-| `--code-file` | `code` — the file is read locally and inlined |
-| `--code-url` | `code_url` |
-| `--code-upload` | `code_upload` |
-| `--info-file` / `--info-text`, `--info-format` | `additional_info_html` / `additional_info_markdown` |
-| `--changelog-file` / `--changelog-text`, `--changelog-format` | `changelog_html` / `changelog_markdown` |
-| `--image-files` | `image_files` |
-| `--script-type`, `--script-locale`, `--name`, `--description`, `--adult` | `script_type`, `script_locale`, `name`, `description`, `adult` |
-| `--source-editor` / `--no-source-editor` | `source_editor` |
-| `--remove-images` | `remove_images` |
-| `urls`, `--language`, `--sync-type` | `urls`, `language`, `sync_type` |
-| `--keep-hash` | `keep_hash` |
-
-The `--*-file` flags are the exception: they name where the *text*
-comes from on this side, and set the plain text parameter on the other.
-The remaining flags (`--base`, `--locale`, `--print`, `--browser`,
-`--http-base`, `--http-root`) shape the URL or the launch rather than
-the hash — note that `--locale` is the URL's locale segment, while
-`--script-locale` is the script's own language field.
+launches the browser, which is simpler than building URLs manually.
+It has one subcommand per page — `new`, `update`, `import` — and its
+flags are named after the hash parameters they set. `--print` shows
+the URL instead of opening it. See the script for details.
 
 ### Examples
 
-The same thing as a raw URL — post a new version, filled but not
-submitted, with two screenshots and the doc file as the description:
+**Post a new script**, with its documentation and two screenshots:
 
 ```
-google-chrome 'https://greasyfork.org/en/scripts/590960/versions/new#code_url=/home/me/dev/userscripts/sites/strava.com/fix-climb-slider.user.js&additional_info_markdown_url=/home/me/dev/userscripts/sites/strava.com/fix-climb-slider.md&image_files=/home/me/shot-before.png,/home/me/shot-after.png&changelog_markdown=Fixed%20the%20icon%20alignment.'
+scripts/greasyfork-url.py new \
+    --code-file /home/me/scripts/my-script.user.js \
+    --info-file /home/me/scripts/my-script.md \
+    --image-files /home/me/shots/before.png,/home/me/shots/after.png
 ```
 
-Import two scripts from GitHub:
+```
+https://greasyfork.org/en/script_versions/new#code_url=/home/me/scripts/my-script.user.js&additional_info_markdown_url=/home/me/scripts/my-script.md&image_files=/home/me/shots/before.png,/home/me/shots/after.png
+```
+
+**Post a new version** of script 123456, with a changelog:
 
 ```
-google-chrome 'https://greasyfork.org/en/import#urls=https%3A%2F%2Fraw.githubusercontent.com%2Fme%2Fuserscripts%2Fmain%2Fa.user.js,https%3A%2F%2Fraw.githubusercontent.com%2Fme%2Fuserscripts%2Fmain%2Fb.user.js&sync_type=automatic'
+scripts/greasyfork-url.py update 123456 \
+    --code-file /home/me/scripts/my-script.user.js \
+    --info-file /home/me/scripts/my-script.md \
+    --changelog-text 'Fix the icon alignment.'
+```
+
+```
+https://greasyfork.org/en/scripts/123456/versions/new#code_url=/home/me/scripts/my-script.user.js&additional_info_markdown_url=/home/me/scripts/my-script.md&changelog_html=Fix%20the%20icon%20alignment.
+```
+
+**Import a script** from GitHub, kept in sync automatically:
+
+```
+scripts/greasyfork-url.py import \
+    https://raw.githubusercontent.com/me/userscripts/main/my-script.user.js \
+    --sync-type automatic
+```
+
+```
+https://greasyfork.org/en/import#urls=https%3A%2F%2Fraw.githubusercontent.com%2Fme%2Fuserscripts%2Fmain%2Fmy-script.user.js&sync_type=automatic
 ```
 
 ## Visible changes

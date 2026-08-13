@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Garmin Connect: One-click TCX download on activity page
+// @name         Garmin Connect: One-click TCX download
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.2.1
-// @description  On a Garmin Connect activity page, adds a Download button next to the gear ("More...") menu that triggers Export to TCX in one click.
+// @version      0.2.2
+// @description  Adds a Download button to the activity page toolbar that exports the activity as a TCX file in one click, instead of three clicks inside the More… menu.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://connect.garmin.com/app/*

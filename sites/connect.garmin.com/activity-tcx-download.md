@@ -1,11 +1,12 @@
-# Garmin Connect: One-click TCX download on activity page
+# Garmin Connect: One-click TCX download
 
 ## Summary
 
-Adds a one-click Download button to the toolbar of any activity page on
-Garmin Connect (`/app/activity/<id>`). Clicking it triggers the same
-"Export to TCX" action that's normally three clicks deep behind the
-gear "More…" menu.
+Adds a Download button to the toolbar of every Garmin Connect activity
+page, which exports that activity as a TCX file in one click.
+
+Garmin's own export is three clicks deep — open the gear "More…" menu,
+find "Export to TCX", click it, which is tedious.
 
 ## Visible changes
 

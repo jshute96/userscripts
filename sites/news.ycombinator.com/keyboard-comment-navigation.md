@@ -1,25 +1,43 @@
-# HN: keyboard comment navigation
+# Hacker News: Keyboard comment navigation
 
 ## Summary
 
-Improve navigation on Hacker News comments pages by adding keyboard
-navigation and additional navigation links.
+Adds keyboard navigation to Hacker News comment threads, and fills in
+the navigation links HN doesn't provide.
+
+HN already puts `next | prev | parent | root` on each comment, but
+those are mouse-only, and `next` / `prev` step over whole subtrees, so
+there's no way to just move to the comment below the one you're
+reading. This adds the missing moves, orders all of them by increasing
+scope, and binds a key to each.
+
+### Keyboard shortcuts
+
+| Key | Moves to |
+| --- | --- |
+| `j` / `k` | next / previous comment in display order, replies included |
+| `h` / `l` | next / previous comment at the same level, skipping the current subtree |
+| `p` | parent comment |
+| `n` | parent's next sibling — continues past the current subtree |
+| `r` | root of the current thread |
+| `m` | next root thread |
+| `c` | top of the comments list |
+
+Keyboard navigation acts on the first comment visible on screen. Keys
+are ignored while you're typing in a text box.
 
 ## Visible changes
 
-* HN already shows `next | prev | parent | root` on each comment. We add:
-  - `down` / `up`: immediately next/previous comment in display order
-    (vs. `next` / `prev`, which step over subtrees).
-  - `parent-next`: up to parent, then next sibling.
-  - `root-next`: up to root, then next top-level thread.
-* Reorder the links in order of increasing scope:
-  `down | up | next | prev | parent | parent-next | root | root-next`.
-* Add a keyboard shortcut for each, shown in the link label.
-  - `j=down, k=up, h=next, l=prev, p=parent, n=parent-next, r=root, m=root-next`.
-  - `c` jumps to the top of the comments list (no on-page link
-    rendered for it — keyboard-only, to match other sites).
-  - Keyboard navigation acts on the first comment visible on screen.
-  - Clicking a link acts on that link's own comment.
+* Three new links on each comment: `down` / `up` (immediately
+  next/previous comment in display order), `parent-next` (up to
+  parent, then next sibling) and `root-next` (up to root, then next
+  top-level thread).
+* The links are reordered by increasing scope:
+  `down | up | next | prev | parent | parent-next | root | root-next`,
+  and each shows its keyboard shortcut in the label. `c` has no link —
+  it's keyboard-only, to match the scripts on other sites.
+* Clicking a link acts on that link's own comment; the keyboard acts
+  on the first comment visible on screen.
 * On a top-level comment (no `parent-next` / `root-next` shown),
   pressing those shortcuts falls back to `next`.
 

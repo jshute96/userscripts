@@ -13,6 +13,52 @@ My scripts here were mainly developed using Claude Code.  I'm working on an opti
 
 My modest ambition: **Fix the internet.**  Every broken or annoying website I use, I can fix it.  Every time I wish a site had some missing feature, I can add it.  Claude Code makes this possible now, with the right tools and workflow around it.
 
+## My userscripts
+
+### Miscellaneous
+
+| Site | Script | Doc | Description |
+| --- | --- | --- | --- |
+| calendar.google.com | [Google Calendar: Highlight matching meeting rooms](sites/calendar.google.com/highlight-local-rooms.user.js) | [doc](sites/calendar.google.com/highlight-local-rooms.md) | Highlights meeting locations matching a regex you configure, so your own building stands out in a long room list. Also formats the room list one room per line. |
+| cnrfc.noaa.gov | [NOAA CNRFC: Default precipitation map view (Bay Area, 24-hour)](sites/cnrfc.noaa.gov/precip-default-view.user.js) | [doc](sites/cnrfc.noaa.gov/precip-default-view.md) | Opens NOAA's map zoomed to the SF Bay Area with 24-hour precipitation selected by default (avoiding several navigation clicks to get there). |
+| connect.garmin.com | [Garmin Connect: One-click TCX download](sites/connect.garmin.com/activity-tcx-download.user.js) | [doc](sites/connect.garmin.com/activity-tcx-download.md) | Adds a Download button to the activity page toolbar that exports the activity as a TCX file in one click, instead of three clicks inside the More… menu. |
+| connect.garmin.com | [Garmin Connect: Download activities button](sites/connect.garmin.com/download-activities-button.user.js) | [doc](sites/connect.garmin.com/download-activities-button.md) | Adds a toolbar button that opens the Activities list and Strava's upload page together — the two pages you need side by side when moving rides to Strava. |
+| connect.garmin.com | [Garmin Connect: Improve UI in MTB Dynamics jumps view](sites/connect.garmin.com/mtb-jumps-map-link.user.js) | [doc](sites/connect.garmin.com/mtb-jumps-map-link.md) | Improves the UI so jumps in the map link to jumps in the table below. Clicking one in either area highlights that jump in the other view. |
+| feedly.com | [Feedly: Scroll Index page to top](sites/feedly.com/scroll-index-to-top.user.js) | [doc](sites/feedly.com/scroll-index-to-top.md) | Fixes the Index page landing part-way down: navigating to it (e.g. with G-then-I) now opens scrolled to the top, as expected. |
+| feedly.com | [Feedly: Add Oldest/Newest buttons for single-click order toggle](sites/feedly.com/sort-filter-presets.user.js) | [doc](sites/feedly.com/sort-filter-presets.md) | Adds Oldest and Newest buttons to a feed's toolbar, applying sort order and unread-only filters in one click instead of four. |
+| greasyfork.org | [Greasy Fork: Fill post/update/import forms from URL parameters](sites/greasyfork.org/prefill-forms-from-hash.user.js) | [doc](sites/greasyfork.org/prefill-forms-from-hash.md) | Fills Greasy Fork's new script, new version, and import script forms from URL parameters, so they can be opened pre-filled. |
+| members.onepeloton.com | [Peloton: Default filters on class lists](sites/members.onepeloton.com/classes-default-filters.user.js) | [doc](sites/members.onepeloton.com/classes-default-filters.md) | Applies your preferred filters on class lists by default, so browsing starts from a useful view. Defaults are configurable per class type from the script menu. |
+| members.onepeloton.com | [Peloton Player: Fix bad video overlay on tall screens](sites/members.onepeloton.com/fix-bad-video-overlay.user.js) | [doc](sites/members.onepeloton.com/fix-bad-video-overlay.md) | Fixes a bug in Peloton's video player where, on large monitors, a fixed-size overlay is added over the video, creating an ugly horizontal seam. |
+| members.onepeloton.com | [Peloton Player: Keep the Now-Playing song visible](sites/members.onepeloton.com/keep-now-playing.user.js) | [doc](sites/members.onepeloton.com/keep-now-playing.md) | Stops the class player auto-hiding its Now-Playing widget, so the current song is always readable. |
+| nytimes.com | [NYT Spelling Bee: Word definitions and other tweaks](sites/nytimes.com/spelling-bee.user.js) | [doc](sites/nytimes.com/spelling-bee.md) | Shows definitions when you hover or click a word, adds a toolbar link to Spelling Bee Buddy, and closes the splash screens for you. |
+| pinkbike.com | [Pinkbike: Keyboard navigation for article photos](sites/pinkbike.com/article-image-navigation.user.js) | [doc](sites/pinkbike.com/article-image-navigation.md) | Adds i and Shift-I shortcuts that jump from photo to photo through an article, for nicer viewing in photo-heavy stories. |
+| pinkbike.com | [Pinkbike: Auto-close the sticky footer ad](sites/pinkbike.com/close-sticky-footer-ad.user.js) | [doc](sites/pinkbike.com/close-sticky-footer-ad.md) | Closes the sticky ad banner pinned to the bottom of the page. |
+| strava.com | [Strava: Fix the broken climb filter on segment search](sites/strava.com/fix-climb-slider.user.js) | [doc](sites/strava.com/fix-climb-slider.md) | Bug fix for broken layout on the segment search page: Strava currently draws it vertically rather than horizontally because of missing CSS. |
+| strava.com | [Strava: Segment search location filter and unpaged view](sites/strava.com/segment-search-location-filter.user.js) | [doc](sites/strava.com/segment-search-location-filter.md) | Adds a Location filter box in segment search, and makes search results unpaged. |
+| strava.com | [Strava: Show elevation gain *and loss* for each segment](sites/strava.com/show-elevation-loss.user.js) | [doc](sites/strava.com/show-elevation-loss.md) | Strava shows climbing but never descending. This adds Elevation Loss next to Elevation Gain on the segment and activity pages. |
+| techcrunch.com | [TechCrunch: Auto-close the newsletter popup](sites/techcrunch.com/close-newsletter-popup.user.js) | [doc](sites/techcrunch.com/close-newsletter-popup.md) | Closes the annoying "TechCrunch in your inbox" newsletter popup as soon as it appears. |
+| theatlantic.com | [The Atlantic Games: Link to today's puzzle](sites/theatlantic.com/games-todays-puzzle-link.user.js) | [doc](sites/theatlantic.com/games-todays-puzzle-link.md) | Adds a Today's Puzzle link to the puzzle-completed screen, so you can get to the new puzzle instead of back to the previous one you solved. |
+
+### Keyboard comment navigation
+
+These scripts are all adding keyboard navigation in comments or forum pages,
+using the same hotkeys.
+
+| Site | Script | Doc | Description |
+| --- | --- | --- | --- |
+| news.ycombinator.com | [Hacker News: Keyboard comment navigation](sites/news.ycombinator.com/keyboard-comment-navigation.user.js) | [doc](sites/news.ycombinator.com/keyboard-comment-navigation.md) | Adds keyboard shortcuts for moving through a thread by comment, sibling, parent or root, and adds the navigation links HN is missing to each comment. |
+| nytimes.com | [The Athletic: Keyboard comment navigation](sites/nytimes.com/athletic-keyboard-comment-navigation.user.js) | [doc](sites/nytimes.com/athletic-keyboard-comment-navigation.md) | Adds keyboard shortcuts for moving through the comments on an article — next and previous comment, parent, next thread, and jump to the comments section. |
+| nytimes.com | [NYT: Keyboard comment navigation](sites/nytimes.com/keyboard-comment-navigation.user.js) | [doc](sites/nytimes.com/keyboard-comment-navigation.md) | Adds keyboard shortcuts for moving through the comments panel on an article — next and previous comment, parent, next thread, and open or jump to the panel. |
+| pinkbike.com | [Pinkbike: Keyboard comment navigation](sites/pinkbike.com/keyboard-comment-navigation.user.js) | [doc](sites/pinkbike.com/keyboard-comment-navigation.md) | Adds keyboard shortcuts for moving through the comments on an article — next and previous comment, parent, next thread, and jump to the comments section. |
+| reddit.com | [Reddit: Keyboard comment navigation](sites/reddit.com/keyboard-comment-navigation.user.js) | [doc](sites/reddit.com/keyboard-comment-navigation.md) | Adds keyboard shortcuts for moving through a comment thread by comment, sibling, parent or root, replacing reddit's j/k with navigation that follows the tree. |
+| washingtonpost.com | [Washington Post: Keyboard comment navigation](sites/washingtonpost.com/keyboard-comment-navigation.user.js) | [doc](sites/washingtonpost.com/keyboard-comment-navigation.md) | Adds keyboard shortcuts for moving through the comments drawer on an article — next and previous comment, and opening or jumping to the top of the drawer. |
+
+### Testing and experimentation
+
+| Site | Script | Doc | Description |
+| --- | --- | --- | --- |
+| example.com | [sites/example.com/](sites/example.com/) | | Several scripts used for testing and experimentation. |
+
 ## Development setup and workflow
 
 ### Code structure
@@ -62,7 +108,7 @@ Then I reload the page and it picks up the new userscript.
 
 To refine or fix anything, now or later: I send more annotated screenshots and
 instructions, or just ask in Claude directly.  Claude updates the code, tests
-the new behaviour, and updates the documentation; I reload and try the site again.
+the new behavior, and updates the documentation; I reload and try the site again.
 
 Eventually I'd like to extract `CLAUDE.md` and these skills into a packaged template that's easy to clone when starting a new userscript repo.
 

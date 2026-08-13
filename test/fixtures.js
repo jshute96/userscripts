@@ -37,7 +37,7 @@ function readUserscriptBody(scriptPath) {
   return src.replace(/\/\/ ==UserScript==[\s\S]*?\/\/ ==\/UserScript==\s*/, '');
 }
 
-// Mirror the @run-at document-idle behaviour. addInitScript runs at
+// Mirror the @run-at document-idle behavior. addInitScript runs at
 // document_start, before any DOM exists; wrap so the script body only
 // executes after window 'load' (the closest equivalent to
 // Tampermonkey's document-idle).

@@ -1,17 +1,20 @@
-# Peloton Player: Fix bad video overlay
+# Peloton Player: Fix bad video overlay on tall screens
 
 ## Summary
 
-Fixes a bug in Peloton's video player where, on large high-res monitors, a
-fixed-size "cinematic vignette" overlay is painted on top of the video,
-creating an ugly horizontal seam across it.
+Fixes a bug in Peloton's class player that puts a hard
+horizontal line across the video on large or high-resolution monitors.
 
-The overlay is `cf_video_overlay_with_timeline.<hash>.png` ([example](https://members.onepeloton.com/_next/static/media/cf_video_overlay_with_timeline.6c8a2f88.png)),
-a 1920×1080 cinematic-vignette image applied at its natural size. On any
-player taller than 1080 pixels (common on tall or 4K monitors),
-the PNG only covers the top 1080 px and its dark perimeter leaves
-a hard-edged horizontal seam where the image ends. We remove the
-overlay so the video renders edge-to-edge at full brightness.
+Peloton paints a "cinematic vignette" image over the video to darken
+its edges, but the image is a fixed 1920×1080 and is used at its
+natural size ([example](https://members.onepeloton.com/_next/static/media/cf_video_overlay_with_timeline.6c8a2f88.png)). On any player taller than 
+1080 pixels — normal on a 4K
+or tall monitor — it covers only the top of the video, and the dark
+band around its bottom edge lands mid-picture as a visible seam.
+
+This script removes the overlay, so the video is drawn edge to edge at
+full brightness. (Peloton's own controls and timeline are separate,
+and are unaffected.)
 
 **Player before:**
 

@@ -1,14 +1,15 @@
-# Peloton Player: Keep Now-Playing widget visible
+# Peloton Player: Keep the Now-Playing song visible
 
 ## Summary
 
-Peloton's class player auto-hides the Now-Playing widget so you
-can't see what song is playing.
+Keeps the Now-Playing song visible for the whole class.
 
-This script disables that, so Now-Playing always stays visible.
+Peloton's class player shows the current song in the top-left corner,
+then fades it out after a few seconds of
+mouse-idle.
 
-Other overlays at the top and bottom keep their normal "hide after a few
-seconds of mouse-idle" behaviour.
+This script pins the Now-Playing widget so it stays on screen, so you
+can always see what's playing without using the mouse.
 
 ## Visible changes
 
@@ -75,7 +76,7 @@ seconds of mouse-idle" behaviour.
   or a `visibility: hidden` end state). We deliberately don't touch
   `pointer-events` — the widget is decorative (`aria-hidden="true"`
   in the DOM) and we want clicks to pass through to the player
-  underneath, matching the original behaviour.
+  underneath, matching the original behavior.
 
 - A `<style>` override is preferable to a MutationObserver here:
   React keeps re-adding the class on every idle/active transition,

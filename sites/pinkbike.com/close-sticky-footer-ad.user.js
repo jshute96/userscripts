@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Pinkbike: auto-close sticky footer ad
+// @name         Pinkbike: Auto-close the sticky footer ad
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.4
-// @description  Automatically clicks the X on the sticky footer ad popup on Pinkbike.
+// @version      1.0.5
+// @description  Closes the sticky ad banner pinned to the bottom of the page.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://www.pinkbike.com/*

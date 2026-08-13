@@ -2,24 +2,36 @@
 
 ## Summary
 
-Add keyboard shortcuts for moving through the comments section on a
-New York Times "The Athletic" article page.
+Adds keyboard shortcuts for moving through the comments on a story on
+The Athletic (the New York Times' sports site), so a long discussion
+can be read without scrolling by hand. As well as stepping comment by
+comment, you can jump to a reply's parent or skip the rest of a
+thread — and `c` gets you to the comments from anywhere in the
+article, loading them if the page hasn't yet.
+
+The bindings match the comment-navigation userscripts for other sites.
+
+### Keyboard shortcuts
+
+| Key | Moves to |
+| --- | --- |
+| `j` / `k` | next / previous comment in display order, replies included |
+| `p` | the root of the current reply's thread; does nothing on a root comment |
+| `n` | the root of the next thread |
+| `c` | the `COMMENTS` header, opening the comments first if they haven't loaded |
+
+Keys work anywhere on the article page, and are ignored while you're
+typing in a text box.
 
 ## Visible changes
 
-* Keyboard shortcuts (active anywhere on the article page, except
-  while typing in an input/textarea/contenteditable):
-  - `j` — next comment (in display order, replies counted)
-  - `k` — previous comment
-  - `p` — jump to the root of the current reply's thread; no-op on a
-    root comment
-  - `n` — jump to the root of the next thread
-  - `c` — jump to the `COMMENTS` header at the top of the comments
-    section. If the comments haven't been lazy-loaded yet, clicks the
-    "Open Comments" pill in the article toolbar so the site loads and
-    scrolls there itself.
-* All jumps use smooth scrolling. The script does not modify any
-  visible markup — only attaches a `keydown` listener.
+* The keyboard shortcuts above, using smooth scrolling.
+* `c` on a page whose comments haven't been lazy-loaded yet clicks the
+  "Open Comments" pill in the article toolbar, so the site loads and
+  scrolls there itself.
+* No other visible markup changes — the script only attaches a
+  `keydown` listener. Keys are ignored while focus is in an
+  input/textarea/contenteditable.
 
 ## Implementation
 

@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         CNRFC: Default precip view (Bay Area, 24-hour)
+// @name         NOAA CNRFC: Default precipitation map view (Bay Area, 24-hour)
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.1
-// @description  On the CNRFC precipitation map, auto-zoom to the SF Bay Area and select the 24-hour observed precip layer.
+// @version      1.0.2
+// @description  Opens NOAA's map zoomed to the SF Bay Area with 24-hour precipitation selected by default (avoiding several navigation clicks to get there).
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://www.cnrfc.noaa.gov/ol.php?type=precip*

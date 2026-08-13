@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Pinkbike: Keyboard comment navigation
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.1.1
-// @description  Keyboard shortcuts for navigating comments on Pinkbike articles.
+// @version      1.1.2
+// @description  Adds keyboard shortcuts for moving through the comments on an article — next and previous comment, parent, next thread, and jump to the comments section.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://www.pinkbike.com/news/*

@@ -2,12 +2,12 @@
 
 ## Summary
 
-Scroll Feedly's Index page (`/i/feedIndex`) to the top when you navigate
-to it, instead of landing part-way down the page.
+Fixes Feedly's Index page opening part-way down.
 
-Going to the Index — e.g. with the `g` then `i` keyboard shortcut — used
-to leave you part-way down the page, near the bottom, so you had to
-scroll back up before you could read it.
+Going to the Index — from the sidebar, or with the `g` then `i`
+keyboard shortcut — opens the page scrolled down near the bottom of the list, so you
+always have to scroll back up. This script fixes that, making the page open scrolled
+to the top, as expected.
 
 ## Visible changes
 

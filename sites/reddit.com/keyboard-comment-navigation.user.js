@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Reddit: Keyboard comment navigation
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.4
-// @description  Keyboard shortcuts for navigating comments on reddit posts. Overrides reddit's built-in j/k.
+// @version      1.0.5
+// @description  Adds keyboard shortcuts for moving through a comment thread by comment, sibling, parent or root, replacing reddit's j/k with navigation that follows the tree.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://www.reddit.com/*

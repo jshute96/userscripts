@@ -1,10 +1,14 @@
-# example.com: installed-list helper
+# example.com: Installed-list helper
 
 ## Summary
 
-Shared `@require`-able helper that lets each example.com userscript
-register a bullet under a single "Installed userscripts" section at
-the bottom of the page.
+Shared `@require`-able helper rather than a fixture in its own right.
+Lets each example.com userscript register a bullet under a single
+"Installed userscripts" section at the bottom of the page.
+
+Exercises `@require` end to end — resolving a relative path against
+the userscript's source URL, and several separately-sandboxed scripts
+collaborating through the live DOM.
 
 ## Visible changes
 

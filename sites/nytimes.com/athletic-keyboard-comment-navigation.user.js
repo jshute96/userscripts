@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         The Athletic: Keyboard comment navigation
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.4
-// @description  Keyboard shortcuts for navigating comments on The Athletic articles.
+// @version      1.0.5
+// @description  Adds keyboard shortcuts for moving through the comments on an article — next and previous comment, parent, next thread, and jump to the comments section.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://www.nytimes.com/athletic/*

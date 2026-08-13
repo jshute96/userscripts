@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         TechCrunch: auto-close newsletter popup
+// @name         TechCrunch: Auto-close the newsletter popup
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.3
-// @description  Automatically clicks the X on the "Save your valuable time with TechCrunch in your inbox" newsletter popup.
+// @version      1.0.4
+// @description  Closes the annoying "TechCrunch in your inbox" newsletter popup as soon as it appears.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://techcrunch.com/*

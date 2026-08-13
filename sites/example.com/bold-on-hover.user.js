@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         example.com: bold word on hover
+// @name         example.com: Bold word on hover
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.1.1
-// @description  Bold the single word under the mouse cursor while hovering text on example.com.
+// @version      1.1.2
+// @description  Test fixture: bolds and reddens the single word under the mouse cursor while hovering over text.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://example.com/*

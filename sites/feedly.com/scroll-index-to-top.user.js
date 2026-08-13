@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Feedly: Scroll Index page to top
 // @namespace    https://github.com/jshute96/userscripts
-// @version      2.0.1
-// @description  Fix return-to-index (e.g. with G-I shortcut) so it lands on a page scrolled to the top, rather than a page scrolled down below the feed list.
+// @version      2.0.2
+// @description  Fixes the Index page landing part-way down: navigating to it (e.g. with G-then-I) now opens scrolled to the top, as expected.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://feedly.com/*

@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Greasy Fork: Support URL parameters for all fields in install/update/import form pages
+// @name         Greasy Fork: Fill post/update/import forms from URL parameters
 // @namespace    https://github.com/jshute96/userscripts
 // @version      0.1.0
-// @description  This fills Greasy Fork's "Post a new script", "Post a new version" and "Import scripts" forms from parameters in the URL hash, so a whole submission can be set up from the command line.
+// @description  Fills Greasy Fork's new script, new version, and import script forms from URL parameters, so they can be opened pre-filled.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://greasyfork.org/script_versions/new*

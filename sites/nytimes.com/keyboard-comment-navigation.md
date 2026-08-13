@@ -1,25 +1,34 @@
-# NYT: keyboard comment navigation
+# NYT: Keyboard comment navigation
 
 ## Summary
 
-Add keyboard shortcuts for moving through the comments panel on
-nytimes.com articles.
+Adds keyboard shortcuts for moving through the comments panel on a New
+York Times article, so a long discussion can be read without dragging
+the panel's scrollbar. As well as stepping comment by comment, you can
+jump from a reply back to its parent or skip the rest of a thread —
+and `c` opens the panel in the first place.
+
+The bindings match the comment-navigation userscripts for other sites.
+
+### Keyboard shortcuts
+
+| Key | Moves to |
+| --- | --- |
+| `j` / `k` | next / previous comment in display order, replies included |
+| `p` | a reply's parent root comment; does nothing on a root comment |
+| `n` | the next root thread, skipping the current thread's remaining replies |
+| `c` | opens the comments panel, or jumps to its header if already open |
+
+`j` / `k` / `p` / `n` work only while the panel is open, and all keys
+are ignored while you're typing in a text box.
 
 ## Visible changes
 
-* Keyboard shortcuts (active only while the comments panel is open,
-  ignored while typing in an input/textarea/contenteditable):
-  - `j` — next comment in display order (replies counted)
-  - `k` — previous comment
-  - `p` — jump from a reply to its parent root comment; no-op on a
-    root
-  - `n` — jump to the next root thread (skips remaining replies of
-    the current thread)
-  - `c` — open the comments panel if it's closed, otherwise jump
-    to the panel header
-* All jumps use smooth scrolling within the panel's scroll
-  container. The script does not modify any visible markup — only
-  attaches a `keydown` listener.
+* The keyboard shortcuts above, scrolling smoothly within the panel's
+  own scroll container.
+* No visible markup changes — the script only attaches a `keydown`
+  listener. Keys are ignored while focus is in an
+  input/textarea/contenteditable.
 
 ## Implementation
 

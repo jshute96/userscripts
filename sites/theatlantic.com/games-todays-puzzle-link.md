@@ -1,17 +1,14 @@
-# The Atlantic games: Today's Puzzle link
+# The Atlantic Games: Link to today's puzzle
 
 ## Summary
 
-Adds a **Today's Puzzle** link to the puzzle-completed screen of The
-Atlantic's games (Bracket City and siblings), so you can jump straight
-to the current day's puzzle instead of being stuck on the one you
-already solved.
+Adds a **Today's Puzzle** link on the completed-puzzle screen in The
+Atlantic's games (Bracket City and its siblings).
 
-The Atlantic's own "Return to Puzzle" link always goes back to the
-solved puzzle for the date in the URL, which is useless once you've
-finished it. The dateless game URL
-(`https://www.theatlantic.com/games/bracket-city/`) always serves the
-current day's puzzle, so the script adds a link to that.
+Their page has a "Return to Puzzle" link that goes back to the one you've
+already solved. There's no obvious or easy way to navigate back to today's
+puzzle (from yesterday's completion screen) without navigating out and
+re-entering the puzzle page.
 
 ## Visible changes
 

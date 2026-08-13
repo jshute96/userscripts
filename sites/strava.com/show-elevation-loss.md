@@ -1,20 +1,24 @@
-# Strava: Show elevation loss
+# Strava: Show elevation gain *and loss* for each segment
 
 ## Summary
 
-Adds **elevation loss** next to Strava's elevation gain for each segment
-on the segment and activity pages.  Also add +/- prefixes to make the numbers
-clearer.
+Adds **elevation loss** next to the elevation gain Strava shows for a
+segment, and labels both with `+` and `-` so it's clear which is
+which.
 
-Strava reports climbing but never descending for segments, and the figure it
-puts on the activity page isn't climbing either — it's the segment's high minus
-low elevation, unsigned.
+Strava reports climbing for a segment but never descending.
+The elevation figure on the activity page isn't even the climbing number; it's
+the range of min to max elevation, unsigned.
 
-This also fixes a bug where Strava sometimes incorrectly reports zero elevation
-gain; if gain shows as zero, this recomputes actual gain from the profile.
+This script shows gain and loss side by side on both segment and
+activity pages. It also works around a Strava bug where the gain is
+sometimes reported as zero: when that happens, it recomputes the real
+figure.
 
-Everything here is computed from an elevation stream the page already has
-loaded; nothing extra is fetched.
+Everything is derived from the elevation profile the page has already
+loaded — nothing extra is fetched.
+
+### Screenshots
 
 **Segment page before:**
 
@@ -33,9 +37,6 @@ loaded; nothing extra is fetched.
     <td><img src="screenshots/show-elevation-loss-activity-after.png" alt="After"></td>
   </tr>
 </table>
-
-Note that the number shown before was the elevation *range* (highest minus lowest), which
-wasn't the climbing or descending total.
 
 ## Visible changes
 

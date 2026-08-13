@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Feedly: Sort/Filter presets
+// @name         Feedly: Add Oldest/Newest buttons for single-click order toggle
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.2.1
-// @description  Add Oldest/Newest preset buttons to a Feedly feed's header toolbar that combine sort order and unread-only filter.
+// @version      1.2.2
+// @description  Adds Oldest and Newest buttons to a feed's toolbar, applying sort order and unread-only filters in one click instead of four.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://feedly.com/*

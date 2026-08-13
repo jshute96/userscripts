@@ -1,12 +1,27 @@
-# Peloton Classes: Default filters
+# Peloton: Default filters on class lists
 
 ## Summary
 
-Set default filters on Peloton classes pages. Defaults are user-configurable (per class type) using the userscript context menu. (Built-in defaults are "Not Taken" and Difficulty=Intermediate+Advanced.)
+Makes Peloton's class lists open with your preferred filters pre-applied.
 
-Rewrites all links to classes (`/classes/strength`,
-`/classes/yoga`, `/classes/stretching`, …) so they apply configured defaults.
-All filters are applied as parameters on the `/classes` URLs.
+Without this, class lists open unfiltered, showing all classes at all
+difficulty levels, including classes you've already take.
+
+This script makes those pages open with (configurable) default filters.
+
+The script's defaults are to filter for **Not Taken** classes, and
+exclude **Beginner** classes.
+
+The userscript's context menu lets you set other defaults.
+
+| Menu command | Effect |
+| --- | --- |
+| **Set defaults for \<class type\>** | Save the current page's filters for this class type only |
+| **Set defaults for all class types** | Save them as the default for every class type |
+| **Clear saved defaults for \<class type\>** | Drop this class type's override and fall back |
+| **Reset all saved defaults** | Go back to the built-in defaults |
+
+Defaults set per class type take priority over the global defaults.
 
 ## Visible changes
 
@@ -14,7 +29,7 @@ All filters are applied as parameters on the `/classes` URLs.
   discipline tile) navigates to e.g.
   `/classes/yoga?difficulty_level=["intermediate","advanced"]&has_workout=["false"]`,
   with the configured filters already active when the page renders.
-- The Tampermonkey menu offers up to four commands while viewing a
+- The userscript manager's menu offers up to four commands while viewing a
   `/classes/<slug>` page, in this order:
   - **Set defaults for <Class type>** — captures the current page's
     URL query params (minus a small set of non-filter params) and

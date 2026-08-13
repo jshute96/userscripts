@@ -1,18 +1,24 @@
-# Strava: Segment search location filter
+# Strava: Segment search location filter and unpaged view
 
 ## Summary
 
-Adds a **Location** box to Strava's segment search, so segment searches
-can be narrowed to state, city, etc, instead of returning similarly-named
-segments all over the world.
+Adds a **Location** box to Strava's segment search, so a search can be
+narrowed to one city, state or country instead of returning
+similarly-named segments from all over the world.
 
-Strava's search box does no location filtering at all. Including location words
-like "california" doesn't work because all words are combined with OR.
+Strava's search does no location filtering at all. Adding locations
+in the search box doesn't work because the words are combined
+with OR.
 
-The location filter runs in the browser over the Location column of the results
-table.  Strava paginates results 30 at a time.  This script also replaces
-Strava's paginator with one growing result list, and fetches more pages in the
-background to find more post-filtering search results.
+This script adds a separate Location box, and filters search results
+by looking for that text in the Location column.
+
+Filtering makes Strava's 30-results-per-page pagination worse: each page
+might have few matches or no matches. This script also replaces the
+paginator with a single growing list, fetching additional pages in the
+background to keep filling it.
+
+This also adds the Location filter box to Segment Search in the title bar.
 
 **Search page before:**
 
@@ -58,7 +64,7 @@ background to find more post-filtering search results.
   a second **Location** box appears next to the keyword box. Searching
   from there lands on the results page with the location filter
   already applied. Leaving it empty leaves Strava's own search
-  behaviour completely untouched, as does picking a specific segment
+  behavior completely untouched, as does picking a specific segment
   from the suggestion dropdown — that still jumps straight to the
   segment, location box or not.
 
@@ -67,7 +73,7 @@ background to find more post-filtering search results.
 The filter text is split on commas into terms, and a result is shown
 only when **every** term appears somewhere in its Location text
 (substring match, so `calif` matches `California`). Comparison is
-case-insensitive, accent-stripped, and whitespace-normalised.
+case-insensitive, accent-stripped, and whitespace-normalized.
 
 `el corte de madera, california` therefore means "location contains
 both of these", which is the useful way to combine a park/city with a
@@ -136,7 +142,7 @@ climb slider only update hidden inputs (`filter_type`, `min-cat`,
 `max-cat`, `terrain`), leaving the stale results on screen.
 
 So at init we snapshot the whole form (`FormData`, minus our `loc` and
-Rails' `utf8`, normalised and sorted) — that snapshot *is* the search
+Rails' `utf8`, normalized and sorted) — that snapshot *is* the search
 these results answer, whether or not the URL spelled every param out.
 Enter compares against it and, if anything differs, calls
 `requestSubmit()` on `form.search` instead of filtering. The form has

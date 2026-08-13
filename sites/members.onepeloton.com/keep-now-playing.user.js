@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Peloton Player: Keep Now-Playing widget visible
+// @name         Peloton Player: Keep the Now-Playing song visible
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.1.1
-// @description  Keep the Now-Playing song widget (top-left of the Peloton class player) visible at all times.
+// @version      1.1.2
+// @description  Stops the class player auto-hiding its Now-Playing widget, so the current song is always readable.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://members.onepeloton.com/*
@@ -27,7 +27,7 @@
   // Peloton's player toggles the class `slide-out-when-inactive` on the
   // Now-Playing widget when the mouse has been idle for a few seconds.
   // That class lives in an external stylesheet we couldn't capture, but
-  // its name and the visual behaviour imply a translate + opacity
+  // its name and the visual behavior imply a translate + opacity
   // transition. We neutralise it with !important overrides on the
   // stable `data-test-id` anchor so the widget stays put even when the
   // class is present. (The class is added/removed by React on every

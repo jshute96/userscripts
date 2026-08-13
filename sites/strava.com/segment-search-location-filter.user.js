@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Strava: Segment search location filter and unpaged view
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.2.3
-// @description  Adds a Location box to Strava's segment search (and to Segment search from the title bar) that filters results by Location, and replaces Strava's paginator with a growing list with load-more controls.
+// @version      0.2.4
+// @description  Adds a Location filter box in segment search, and makes search results unpaged.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://www.strava.com/*
@@ -39,7 +39,7 @@
   //
   // The filter text is split on commas into terms; a row matches when
   // *every* term appears as a substring of its Location cell. Both
-  // sides are lowercased, accent-stripped, and whitespace-normalised,
+  // sides are lowercased, accent-stripped, and whitespace-normalized,
   // so "el corte  de madera , CA" behaves like you'd expect.
   // ---------------------------------------------------------------
 

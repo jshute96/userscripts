@@ -1,13 +1,21 @@
-# calendar.google.com: highlight local rooms
+# Google Calendar: Highlight matching meeting rooms
 
 ## Summary
 
-Highlight meeting locations matching a configurable regex with a soft yellow
-background in the Google Calendar event details popover, so the room in your own
-building is easy to spot in a long list.
+Highlights the meeting rooms you care about in Google Calendar's event
+details popover.
 
-Where a location is a single comma-separated blob of many rooms, the script also
-splits it into one room per line before highlighting.
+A meeting booked across a big organization can list a dozen rooms.
+Finding your preferred local room requires searching through the whole
+list. This script highlights your preferred rooms with a yellow background.
+
+Sometimes, long room lists also get formatted as a comma-separated text blob,
+making them impossible to scan. This also reformats those text blobs to
+lists with one room per line.
+
+Set the rooms to match (with a regular expression) using **Set local room regex**
+from the userscript manager's context menu. (You'll also be prompted for it
+on the first run.)
 
 ## Visible changes
 
@@ -88,7 +96,7 @@ with any location at all was highlighted. Two rules follow:
 
 ### Why `data-text` is load-bearing
 
-Skipping the hidden label depends on recognising `span.XuJrye` — a build hash
+Skipping the hidden label depends on recognizing `span.XuJrye` — a build hash
 with the same rotation risk as `iGpjxc`. Simulating that rotation (stripping the
 class from the capture) shows why it needs a backstop: the label stops being
 "ignorable", becomes an ordinary text leaf, and — sorting *before* the address in
@@ -98,9 +106,9 @@ feature silently does nothing, and a short regex highlights the invisible
 a form you cannot see on screen.
 
 So `getLocationTextEl()` does not simply take the first leaf. It prefers the leaf
-whose normalised text equals `#xDetDlgLoc`'s own `data-text`, falling back to the
+whose normalized text equals `#xDetDlgLoc`'s own `data-text`, falling back to the
 first leaf only when that attribute is missing. With the cross-check in place,
-deleting `XuJrye` from the capture leaves behaviour unchanged: the address still
+deleting `XuJrye` from the capture leaves behavior unchanged: the address still
 highlights, and `/CA/i` still matches nothing.
 
 A more general alternative — identifying visually hidden elements by their
@@ -168,7 +176,7 @@ Three things drive the implementation:
   room-specific either: the location row of a room-less event also carries it.
 - **The parts are joined with non-breaking spaces**, so a pattern typed with an
   ordinary space (`BLDG1 Aspen`) would not match the raw `textContent`. All
-  regex tests run against whitespace-normalised text (`matchableText()`).
+  regex tests run against whitespace-normalized text (`matchableText()`).
 
 Note the capacity (`10`) renders in a separate `div.AzuXid` with a people icon,
 *not* as `(10)` inside the room text. The `(N)` signature that
@@ -219,7 +227,7 @@ rooms exist and the selectors have broken, and that is warned about once.
 
 5. **Styles**: injected once into `<head>`, marked with
    `data-jshute-local-room-styles`. The rule sets `color: #202124` as well as
-   the yellow background — without an explicit colour, Calendar's dark theme
+   the yellow background — without an explicit color, Calendar's dark theme
    renders near-white text on pale yellow.
 
 ### User configuration
@@ -229,7 +237,7 @@ rooms exist and the selectors have broken, and that is warned about once.
 - **Value shape**: a string holding a regular expression, compiled with the `i`
   flag and matched *anywhere* in the text — it is not anchored, so a short
   pattern like `CA` matches substrings. The prompt says so. Text is
-  whitespace-normalised before matching, so a literal space in the pattern
+  whitespace-normalized before matching, so a literal space in the pattern
   matches the non-breaking spaces Calendar uses between room name parts.
 - **Built-in default**: `BUILDING[12]`, a placeholder that matches nobody's real
   rooms.

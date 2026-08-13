@@ -1,9 +1,14 @@
-# example.com: bold word on hover
+# example.com: Bold word on hover
 
 ## Summary
 
-On example.com, make the single word under the mouse cursor bold
-and red while hovering over text.
+Test fixture. Makes the single word under the mouse cursor bold and
+red while hovering over text on example.com.
+
+The simplest end-to-end check that a userscript is installed and
+running — a change you can see the moment the page loads, without
+opening DevTools. Also exercises repeated DOM mutation from a
+high-frequency `mousemove` handler.
 
 ## Visible changes
 

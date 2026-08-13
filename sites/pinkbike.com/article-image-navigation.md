@@ -1,10 +1,23 @@
-# Pinkbike: article image navigation
+# Pinkbike: Keyboard navigation for article photos
 
 ## Summary
 
-Add `i` / `Shift-I` keyboard shortcuts to step through the large
-photos (and videos) in a Pinkbike news article — for "photo gallery"
-style posts where you want to scan visuals without scrolling by hand.
+Adds keyboard shortcuts for jumping photo to photo through a Pinkbike
+article.
+
+Many Pinkbike's articles are really photo galleries, laid out
+as one long page. Scrolling or paging cuts off images.
+
+With this script, press `i` and it jumps to the next photo, scrolling
+it to the top of the page. `Shift-I` goes backwards.
+Navigation skips over small images and ad banners.
+
+### Keyboard shortcuts
+
+| Key | Moves to |
+| --- | --- |
+| `i` | next photo or video in the article |
+| `Shift-I` | previous photo or video |
 
 ## Visible changes
 
@@ -103,7 +116,7 @@ automatically.
 `SCROLL_BUFFER = 30` px. When pressing `i`, the target scroll
 position is `imageAbsoluteTop - SCROLL_BUFFER`, so the image's top
 edge lands 30px below the viewport top — enough to see the border
-and recognise "new photo starts here."
+and recognize "new photo starts here."
 
 The "current anchor line" is defined as `scrollY + SCROLL_BUFFER` —
 the y-coordinate where the *next* `i` press would place an image's

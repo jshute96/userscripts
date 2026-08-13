@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Garmin Connect: Improve UI in MTB Dynamics jumps view
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.1.1
-// @description  On a Garmin Connect activity page with MTB Dynamics, numbers the jump popups on the map ("Jump 12"), makes each row of the jumps table clickable to open that jump's map popup, and adds a Hide Charts button so the map and the jumps table can be seen together.
+// @version      0.1.2
+// @description  Improves the UI so jumps in the map link to jumps in the table below. Clicking one in either area highlights that jump in the other view.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://connect.garmin.com/app/*
@@ -182,7 +182,7 @@
       const title = content.querySelector('b');
       // Other map markers (start/end/segments) use the same popup pane;
       // only jump popups have a bare "Jump" title. That also doubles as
-      // the "already done" test — once we've labelled it, it reads
+      // the "already done" test — once we've labeled it, it reads
       // "Jump 12" and no longer matches.
       //
       // Deliberately *not* a "we already looked at this one" flag on the
@@ -236,12 +236,12 @@
       title.textContent = `Jump ${number}`;
       if (byMetrics) addScoreLine(content, title, byMetrics);
       content.dataset.mtbJumpsNumbered = String(number);
-      console.log(TAG, 'labelled popup as jump', number,
+      console.log(TAG, 'labeled popup as jump', number,
         byMetrics ? '(matched table row)' : '(from marker order)');
     }
   }
 
-  // Which jump the open popup is showing, whether we labelled it just
+  // Which jump the open popup is showing, whether we labeled it just
   // now or on some earlier open.
   function openPopupJumpNumber() {
     const content = document.querySelector('.leaflet-popup-content');
@@ -264,7 +264,7 @@
     decoratePopups();
     // Read the selection back off the popup rather than setting it while
     // labelling. Leaflet reuses each marker's content node for the life
-    // of the page, so a popup that was labelled on an earlier open needs
+    // of the page, so a popup that was labeled on an earlier open needs
     // no labelling now — and hanging the selection off that branch meant
     // clicking a jump on the map only moved the table highlight the
     // *first* time that jump was opened.
@@ -305,7 +305,7 @@
   // "badly placed" — hard against the edge, looking unframed. Widening
   // one box just relocates that edge.
   //
-  // Both are pushed below centre because the popup bubble is drawn
+  // Both are pushed below center because the popup bubble is drawn
   // upwards from the marker and needs ~155px of clear space above it.
   // ACCEPT_BOX's top bounds the worst case that's allowed to stay put:
   // 0.5 leaves ~45px of bubble above, 0.45 left only ~25px, which still
