@@ -17,6 +17,10 @@ Set the rooms to match (with a regular expression) using **Set local room regex*
 from the userscript manager's context menu. (You'll also be prompted for it
 on the first run.)
 
+**Example:**
+
+![Event info with a matching room highlighted](screenshots/highlight-local-rooms.png)
+
 ## Visible changes
 
 - Booked meeting rooms and locations matching the configured regex get a soft

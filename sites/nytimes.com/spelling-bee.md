@@ -17,6 +17,10 @@ This adds a **Buddy ↗** link to the toolbar, next to **Hints ↗**.
 the "Welcome Back" screen when you start, and the congratulation screen 
 shown when the puzzle is only partly done.
 
+**Screenshot** (with a definition popup and the Buddy link in the toolbar):
+
+![Definition popup](screenshots/spelling-bee-definition-popup.png)
+
 ## Visible changes
 
 * "Welcome Back" splash and the rank-up "Genius / Keep playing"
