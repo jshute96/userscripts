@@ -16,6 +16,8 @@ This script removes the overlay, so the video is drawn edge to edge at
 full brightness. (Peloton's own controls and timeline are separate,
 and are unaffected.)
 
+<!-- image-gallery-heading: **Player, before and after:** -->
+
 **Player before:**
 
 ![Before](screenshots/fix-bad-video-overlay-before.jpg)

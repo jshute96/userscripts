@@ -18,6 +18,8 @@ figure.
 Everything is derived from the elevation profile the page has already
 loaded — nothing extra is fetched.
 
+<!-- image-gallery-heading: **Segment and activity pages, before and after:** -->
+
 ### Screenshots
 
 **Segment page before:**

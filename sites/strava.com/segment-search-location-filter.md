@@ -20,6 +20,8 @@ background to keep filling it.
 
 This also adds the Location filter box to Segment Search in the title bar.
 
+<!-- image-gallery-heading: **Search page and title bar, before and after:** -->
+
 **Search page before:**
 
 ![Before](screenshots/segment-search-location-filter-search-page-before.png)

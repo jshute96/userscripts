@@ -16,6 +16,8 @@ This script restores the intended layout and lines the icons up with
 the slider. It checks first, and does nothing if Strava has already
 fixed the page.
 
+<!-- image-gallery-heading: **Search page, before and after:** -->
+
 **Search page before:**
 
 ![Before](screenshots/fix-climb-slider-before.png)

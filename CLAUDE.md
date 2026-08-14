@@ -620,10 +620,31 @@ described.
     interleaved through the prose. Repository sites like Greasy Fork
     strip the images out of the description and show them in a
     separate gallery underneath.
-  - The doc can include short headings above image to label them, like
-    "Page X before:".  These will be removed on the Greasy Fork page,
-    where we'll one header above all the images, like
+  - Headings above images: Format them like
+    ```markdown
+    **Page X before:**
+    ![Before](screenshots/thing-x-before.png)
+    ```
+  - Headings for multiple images:
+    On Greasy Fork, we just get one combined header above all the images, like
     "Pages X and Y, before and after:".
+    - Put that combined heading in the doc as an HTML comment
+      immediately above the image block:
+      ```markdown
+      <!-- image-gallery-heading: **Pages X and Y, before and after:** -->
+      ```
+    - Every doc with *multiple* images should have this alternate heading.
+      (With just a single image, we can use the original heading as is.)
+
+* **Extracting the description to publish.**
+  `scripts/extract-description.py <doc.md>` prints the `Summary`
+  section. `--no-images` gives the text to paste as the Greasy Fork
+  description (images, their labels, any `<table>` layout around them,
+  and any heading left empty are all removed, and the
+  `image-gallery-heading` comment is appended in their place).
+  `--images` lists the image files to upload, one per line, in doc
+  order and resolved to full paths — ready to pass to
+  `scripts/greasyfork-url.py --image-files`.
 
 * **Labels.** Label each image with what it is — `<what> before:` /
   `<what> after:` for a pair, `Example:` for a single one — where
