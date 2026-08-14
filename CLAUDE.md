@@ -99,10 +99,14 @@ Two files list every script and both have to be updated by hand:
 * **`script_manifest.json`** — the path list SourceMonkey loads.
   One relative path per script, in site order.
 * **`README.md`, under "My userscripts"** — one table per `###`
-  category, each with columns Site / Script / Doc / Description and
+  category, each with columns Script / Doc / Description and
   sorted by site directory. The Script cell links the `@name` to the
   `.user.js`; the Doc cell links the word "doc" to the `.md`; the
   Description cell is the `@description`, copied verbatim.
+  - Both links are plain relative paths (`sites/<site>/<name>.md`).
+  - If a `@description` contains something Markdown would eat —
+    angle brackets like `<value>`, or a `|` — escape it in the
+    table cell (`&lt;value&gt;`) rather than reword the header.
   - Categories group scripts that do the same job across sites
     (currently "Keyboard comment navigation"), with
     "Miscellaneous" holding everything that isn't part of such a
@@ -116,9 +120,6 @@ Two files list every script and both have to be updated by hand:
 Update both when adding a script, removing one, or renaming its files.
 Update the README row **whenever a script's `@name` or
 `@description` changes**, so the table doesn't go stale.
-
-`sites/example.com/` fixtures go in the manifest individually, but
-share a single README row that links the directory.
 
 ### State-checking for option-change scripts
 
