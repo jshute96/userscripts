@@ -48,6 +48,11 @@ written down before, that's the bar for recording it.
   my preferred userscript manager.
 * `install-in-tampermonkey` is my skill commands to install scripts in Tampermonkey,
   an alternative userscript manager.
+* `publish-on-GreasyFork` publishes a script to Greasy Fork (the
+  userscript repository site) and updates its description and
+  screenshots there. **Run it only when I ask** — it's an
+  outward-facing action, and every step ends with me reviewing and
+  submitting the form myself.
 
 ## Git workflow
 
@@ -82,9 +87,9 @@ maybe HTML), follow this flow:
    report exactly where — don't guess.
 6. **Suggest install**
    - If using SourceMonkey (the default), the directory should be installed already.
-     Add the new script to `./script_manifest.json` (relative path), then run
-     the `install-in-SourceMonkey` skill's `refresh` command once so SourceMonkey
-     picks up the new file.
+     Add the new script to `./script_manifest.json` -- see below. Then run the
+     `install-in-SourceMonkey` skill's `refresh` command once so
+     SourceMonkey picks up the new file.
    - If using Tampermonkey, use the `install-in-tampermonkey` skill's
    `install-pointer` action, so the user can iterate by reloading.
 7. **Write a Playwright spec** (`<name>.spec.js`) once the user
@@ -96,8 +101,12 @@ maybe HTML), follow this flow:
 
 Two files list every script and both have to be updated by hand:
 
-* **`script_manifest.json`** — the path list SourceMonkey loads.
-  One relative path per script, in site order.
+* **`script_manifest.json`** — the list SourceMonkey loads. One
+  entry per script, in site order, each an object with a `path`
+  field with the relative path from the repo root. SourceMonkey ignores other fields.
+  Add the `path` by hand when adding a script.
+  We also use a `greasyfork` field holding the id and URL of the script when we've published it.
+  Don't update the `greasyfork` fields until publishing the script.
 * **`README.md`, under "My userscripts"** — one table per `###`
   category, each with columns Script / Doc / Description and
   sorted by site directory. The Script cell links the `@name` to the

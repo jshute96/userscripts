@@ -131,6 +131,54 @@ def drop_empty_sections(blocks: list) -> list:
   return kept
 
 
+def read_doc(doc: Path) -> str:
+  try:
+    return doc.read_text(encoding="utf-8")
+  except OSError as error:
+    raise SystemExit(f"error: {error}")
+
+
+def description_and_images(doc: Path, as_written: bool = False) -> tuple[str, list[str]]:
+  """Return the publishable description and screenshot list for a doc.
+
+  The pair is `(description, images)`:
+
+  * `description` — one string, the doc's `Summary` section with the
+    images, their labels, and any HTML wrapper around them removed, and
+    the `image-gallery-heading` comment's text appended as the last
+    line if the doc has one. Ends without a trailing newline. This is
+    what `--no-images` prints.
+  * `images` — the image paths, as strings, in the order the doc
+    references them, which is the order they should be uploaded in.
+    Each is an absolute path resolved against the doc's own directory,
+    unless it's already a URL or `as_written` is set, in which case it
+    is passed through as the doc spells it. Empty if the doc has no
+    images. This is what `--images` prints, one per line.
+
+  Warns on stderr if the doc has several images but no
+  `image-gallery-heading` comment to head the gallery with.
+
+  Other tools (greasyfork-url.py's `--extract-from-doc`) use this function.
+  """
+  text = section_text(read_doc(doc), SECTION)
+  heading = gallery_heading(text)
+  text = without_comments(text)
+  images = image_paths(text)
+  # One image needs no gallery heading of its own — its label in the doc
+  # already is one, so keep it rather than make every such doc repeat it
+  # in a comment.
+  keep_labels = len(images) == 1 and not heading
+  if len(images) > 1 and not heading:
+    print(f"warning: {doc} has images but no "
+          f"'<!-- image-gallery-heading: … -->' comment", file=sys.stderr)
+  body = strip_images(text, keep_labels).rstrip("\n")
+  if heading:
+    body = f"{body}\n\n{heading}"
+  paths = [image if as_written or "://" in image else str((doc.parent / image).resolve())
+           for image in images]
+  return body, paths
+
+
 def main() -> None:
   parser = argparse.ArgumentParser(
       description=f"Extract the '{SECTION}' section of a userscript doc file.")
@@ -145,33 +193,15 @@ def main() -> None:
                            "doc instead of resolving them against its directory")
   args = parser.parse_args()
 
-  try:
-    markdown = args.doc.read_text(encoding="utf-8")
-  except OSError as error:
-    raise SystemExit(f"error: {error}")
-
-  text = section_text(markdown, SECTION)
-  heading = gallery_heading(text)
-  text = without_comments(text)
-  images = image_paths(text)
-
-  if args.images:
-    for path in images:
-      if args.as_written or "://" in path:
+  if args.images or args.no_images:
+    body, images = description_and_images(args.doc, args.as_written)
+    if args.images:
+      for path in images:
         print(path)
-      else:
-        print((args.doc.parent / path).resolve())
-  elif args.no_images:
-    # One image needs no gallery heading of its own — its label in the doc
-    # already is one, so keep it rather than make every such doc repeat it
-    # in a comment.
-    keep_labels = len(images) == 1 and not heading
-    if len(images) > 1 and not heading:
-      print(f"warning: {args.doc} has images but no "
-            f"'<!-- image-gallery-heading: … -->' comment", file=sys.stderr)
-    body = strip_images(text, keep_labels).rstrip("\n")
-    sys.stdout.write(f"{body}\n\n{heading}\n" if heading else f"{body}\n")
+    else:
+      sys.stdout.write(body + "\n")
   else:
+    text = without_comments(section_text(read_doc(args.doc), SECTION))
     sys.stdout.write(text.strip() + "\n")
 
 

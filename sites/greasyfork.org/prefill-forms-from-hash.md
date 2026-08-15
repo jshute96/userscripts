@@ -101,6 +101,14 @@ It has one subcommand per page — `new`, `update`, `import` — and its
 flags are named after the hash parameters they set. `--print` shows
 the URL instead of opening it. See the script for details.
 
+`--extract-from-doc <script>.md` is the shortcut for the way this repo publishes:
+it fills `Additional info` with the doc's `Summary` section minus its
+screenshots, and attaches those screenshots separately, in the order
+the doc lists them. On a new version it also sets `remove_images=all`
+by default, so the doc's screenshots replace the gallery instead of
+being added to it. The `publish-on-GreasyFork` skill has the full
+publishing flow.
+
 ### Examples
 
 **Post a new script**, with its documentation and two screenshots:

@@ -18,9 +18,16 @@ Examples:
       --image-files sites/strava.com/screenshots/fix-climb-slider-after.png \\
       --changelog-text 'Line the icons up with the slider.'
 
-  # Import from GitHub.
-  greasyfork-url.py import \\
-      https://raw.githubusercontent.com/me/userscripts/main/a.user.js \\
+  # Post a new version, as above, but extracting the description and
+  # screenshots from a script's .md doc file.
+  # See extract-description.py for details.
+  greasyfork-url.py update 590960 \\
+      --extract-from-doc sites/strava.com/fix-climb-slider.md \\
+      --changelog-text 'Update description.'
+
+  # Import from a web URL, so the script keeps syncing from that URL.
+  # Local paths are converted to a GitHub URL; a full URL works too.
+  greasyfork-url.py import sites/strava.com/fix-climb-slider.user.js \\
       --sync-type automatic
 
 The page is only ever filled in, never submitted — read it over and click
@@ -40,6 +47,7 @@ Local files:
   to URLs under --http-base.
 """
 import argparse
+import importlib.util
 import shutil
 import subprocess
 import sys
@@ -56,11 +64,47 @@ DEFAULT_LOCALE = "en"
 FORMAT_BY_SUFFIX = {".md": "markdown", ".markdown": "markdown", ".html": "html", ".htm": "html"}
 
 
+def load_sibling(filename: str):
+  """Import a script from this directory (their names aren't importable)."""
+  path = Path(__file__).resolve().parent / filename
+  spec = importlib.util.spec_from_file_location(path.stem.replace("-", "_"), path)
+  if not spec or not spec.loader:
+    raise SystemExit(f"error: cannot load {path}")
+  module = importlib.util.module_from_spec(spec)
+  spec.loader.exec_module(module)
+  return module
+
+
+def source_url(source: str, branch: str) -> str:
+  """Return the URL Greasy Fork should import a script from.
+
+  A local path becomes the raw.githubusercontent.com URL that serves it,
+  and a URL passes through. It's greasyfork-scripts.py's own raw_url, so
+  the two tools can't build different URLs for the same file.
+  """
+  return load_sibling("greasyfork-scripts.py").raw_url(source, branch)
+
+
+def from_doc(doc_path: str) -> tuple[str, list[str]]:
+  """Return the publishable description and screenshot list for a doc.
+
+  The same thing `extract-description.py --no-images` / `--images` print:
+  the doc's Summary section with the images (and their labels) taken out,
+  and the image paths in the order they appear. It's that script's own
+  function, so the two can't drift — including its warning about a
+  multi-image doc with no `image-gallery-heading` comment.
+  """
+  return load_sibling("extract-description.py").description_and_images(Path(doc_path))
+
+
 def read_text(path_str: str) -> str:
-  path = Path(path_str)
-  if not path.is_file():
-    raise SystemExit(f"error: no such file: {path}")
-  return path.read_text(encoding="utf-8")
+  # Read rather than stat, so a pipe works too — process substitution
+  # (`--info-file <(some-command)`) hands us a /dev/fd entry, which isn't
+  # a regular file.
+  try:
+    return Path(path_str).read_text(encoding="utf-8")
+  except OSError as error:
+    raise SystemExit(f"error: cannot read {path_str}: {error}")
 
 
 def format_for(path_str: str, override: str | None) -> str:
@@ -111,6 +155,21 @@ def script_params(args) -> list[tuple[str, str]]:
   elif args.code_upload:
     params.append(("code_upload", as_location(args.code_upload, args)))
 
+  doc_images: list[str] = []
+  if args.extract_from_doc:
+    # The doc supplies Additional info, its format, and the images, so
+    # anything else that sets one of those is a contradiction rather than
+    # an override — say so instead of silently picking a winner.
+    conflicting = [flag for flag, value in (("--info-file", args.info_file),
+                                            ("--info-text", args.info_text),
+                                            ("--info-format", args.info_format),
+                                            ("--image-files", args.image_files))
+                   if value]
+    if conflicting:
+      raise SystemExit("error: --extract-from-doc already sets what "
+                       f"{', '.join(conflicting)} would set")
+    body, doc_images = from_doc(args.extract_from_doc)
+    params.append(("additional_info_markdown", body))
   if args.info_file and args.info_text:
     raise SystemExit("error: pass only one of --info-file, --info-text")
   if args.info_format and not (args.info_file or args.info_text):
@@ -121,10 +180,11 @@ def script_params(args) -> list[tuple[str, str]]:
   elif args.info_text:
     params.append((f"additional_info_{args.info_format or 'html'}", args.info_text))
 
-  if args.image_files:
-    # Each --image-files may itself be a comma-separated list; flatten in
-    # the order given, which is the order they'll appear on the script.
-    paths = [path for group in args.image_files for path in group.split(",") if path.strip()]
+  # Each --image-files may itself be a comma-separated list; flatten in
+  # the order given, which is the order they'll appear on the script.
+  paths = [path for group in (args.image_files or []) for path in group.split(",") if path.strip()]
+  paths = paths or doc_images
+  if paths:
     params.append(("image_files", ",".join(as_location(p.strip(), args) for p in paths)))
 
   if args.script_type:
@@ -153,7 +213,16 @@ def update_params(args) -> list[tuple[str, str]]:
     # about the extension.
     changelog = read_text(args.changelog_file)
     params.append((f"changelog_{format_for(args.changelog_file, args.changelog_format)}", changelog))
-  if args.remove_images:
+  # The doc is the whole story when --extract-from-doc is used: its text
+  # replaces Additional info outright, so its screenshots replace the
+  # gallery too. Greasy Fork *adds* uploads to what's already attached,
+  # so without this a re-run doubles every image. A doc with no
+  # screenshots therefore clears them — pass --no-remove-images to add
+  # to the existing gallery instead.
+  remove_images = args.remove_images
+  if remove_images is None:
+    remove_images = bool(args.extract_from_doc)
+  if remove_images:
     params.append(("remove_images", "all"))
   return params
 
@@ -263,6 +332,8 @@ def main() -> int:
   shared_note = "Also accepts the shared options listed by `greasyfork-url.py --help`."
 
   def add_script_options(sub):
+    sub.add_argument("--extract-from-doc", metavar="FILE",
+                     help="extract description and image-files from the script's .md doc")
     sub.add_argument("--code-file", metavar="FILE", help="read the code from FILE and inline it")
     sub.add_argument("--code-url", metavar="URL", help="have the browser load the code from URL")
     sub.add_argument("--code-upload", metavar="FILE", help="attach FILE to the 'Or upload' input")
@@ -295,14 +366,18 @@ def main() -> int:
   update_parser.add_argument("--changelog-text", metavar="TEXT", help="changelog as literal text")
   update_parser.add_argument("--changelog-file", metavar="FILE", help="read the changelog from FILE")
   update_parser.add_argument("--changelog-format", choices=["html", "markdown"], help="changelog format")
-  update_parser.add_argument("--remove-images", action="store_true", help="tick every existing image's remove box")
+  update_parser.add_argument("--remove-images", action=argparse.BooleanOptionalAction, default=None,
+                             help="tick remove on existing images, so new images will replace them")
 
   import_parser = subparsers.add_parser(
     "import", add_help=False, help="import scripts from source URLs",
     description="Fill the 'Import scripts' form.", epilog=shared_note)
   add_hidden_help(import_parser)
   add_common_options(import_parser, documented=False)
-  import_parser.add_argument("urls", nargs="+", help="source URLs to import")
+  import_parser.add_argument("urls", nargs="+", metavar="SOURCE",
+                             help="scripts to import: repo-relative paths, or source URLs")
+  import_parser.add_argument("--branch", default="main",
+                             help="branch a path's raw URL points into (default main)")
   import_parser.add_argument("--language", choices=["detect", "js", "css"], help="script language")
   import_parser.add_argument("--sync-type", choices=["automatic", "manual"], help="initial sync type")
 
@@ -324,7 +399,7 @@ def main() -> int:
     params = update_params(args)
   else:
     path = f"{prefix}/import"
-    params = [("urls", "\n".join(args.urls))]
+    params = [("urls", "\n".join(source_url(s, args.branch) for s in args.urls))]
     if args.language:
       params.append(("language", args.language))
     if args.sync_type:
