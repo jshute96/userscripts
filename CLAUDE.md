@@ -526,12 +526,19 @@ site the script is for and what it does, and ideally
 be interesting enough that someone who has that problem stops and
 reads further.
 
+The `@name` is also what search typically match on: Greasy Fork's script
+search appears to look at little more than the name, so treat
+words in it as search keywords and include the words someone looking
+for this script would actually type.
+
 * **Site name**, then a colon. Use the site's own brand name, not its
-  domain — `Google Calendar`, not `calendar.google.com`.
-  Common abbreviations for the site name (`NYT`) are fine.
+  domain — `Google Calendar`, not `calendar.google.com`. Use the
+  fullest common form of that name rather than an abbreviation
+  (`NYTimes`, not `NYT`), since the abbreviation someone searches for
+  may not be the one we picked.
   - `Site Name Section/Feature:` is preferred, when the
     script only applies to one section or feature of a large site:
-    `Peloton Player`, `NYT Spelling Bee`, `The Atlantic Games`.
+    `Peloton Player`, `NYTimes Spelling Bee`, `The Atlantic Games`.
     Scripts covering the site as a whole keep the plain site name
 * **Title** after the colon: sentence case, no trailing period.
   Describe the change or the feature, not the mechanism. Prefer a

@@ -1,4 +1,4 @@
-# NYT Spelling Bee: Word definitions and other tweaks
+# NYTimes Spelling Bee: Word definitions and other tweaks
 
 ## Summary
 
@@ -7,7 +7,7 @@ puzzle.
 
 **Definitions for the words you find.** Hover or click words to see
 a definition. Look up those weird words! Works on found words in the
-puzzle and Buddy page, and in the 
+puzzle, in the Buddy page, and in the "Yesterday's Answers" list.
 
 **Link to Buddy.** Spelling Bee Buddy, the companion page that shows
 hints with live status updates, isn't linked from the puzzle itself.

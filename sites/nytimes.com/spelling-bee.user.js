@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         NYT Spelling Bee: Word definitions and other tweaks
+// @name         NYTimes Spelling Bee: Word definitions and other tweaks
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.18
+// @version      1.0.19
 // @description  Shows definitions when you hover or click a word, adds a toolbar link to Spelling Bee Buddy, and closes the splash screens for you.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT

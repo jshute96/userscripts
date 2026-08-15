@@ -1,4 +1,4 @@
-# NYT: Keyboard comment navigation
+# NYTimes: Keyboard comment navigation
 
 ## Summary
 
