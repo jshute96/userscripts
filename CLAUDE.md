@@ -168,53 +168,44 @@ That has a consequence for `@match`:
   load), but expecting the user to reload before every interesting
   page is a bad UX.
 
-The standard fix is to **broaden `@match` to the site root** and gate
-behavior inside the script:
+The fix is to **broaden `@match` to the site root** and gate behavior
+inside the script:
 
 1. `@match https://site.com/*` (or the smallest prefix that covers
    every page the script *might* care about).
-2. Inside the script, do an initial dispatch keyed on
-   `location.pathname` and re-dispatch on URL changes.
-3. Listen for both `popstate` (back/forward, bfcache restore) and a
-   custom event fired from monkey-patched `pushState` / `replaceState`
-   — neither of those history methods fires `popstate`, so without
-   the wrapper you miss in-app navigations.
-
-Idiom (paste at the top of any SPA script). Pick an event name
-scoped to *this* script — `<script-slug>:urlchange` — so scripts
-don't collide on a shared name. Each script stacks its own
-history wrapper, but with 2–3 scripts on a page the cost is
-negligible (a function call per `pushState`) and there's no
-coordination required between scripts.
+2. Add `@grant window.onurlchange` and listen for the native
+   `urlchange` event. The manager fires it on any history mutation —
+   `pushState`, `replaceState`, `popstate` — so there's nothing to
+   monkey-patch. Both SourceMonkey (our default) and Tampermonkey
+   support it.
+3. Dispatch on `location.pathname`, both initially and on every
+   `urlchange`.
 
 ```js
-const URL_CHANGE_EVENT = 'my-script:urlchange';  // <-- name to this script
+// @grant window.onurlchange
 
 function onUrlChange() {
     // dispatch on location.pathname; idempotent — handlers must
     // tolerate being called repeatedly on the same URL.
 }
-for (const m of ['pushState', 'replaceState']) {
-    const orig = history[m];
-    history[m] = function (...a) {
-        const r = orig.apply(this, a);
-        window.dispatchEvent(new Event(URL_CHANGE_EVENT));
-        return r;
-    };
-}
-window.addEventListener('popstate', onUrlChange);
-window.addEventListener(URL_CHANGE_EVENT, onUrlChange);
+window.addEventListener('urlchange', onUrlChange);
 onUrlChange(); // initial
 ```
 
-Cleaner alternative when targeting Tampermonkey specifically: add
-`// @grant window.onurlchange` to the header and listen for the
-native `urlchange` event — Tampermonkey fires it on any history
-mutation, no monkey-patching required. (Not portable to other
-userscript managers; see the tampermonkey skill's `patterns.md` →
-"SPA Navigation Handling" for the full code.) For most of our
-scripts the History-API patch above is fine and we don't bother
-with the grant.
+The handler fires on *any* history mutation, including same-path
+query-string rewrites that sites use for transient UI state (open
+modal, selected tab). If it only cares about the path, compare
+against the previous `location.pathname` and return early when it's
+unchanged.
+
+Doing the broadening without the re-dispatch is its own bug, and an
+easy one to ship: the script silently does nothing whenever the tab's
+*initial* document was outside the gate, no matter where the user
+navigates afterwards.
+
+(The tampermonkey skill's `patterns.md` → "SPA Navigation Handling"
+covers the History-API interception fallback, for managers without
+the grant.)
 
 What this implies for the rest of the script:
 
