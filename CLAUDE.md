@@ -425,6 +425,61 @@ in `test/fixtures.js`.
   `@run-at document-idle`). Edits to the script are picked up next
   test run — no rebuild step.
 
+* **There is no userscript manager in the tests.** The fixture runs the
+  raw body in the page's own world, and the test profile has no
+  extensions installed. So none of the manager's behavior exists:
+  - **no `GM_*` functions**, whatever the script `@grant`s — every
+    granted name is simply undefined;
+  - `@match`, `@noframes`, `@connect` and `@require` are inert — the
+    test navigates wherever it likes, and `@require`d files are never
+    fetched;
+  - no sandbox: the script shares the page's world rather than an
+    isolated one.
+
+  `@run-at document-idle` is the one directive emulated, via the
+  `load`-event wrapper.
+
+* **So the suite covers the manager-independent half only** — DOM
+  insertion, selectors, styling, click-through navigation. A script
+  built on GM storage, menu commands, or cross-tab messaging can't be
+  exercised here at all. That's a limitation of the harness, and **not
+  something to design around**: don't contort a script to survive a
+  missing `GM_*`, because a real manager always defines what you
+  `@grant`. Guards for it are dead code everywhere except our tests,
+  and they turn a loud failure into a silent wrong answer.
+
+  Watch for the failure mode, though: a `GM_*` call on a path the tests
+  *do* execute throws a `ReferenceError` that aborts the whole IIFE, so
+  every test in the file fails on "element not found" — pointing
+  nowhere near the real cause.
+
+* **Verify the GM-dependent half interactively**, in the real browser
+  with the manager installed, reading the `[name]` console logs. That's
+  the only place the real semantics exist: storage that persists,
+  writes that are debounced, values that reach another tab.
+
+* **A test that genuinely needs `GM_*` can inject stubs** ahead of
+  `loadUserscript`. `test/gm-stubs.js` has `injectGmStubs(page, {values})`
+  — an in-memory store for the storage calls and value-change
+  listeners, plus recording no-ops for `GM_openInTab` /
+  `GM_registerMenuCommand` (readable from
+  `window.__gmStubs.openedTabs` and `.menuCommands`).
+
+  ```js
+  await injectGmStubs(page, { values: { seenActivityIds: [] } });
+  await loadUserscript(SCRIPT_PATH);   // stubs must exist first
+  ```
+
+  Stub only where the fake is **an obvious no-op or an obvious, simple
+  mock** — a plain object standing in for key/value storage, a recorder
+  standing in for "open a tab". Anything needing real semantics to be
+  meaningful isn't a stubbing problem; test it by hand instead.
+
+  It stays opt-in per spec rather than living in `loadUserscript`, so a
+  spec has to say it's faking the manager. A stub store is synchronous,
+  same-page and instant: it proves the script's own logic and nothing
+  about the manager's debounce, persistence, or cross-tab delivery.
+
 * When a userscript's button handler fires off async work
   (fire-and-forget from the event handler), don't poll DOM state for
   completion — wait for a specific console log line the script emits

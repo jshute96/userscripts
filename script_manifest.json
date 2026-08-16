@@ -13,14 +13,14 @@
     "path": "sites/connect.garmin.com/activity-tcx-download.user.js"
   },
   {
-    "path": "sites/connect.garmin.com/download-activities-button.user.js"
-  },
-  {
     "path": "sites/connect.garmin.com/mtb-jumps-map-link.user.js",
     "greasyfork": {
       "id": 591536,
       "url": "https://greasyfork.org/scripts/591536-garmin-connect-improve-ui-in-mtb-dynamics-jumps-view"
     }
+  },
+  {
+    "path": "sites/connect.garmin.com/upload-to-strava.user.js"
   },
   {
     "path": "sites/example.com/bold-on-hover.user.js",
