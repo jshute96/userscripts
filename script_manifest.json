@@ -137,6 +137,9 @@
     }
   },
   {
+    "path": "sites/strava.com/upload-commute-preset.user.js"
+  },
+  {
     "path": "sites/techcrunch.com/close-newsletter-popup.user.js",
     "greasyfork": {
       "id": 591543,
