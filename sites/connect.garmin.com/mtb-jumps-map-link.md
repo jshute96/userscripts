@@ -3,23 +3,62 @@
 ## Summary
 
 Garmin Connect's MTB Dynamics view shows jumps on the map and in a table
-but has no UI to match them up, or find specific jumps.
+below, but the UI is poor, and there's no easy way to find the larger
+jumps on the map.
 
-This script links them.  Jumps in the map get labeled with their ID in
-the table (e.g. "Jump 3"), and clicking them highlights the corresponding
-row in the table.  Clicking rows in the table selects the row and
-also the corresponding jump on the map (scrolling it into view if necessary).
+This script makes several improvements:
 
-This also adds a **Hide Charts** button, since the stack of charts between
-the map and the jumps table otherwise means scrolling back and forth
-past them.
+* **Link jumps on the map and in the table below.**
+  * Jump info on the map includes the ID, like "Jump 3", shown in the table.
+  * Click a jump on the map or in the table, and the corresponding jump is
+    highlighted in both views.
 
-**Example:**
+* **Color-code the jumps on the map with gradient colors.** Bigger jumps are
+  redder.
+  * A legend for the gradient is shown below the map, with min and max values.
+  * Click the dimension name to its left to switch between distance,
+    hang time, and Garmin's "score".
+  * Bigger jumps are drawn on top, so they are always visible, even when
+    jumps overlap in zoomed-out views.
 
-![Jump 3 selected, with the charts hidden](screenshots/mtb-jumps-map-link.png)
+* **Filter jumps by minimum distance, hang time, or score.**
+  * Move the slider on the gradient to set the filter threshold.
+  * Jumps with lower values are hidden, in both the map and table.
+
+* **Add a `Hide Charts` button** that removes the graphs between the map
+  and the table below, so you don't have to scroll past them.
+
+<!-- image-gallery-heading: **Example with a jump selected, and the same view filtered (by hang time):** -->
+
+**Example with a jump selected:**
+
+![A jump selected on the map, its popup, the legend, and the matching table row highlighted](screenshots/mtb-jumps-map-link.png)
+
+**The same view filtered (by hang time):**
+
+![The slider set to 0.53 s, leaving 11 of 36 jumps on the map and in the table](screenshots/mtb-jumps-map-link-filtered.png)
 
 ## Visible changes
 
+* Jump markers on the map are colored on a green→yellow→orange→red
+  gradient by the selected dimension, scaled across the ride's own
+  range so its smallest jump is green and its largest is red.
+* Bigger jumps are drawn on top of smaller ones, so an overlapping
+  cluster shows its largest jump rather than whichever happens to be
+  furthest south. The stacking follows the selected dimension.
+* A legend in the chart toolbar — between the Customize/Hide Charts
+  buttons and the Time/Distance toggle — shows that gradient, labeled
+  with the ride's smallest and largest jump. Its bar lines up with the
+  left edge of Garmin's speed gradient directly above it, and holds that
+  position whatever the legend's text says.
+* None of the above appears on a ride with fewer than two jumps: there
+  is nothing to rank one jump against, and nothing to filter it out of.
+* The legend's dimension name is a button rotating through Distance,
+  Hang time and Score.
+* The gradient bar is also a slider. Moving it right hides every jump
+  below the threshold, from the map and the jumps table at once, and
+  dims the excluded end of the gradient. A popup open on a jump that
+  gets hidden is closed.
 * Map jump popups are titled "Jump 12" instead of "Jump", and gain a
   `Score:` line (which the table has and the popup didn't).
 * Rows in the jumps table are clickable — clicking one opens that
@@ -50,6 +89,21 @@ Notably there is **no per-jump ID**. The "jump number" shown in the
 table is just the 1-based array index, and the map markers are created
 in the same array order. Garmin's own code therefore relies on
 positional identity too — there is nothing better available.
+
+That array is reachable, which is what the gradient and the filter are
+built on. Walking up the fiber chain from the map container (or from
+`.activity-charts` if the map is absent), it appears as `jumpsDetails`
+on a component's props, and again one level down as
+`pageProps.jumpsDetails`. We take whichever we hit first. Values are
+**SI regardless of the account's display preference** — distance in
+meters, hangTime in seconds, speed in m/s — so everything numeric is
+computed off these and only the labels get converted.
+
+A ride with no jumps has no array (or an empty one). A ride with exactly
+one has a one-element array, which is just as useless here — a scale
+whose two ends are the same number, a ranking of one, and a filter that
+can only hide everything or nothing. Both cases are skipped outright, so
+no legend, coloring or stacking is applied.
 
 None of that reaches the DOM:
 
@@ -118,6 +172,282 @@ Selection is set from both directions (row click, and popup labelling
 covers marker clicks) and cleared when the popup closes — Leaflet
 removes the popup element entirely on close, which the popup-pane
 observer already sees.
+
+### Coloring the markers
+
+The marker is an `<img src="/images/feature/mtb/jump.svg">`, not inline
+SVG, so **CSS can't reach inside it** — there is no way to restyle the
+disc from a stylesheet, and `filter` is too blunt for arbitrary colors.
+Instead we fetch that file once, substitute its disc fill (`#6C6C6C`)
+for the color we want, and set the marker's `src` to a
+`data:image/svg+xml,…` URI. The white glyph and near-black ring are left
+alone, so the colored disc reads clearly at 24px.
+
+Garmin's live file is the preferred source, so an icon restyle on their
+side carries into our colored copies rather than leaving us drawing a
+stale icon. A verbatim copy is bundled in the script as `FALLBACK_ICON`
+and used when the live one can't be had — the fetch fails (CSP, offline,
+a renamed asset), or the file no longer contains a disc fill we can
+substitute. Both cases log which happened.
+
+The fallback is worth its ~1.1KB because coloring is most of the point
+of the legend and the filter: without it, either failure silently costs
+all three. With it, the worst case is an icon a version behind.
+
+**Swapping `src` breaks `img[src*="/mtb/jump"]`,** which is how the rest
+of this script finds markers. That's why `MARKER_SELECTOR` is now a
+comma selector that also accepts `img[data-mtb-jump]`, and why the jump
+number is stamped onto the marker *before* the `src` is replaced. A
+comma selector still returns document order, so marker-order identity is
+unaffected.
+
+Recoloring is idempotent — without it the 1s tick would reassign `src`
+every second and make Leaflet reload all 65 images — but the guard reads
+the marker's **current `src`**, not a note we left ourselves. Leaflet
+reuses the same `<img>` and merely reassigns its `src` when it rebuilds a
+marker, which leaves any bookkeeping attribute of ours intact. Keying off
+such an attribute (`data-mtb-jump-color` did exactly this) makes the
+guard short-circuit forever and strands that marker on Garmin's gray icon
+while the legend still advertises a color scale.
+
+### Stacking order
+
+Jump markers are stacked so the biggest jump in the selected dimension is
+the one drawn on top, and therefore the one you can see and click.
+`applyMarkerStacking` ranks the jumps and writes each marker's depth.
+
+**The thing that controls this is Garmin's own CSS, and it flattens
+stacking completely.** Their `global.css` contains:
+
+```css
+.leaflet-zoom-animated { z-index: 9999 !important; }
+```
+
+Every Leaflet marker icon carries that class. So every marker computes to
+z-index 9999 — Leaflet's own latitude-derived values are overridden too —
+and once every z-index ties, paint order falls back to DOM order, which
+is jump order. A big jump ends up buried under whatever jump happened to
+come later in the ride.
+
+That has a nasty consequence for anyone changing this code: **writing
+`style.zIndex`, or going through Leaflet's `setZIndexOffset`, has no
+visible effect at all.** Both were tried. Both produce inline values that
+are provably, verifiably in the right order, and both are silently
+discarded by that `!important` rule. Verifying the z-index *numbers*
+passes while the map plainly disagrees — the only checks worth trusting
+here read `getComputedStyle().zIndex`, or ask the browser directly with
+`document.elementFromPoint()`.
+
+The fix beats the rule at higher specificity —
+`.leaflet-marker-pane img[data-mtb-jump]` is (0,2,1) against its (0,1,0)
+— and takes the depth from a per-marker CSS custom property:
+
+```css
+.leaflet-marker-pane img[data-mtb-jump] {
+  z-index: var(--mtb-jump-z, 10000) !important;
+}
+```
+
+The custom property matters: Leaflet rewrites `style.zIndex` on every
+reposition, but never touches custom properties, so the ordering survives
+every pan and zoom with nothing to re-apply. The base of 10000 keeps jump
+markers above the start/finish and player markers, which stay on Garmin's
+flat 9999 — that is where they sit already.
+
+**Reordering the DOM also works, and must not be used.** Marker DOM order
+*is* the jump numbering that the coloring, the filter, the popup labels
+and the row-click targeting all key off (`markers[i]` ↔ `jumps[i]`).
+Shuffling it to fix paint order mislabeled 63 of 65 markers — and,
+because every check was reading the same corrupted stamps, measured as a
+clean pass. If you ever need to confirm marker identity, cross-check the
+stamped number against the marker's real position via
+`map._layers[…].getLatLng()` versus `jumpsDetails[n-1].latitude/longitude`;
+that comes from Leaflet rather than from us and can't agree with a bug in
+our own bookkeeping.
+
+Verified after the fix: computed z-index spans 10000–10064 and sorts
+identically to the metric, zero mislabeled stamps, DOM order still jump
+order, and no overlapping pair painted wrong — in every dimension.
+
+### The gradient
+
+`GRADIENT_STOPS` is sampled straight off the pixels of Garmin's own
+speed-legend `<canvas>` (the Slower→Faster bar under the map), so the
+two scales read as siblings — but only the warm four of their five
+stops are used:
+
+```
+#40C35D → #E7C94A → #F27716 → #E02C2C
+```
+
+Garmin's full ramp starts with two blues. Those are dropped because
+blue → green → orange → red isn't monotonic in anything the eye tracks:
+blue and green read as *different categories* rather than as less and
+more, so a marker's color doesn't tell you where on the scale it sits
+without going back to the legend. Warm-only reads as a single axis of
+intensity, with luma falling steadily across it (160 → 82).
+
+The yellow is load-bearing rather than decorative. Interpolating green
+straight to orange passes through `#999D3A`, a dull olive. On the 150px
+legend bar that's invisible — but on the map it isn't, because most
+jumps on a ride are short and land in exactly that band, giving a map
+full of olive discs on a pale green basemap. Yellow removes it without
+introducing a hue that reads as a separate category.
+
+Garmin draws a flat plateau around each stop; we interpolate smoothly
+between them instead, and build the CSS `linear-gradient` for the legend
+bar from the same array so the bar and the markers can't drift apart.
+
+The scale runs **min → max of the ride** (`metricRange`), so the
+smallest jump is green and the largest is red on every ride.
+
+Anchoring the low end at 0 was tried first and gave up too much contrast.
+A metric only uses the fraction of the gradient its values actually
+reach, and none of these reach down to zero: scores on the reference ride
+run 41–126, so a third of the ramp went unused and most markers landed
+within a shade of each other. Distance was the least bad of the three
+(0.47–5.25 m), which is why it became the default — a rationale that no
+longer applies now that every dimension uses the full ramp.
+
+The tradeoff is real and worth stating: colors are **relative to the
+ride**, not absolute, so the same marker color means different things on
+two different rides. Ranking jumps within the ride you're looking at is
+what the coloring is for, so that's the right side to land on — but it
+means you can't compare colors across activities.
+
+`span` is 0 when every jump has the identical value. Callers check for
+that and fall back to a flat color rather than dividing by it; the
+one-jump case never reaches here at all.
+
+### The legend, which is also the slider
+
+The gradient bar *is* the slider track: a `<input type="range">` with a
+transparent track sits over a gradient-backed `<span>`, showing only its
+thumb, and a white veil (`[data-part="dim"]`) covers the filtered-out
+fraction from the left. That coupling is the point — the dimmed band is
+literally the range of marker colors currently hidden.
+
+Slider position is held as a **0–1 fraction**, never as an absolute
+value. That's what makes rotating the dimension keep the thumb still and
+just re-derive the threshold against the new metric's range (via
+`filterState`, which clamps — see Filtering). It's reset on SPA
+navigation, so arriving at a new ride never starts with jumps missing.
+
+**The chosen dimension is deliberately not persisted.** It was, in
+`localStorage`, and the failure mode is worse than the convenience is
+worth: one stray click on the button silently changes what every ride
+opens on from then on, with nothing on screen to explain it and the fix
+buried in storage. (This surfaced exactly that way — a rotation left over
+from testing made every ride open on Score.) Rotating costs one click;
+always starting from the same place is worth more.
+
+It goes in as a third child of the chart toolbar row, inserted after the
+cell holding Customize Charts. We anchor on the Customize Charts button
+for the same reason `insertHideChartsButton` does — the toolbar's cells
+render at slightly different times and its first child isn't reliably
+the buttons cell.
+
+**Its position is measured, not centered**, and both halves of that
+matter:
+
+* Letting the `space-between` row center it meant the whole control
+  slid sideways whenever the readout changed width — going from
+  "65 jumps" to "≥ 3.36 m (7 of 65 jumps)" visibly moved it. The label
+  has a fixed width in CSS for the same reason: the three dimension
+  names differ in length, and the bar must not move when they rotate.
+* Centering also doesn't line up with Garmin's speed gradient above.
+  Garmin's legend is centered in the page content width; ours would
+  center between the Customize/Hide Charts cell and the Time/Distance
+  cell, which is different math. At exactly 854px of content width the
+  two happen to coincide — which is thoroughly misleading, since they
+  diverge at every other width.
+
+So `alignGroup()` measures the speed legend's `<canvas>` and sets a
+left margin putting our track's left edge on the same x. The cell is
+`flex: 1` so it claims the space between the other two cells and gives
+the group a stable left edge to measure from; neither term in the
+calculation depends on the margin being set, so it isn't circular. If
+the speed legend isn't present, the group falls back to a fixed indent
+— still stable, just not aligned to anything.
+
+Below roughly 1300px of window width the toolbar row wraps and the
+Time/Distance toggle drops to its own line. Nothing overlaps, and this
+is Garmin's own flexbox doing it.
+
+Speed is deliberately not one of the dimensions: Garmin's own gradient
+on the route already covers it.
+
+### Filtering
+
+`applyFilter` computes the set of jump numbers below the threshold and
+then hides both sides from that one set, so the map and the table can't
+disagree. Hiding is a `data-mtb-jump-filtered` attribute plus a CSS
+rule, not an inline style — React rebuilds the table on every sort and
+Leaflet rewrites marker transforms constantly, and neither touches our
+attributes.
+
+The threshold is computed once in `filterState` and clamped to the
+ride's max. That clamp is load-bearing: `min + 1 * (max - min)` can land
+a hair *above* max in floating point — about 1% of real min/max pairs —
+and the largest jump then fails `value >= threshold` as well, so dragging
+the slider fully right empties the map and the table instead of leaving
+the biggest jump. Score never trips it (integers); distance and hang time
+can.
+
+Table rows are matched by **the jump number in cell 1**, never by row
+position, because the table is sortable. The value compared against the
+threshold comes from `jumpsDetails`, not from the cell text, which is
+rounded and unit-converted.
+
+The table's MutationObserver now re-applies the filter as well as the
+selection highlight, since a sort rewrites every row's cells and a tab
+switch rebuilds the table outright.
+
+A popup left open over a jump that just got hidden would float on the
+map with nothing under it, so `applyFilter` closes it
+(`map.closePopup()`) when the open popup's number is in the hidden set.
+
+### Learning the distance unit
+
+Distance is the one metric whose displayed unit varies by account, and
+nothing reachable exposes the preference — `userProps.userPreferences`
+comes through as `{}`. So we learn it: divide a rendered table cell by
+its raw meters value and snap the ratio to the nearest known conversion
+(m, ft, yd) within 2%. The largest jump is used, since the rendered
+value is rounded and the biggest one gives the most accurate ratio; the
+snap then removes the rounding error from the label entirely.
+
+**Only the labels depend on this.** The colors, the ranking, the
+threshold and the filtering all run on the raw `jumpsDetails` values,
+which are SI whatever the account is set to, so a statute account gets a
+correct scale either way — it's the two end labels and the threshold
+readout that need converting.
+
+The result is cached in `localStorage`, so later page loads label the
+scale correctly before the MTB Dynamics tab has ever been opened. The
+gap is the *first* visit on a statute account: the table is the only
+source, so until that tab has been opened once, the labels read in
+meters. Score is unitless and hang time is seconds everywhere, so
+neither needs any of this.
+
+Two things the parse has to get right, both learned the hard way:
+
+* **Decimal commas.** A jump distance is a single digit, so a comma in
+  `1,94 m` is a decimal separator, not a thousands separator. The first
+  version stripped commas outright, turning `1,94` into `194` and
+  yielding a ratio of 100 — a legend labeled a hundred times too large,
+  silently, for every European-locale account. `parseShownDistance`
+  now treats the last separator as the decimal point when 1–2 digits
+  follow it, and as a group separator otherwise.
+* **Refusing to guess.** An unmatched ratio used to be trusted as the
+  conversion factor, which turns any misread cell into confidently wrong
+  numbers. Garmin renders meters or feet, so a ratio that doesn't snap to
+  a known conversion means we misread it; we now log once and keep
+  showing raw meters instead.
+
+Both were checked against m / ft / yd, 0–2 decimals, a decimal comma and
+unparseable input — as one-off runs, not a committed test. This script
+has no spec yet.
 
 ### Hiding the charts
 
@@ -287,9 +617,26 @@ hidden with no button to bring them back.
 ### What we assume stays stable
 
 * `.leaflet-marker-pane img[src*="/mtb/jump"]` finds exactly the jump
-  markers, in jump order.
+  markers, in jump order — for markers we haven't recolored yet. Once
+  recolored they're found by `img[data-mtb-jump]` instead.
 * `table[class*="mtbJumpsTable"]` with cells
   `[icon, number, score, distance, hang time, speed]`.
+* The ride's jumps are reachable on the fiber chain above the map
+  container as `jumpsDetails` (or `pageProps.jumpsDetails`), with
+  `score` / `distance` / `hangTime` in SI units, in jump order. If this
+  goes away, the gradient and the filter go with it; the map/table
+  linking is independent of it and would keep working.
+* `/images/feature/mtb/jump.svg` is same-origin, fetchable, and colors
+  its disc with a literal `#6C6C6C`.
+* Marker layers are reachable as `map._layers[…]` with an `_icon`
+  pointing at the DOM element, and are `L.Marker`s carrying
+  `setZIndexOffset` and `options.zIndexOffset`. Losing this costs the
+  stacking order only; everything else still works.
+* The chart toolbar row is a flexbox with exactly two cells, both of
+  which stay put when a third, `flex: 1` child is added between them.
+* The speed legend renders as a `<canvas>` inside
+  `[class*="MapLegend_legendContainer"]`, spanning the same content
+  width as the chart toolbar. Losing it costs the alignment only.
 * The popup body labels `Distance` / `Hang time` / `Speed`, formatted
   identically to the table cells (we compare the strings verbatim, so
   a unit change on one side but not the other would break matching —
