@@ -102,7 +102,48 @@ For each keypress:
   to `.news-comments`, then `#commenttop`).
 
 All `scrollIntoView` calls use `{ behavior: 'smooth', block: 'start'
-}`.
+}`, via `scrollToTopSettled()` — see below.
+
+### Drift correction after the scroll
+
+`scrollIntoView` resolves its destination to a fixed scroll offset at
+call time and animates to that number. Pinkbike lazy-loads article
+images and injects ad / "deals" slots as you go down the page, so
+anything that finishes loading *above* the target during the ~1s
+animation pushes the target further down the document and we stop
+short of it. Measured on a normal news article, `c` from the top of
+the page landed 100–200px above the comments header, in the
+related-articles filler.
+
+`scrollToTopSettled(el)` handles this: it issues the smooth scroll,
+then polls on `requestAnimationFrame` until `scrollY` holds steady
+for a few frames, re-measures `el.getBoundingClientRect().top`, and
+re-issues the scroll if it's off by more than 4px. Up to 3
+corrections, with a 4s overall timeout; both the give-up and the
+timeout log.
+
+Two cases where "the target isn't at the top" is not drift, and
+correcting would be wrong:
+
+* **The scroll is clamped.** Every comment within one viewport height
+  of the document end — on a typical article that's the last several
+  — can't be brought to the top, because the page has already
+  scrolled as far as it goes. Measured on a 66-comment article, the
+  last comment settles 331px down at maximum scroll. `scrollIsClamped()`
+  checks `scrollY` against `scrollHeight - innerHeight` (and against
+  0 for the top edge) and stops silently; without it, every `j` into
+  the tail of a thread would burn three corrections and log a
+  failure for a jump that worked correctly.
+* **The animation hasn't started yet.** Chrome takes a frame or two
+  to begin a smooth scroll, and "scrollY hasn't moved" is true during
+  that window. `SETTLE_GRACE_MS` (250ms) keeps the first settle check
+  from firing until the animation is genuinely under way.
+
+A monotonically-increasing `correctionToken` guards it. Starting a
+new jump, or anything that calls `invalidateJumpTarget()` (user
+`wheel` / `touchmove`, a non-nav keypress), bumps the token and the
+in-flight polling loop exits on its next frame — so the correction
+never fights a user who has started scrolling themselves.
 
 ### Chained presses during a smooth scroll
 

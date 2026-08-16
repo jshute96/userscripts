@@ -488,7 +488,20 @@ in `test/fixtures.js`.
 
 * The `page` fixture forwards in-page `[name]` console logs to the
   test runner output, so userscript debug logs are visible during
-  test failures without opening DevTools.
+  test failures without opening DevTools. **It also forwards
+  `pageerror`** — that's where the aborted-IIFE failure above shows
+  itself: a single `page-error: GM_getValue is not defined` line,
+  usually scrolled well past by the time you reach the assertion
+  that failed. Read it before believing a "selector broke" story.
+
+* **Waiting for a smooth scroll to settle: poll the target element's
+  `getBoundingClientRect().top`, not `window.scrollY`.** On
+  ad-heavy, lazy-loading pages, content above the target keeps
+  growing, so `scrollY` can sit perfectly still while the element is
+  still moving — a scrollY-based settle loop then measures far too
+  early and reports a plausible-looking wrong number. (Scripts have
+  the mirror-image problem; see the drift correction in
+  `sites/pinkbike.com/keyboard-comment-navigation.md`.)
 
 * **When Playwright itself misbehaves, drive the browser via raw
   CDP.** The running Chromium exposes a stable HTTP+WebSocket API

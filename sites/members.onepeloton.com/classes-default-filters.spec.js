@@ -12,6 +12,7 @@
 
 const path = require('path');
 const { test, expect } = require('../../test/fixtures');
+const { injectGmStubs } = require('../../test/gm-stubs');
 
 const SCRIPT_PATH = path.join(__dirname, 'classes-default-filters.user.js');
 
@@ -39,7 +40,14 @@ async function readTabHref(page, slug) {
 }
 
 test.describe('peloton classes default filters', () => {
-  test.beforeEach(async ({ loadUserscript }) => {
+  // The script reads its saved config from GM storage at init, so
+  // without stubs `GM_getValue` throws and the whole IIFE aborts —
+  // no observer, no href rewriting, every test here failing on an
+  // unrewritten href. Seeding nothing is what we want: with no saved
+  // config the script falls back to HARDCODED_DEFAULTS, which is
+  // what EXPECTED_DIFFICULTY / EXPECTED_HAS_WORKOUT below encode.
+  test.beforeEach(async ({ page, loadUserscript }) => {
+    await injectGmStubs(page, { values: {} });
     await loadUserscript(SCRIPT_PATH);
   });
 
