@@ -1,6 +1,10 @@
 [
   {
-    "path": "sites/calendar.google.com/highlight-local-rooms.user.js"
+    "path": "sites/calendar.google.com/highlight-local-rooms.user.js",
+    "greasyfork": {
+      "id": 591535,
+      "url": "https://greasyfork.org/scripts/591535-google-calendar-highlight-matching-meeting-rooms"
+    }
   },
   {
     "path": "sites/cnrfc.noaa.gov/precip-default-view.user.js"
@@ -12,7 +16,11 @@
     "path": "sites/connect.garmin.com/download-activities-button.user.js"
   },
   {
-    "path": "sites/connect.garmin.com/mtb-jumps-map-link.user.js"
+    "path": "sites/connect.garmin.com/mtb-jumps-map-link.user.js",
+    "greasyfork": {
+      "id": 591536,
+      "url": "https://greasyfork.org/scripts/591536-garmin-connect-improve-ui-in-mtb-dynamics-jumps-view"
+    }
   },
   {
     "path": "sites/example.com/bold-on-hover.user.js"
@@ -30,16 +38,28 @@
     "path": "sites/example.com/updated-script.user.js"
   },
   {
-    "path": "sites/feedly.com/scroll-index-to-top.user.js"
+    "path": "sites/feedly.com/scroll-index-to-top.user.js",
+    "greasyfork": {
+      "id": 591537,
+      "url": "https://greasyfork.org/scripts/591537-feedly-scroll-index-page-to-top"
+    }
   },
   {
-    "path": "sites/feedly.com/sort-filter-presets.user.js"
+    "path": "sites/feedly.com/sort-filter-presets.user.js",
+    "greasyfork": {
+      "id": 591538,
+      "url": "https://greasyfork.org/scripts/591538-feedly-add-oldest-newest-buttons-for-single-click-order-toggle"
+    }
   },
   {
     "path": "sites/greasyfork.org/prefill-forms-from-hash.user.js"
   },
   {
-    "path": "sites/members.onepeloton.com/classes-default-filters.user.js"
+    "path": "sites/members.onepeloton.com/classes-default-filters.user.js",
+    "greasyfork": {
+      "id": 591539,
+      "url": "https://greasyfork.org/scripts/591539-peloton-default-filters-on-class-lists"
+    }
   },
   {
     "path": "sites/members.onepeloton.com/fix-bad-video-overlay.user.js",
@@ -72,13 +92,25 @@
     }
   },
   {
-    "path": "sites/pinkbike.com/article-image-navigation.user.js"
+    "path": "sites/pinkbike.com/article-image-navigation.user.js",
+    "greasyfork": {
+      "id": 591540,
+      "url": "https://greasyfork.org/scripts/591540-pinkbike-keyboard-navigation-for-article-photos"
+    }
   },
   {
-    "path": "sites/pinkbike.com/close-sticky-footer-ad.user.js"
+    "path": "sites/pinkbike.com/close-sticky-footer-ad.user.js",
+    "greasyfork": {
+      "id": 591541,
+      "url": "https://greasyfork.org/scripts/591541-pinkbike-auto-close-the-sticky-footer-ad"
+    }
   },
   {
-    "path": "sites/pinkbike.com/keyboard-comment-navigation.user.js"
+    "path": "sites/pinkbike.com/keyboard-comment-navigation.user.js",
+    "greasyfork": {
+      "id": 591542,
+      "url": "https://greasyfork.org/scripts/591542-pinkbike-keyboard-comment-navigation"
+    }
   },
   {
     "path": "sites/reddit.com/keyboard-comment-navigation.user.js"
@@ -105,10 +137,18 @@
     }
   },
   {
-    "path": "sites/techcrunch.com/close-newsletter-popup.user.js"
+    "path": "sites/techcrunch.com/close-newsletter-popup.user.js",
+    "greasyfork": {
+      "id": 591543,
+      "url": "https://greasyfork.org/scripts/591543-techcrunch-auto-close-the-newsletter-popup"
+    }
   },
   {
-    "path": "sites/theatlantic.com/games-todays-puzzle-link.user.js"
+    "path": "sites/theatlantic.com/games-todays-puzzle-link.user.js",
+    "greasyfork": {
+      "id": 591544,
+      "url": "https://greasyfork.org/scripts/591544-the-atlantic-games-link-to-today-s-puzzle"
+    }
   },
   {
     "path": "sites/washingtonpost.com/keyboard-comment-navigation.user.js"

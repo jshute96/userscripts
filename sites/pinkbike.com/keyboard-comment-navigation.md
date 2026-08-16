@@ -16,7 +16,7 @@ The bindings match the comment-navigation userscripts for other sites.
 | `j` / `k` | next / previous comment in display order, replies included |
 | `p` | the parent (root) of the current reply; does nothing on a root comment |
 | `n` | the root of the next thread |
-| `c` | the `N Comments` line at the top of the comments section |
+| `c` | the top of the comments section |
 
 Keys work anywhere on the article page, and are ignored while you're
 typing in a text box.

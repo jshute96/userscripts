@@ -582,6 +582,8 @@ who found the script in a search, not for us.
   only a *maintainer* needs goes in `Implementation`.
 * Don't spell out consequences the reader can infer, and don't
   narrate what the screenshots already show.
+* Don't explain trivially obvious motivations. e.g. Don't bother
+  explaining that popups are annoying and that's why we want to close them.
 * Screenshots go at the **end** of `Summary` — see below.
 
 ## Documentation files for each userscript

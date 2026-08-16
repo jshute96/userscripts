@@ -5,10 +5,6 @@
 Closes the sticky ad banner that Pinkbike pins across the bottom of
 every page, as soon as it appears.
 
-The banner covers part of the article, follows you down the page, and
-has to be dismissed by hand on each new page you open. This script
-clicks its close button for you, so it's gone before you notice it.
-
 ## Visible changes
 
 * The sticky footer ad that overlays the bottom of Pinkbike pages is

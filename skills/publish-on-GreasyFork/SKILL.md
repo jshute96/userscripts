@@ -135,6 +135,11 @@ Several scripts can go in one import.
    using the ID `link` recorded. The import isn't finished until
    that's done.
 
+   When importing several scripts at once, **open all their
+   description forms in one go** — one `greasyfork-url.py update`
+   call per script. They'll land in separate browser tabs and the user
+   can process them all, without a separate round trip for each one.
+
 ### Publish a standalone copy
 
 Only use this when the script shouldn't sync from GitHub. The code is
@@ -170,6 +175,8 @@ scripts/greasyfork-url.py update 590960 \
 * To see what will be posted before opening the page, run
   `extract-description.py --no-images` / `--images` on the doc, or add
   `--print` to print the URL instead of launching a browser.
+* Screenshots need nothing extra — the command above uploads them as
+  they are. See "Images" below before reaching for a workaround.
 
 ### Post a new version by hand
 
@@ -182,11 +189,17 @@ scripts/greasyfork-url.py update 590960 \
     --code-file sites/strava.com/fix-climb-slider.user.js
 ```
 
-## If images don't attach
+## Images
 
 Image uploads can't be inlined into the URL — the browser has to fetch
-the file, and a `file://` fetch fails in userscript managers that run
-the request from a service worker. If the images come out missing,
+the file. By default `greasyfork-url.py` passes a `file://` URL, and
+**that works here** (SourceMonkey, confirmed 2026-08-15). So just run
+the plain `--extract-from-doc` command and it will handle images.
+
+### If images don't attach
+
+A `file://` fetch may fail in userscript managers that run the request
+from a service worker. If (and only if) the images come out missing,
 serve the repo over HTTP and point at that instead:
 
 ```bash
