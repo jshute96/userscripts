@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Peloton: Default filters on class lists
 // @namespace    https://github.com/jshute96/userscripts
-// @version      3.0.2
+// @version      3.0.3
 // @description  Applies your preferred filters on class lists by default, so browsing starts from a useful view. Defaults are configurable per class type from the script menu.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -330,10 +330,8 @@
     refreshMenu();
   }
 
-  // Menu items only make sense on a /classes/<slug> page: capturing
-  // current state and naming the per-slug save command both depend
-  // on that context. Re-register on every URL change so the per-slug
-  // label tracks the current page.
+  // Menu items only make sense on a /classes/<slug> page, so they're
+  // rebuilt whenever the path changes.
   let menuIds = [];
   function clearMenuItems() {
     for (const id of menuIds) GM_unregisterMenuCommand(id);
@@ -382,12 +380,16 @@
       () => resetDefaults()));
   }
 
-  // Tampermonkey fires `urlchange` on any history mutation when
-  // `@grant window.onurlchange` is set. That covers pushState,
-  // replaceState, popstate — everything we need to keep the menu
-  // label in sync as the user moves between categories.
-  if (window.onurlchange === null) {
-    window.addEventListener('urlchange', refreshMenu);
+  // `urlchange` fires on same-path history mutations too (opening a
+  // class-detail modal rewrites only the query string), so only
+  // rebuild when the path actually changed.
+  let lastPath = location.pathname;
+  function onUrlChange() {
+    if (location.pathname === lastPath) return;
+    lastPath = location.pathname;
+    refreshMenu();
   }
+  window.addEventListener('urlchange', onUrlChange);
+
   refreshMenu();
 })();

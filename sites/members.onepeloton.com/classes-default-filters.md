@@ -133,11 +133,29 @@ Defaults set per class type take priority over the global defaults.
   mechanisms — document-level capture-phase click listeners and a
   body-level `MutationObserver` for href rewrites — are global and
   self-gate by element, so they cost nothing on pages that don't
-  contain category links or discipline tiles. The menu items need
-  to re-register on URL change too, so the per-slug command label
-  tracks the current page; we use Tampermonkey's
-  `@grant window.onurlchange` rather than monkey-patching the
-  History API.
+  contain category links or discipline tiles.
+- Navigation splits into two observed cases, and only one of them is
+  an SPA transition from the script's point of view:
+  - **Into a class list** — category tabs and home-page discipline
+    tiles are intercepted by our own click handlers, which
+    `location.assign` the filtered URL. That's a full document load,
+    so the script re-inits and rebuilds its menu for the new slug.
+  - **Away from a class list** — the global nav links (`/home`,
+    `/programs`, `/collections`, `/schedule`,
+    `/schedule/yourschedule`, `/challenges`, `/profile/overview`,
+    `/preferences`) aren't under `/classes`, so we don't intercept
+    them and Peloton routes them in-app. Verified by clicking
+    `/home` from `/classes/yoga`: `location.pathname` changed with
+    no document reload. The menu must be rebuilt here, or the
+    per-category items linger and offer "set defaults for Yoga"
+    from `/profile`.
+  - Class-detail cards (`/classes/<slug>/?classId=…`) also route
+    in-app, but keep the slug in the path, so the menu stays correct
+    through them.
+
+  We detect URL changes with `@grant window.onurlchange` and a
+  `urlchange` listener; both Tampermonkey and SourceMonkey fire that
+  event on any history mutation.
 
 ### What we assume stays stable
 
@@ -193,11 +211,19 @@ Defaults set per class type take priority over the global defaults.
   `/classes/<slug>` URL. If the label isn't in the map (e.g. a new
   discipline ships), we log the unknown label and let React handle
   the click as usual.
-- **Menu commands** — Tampermonkey's `GM_registerMenuCommand` is
-  used to expose the three save/reset actions while on a
-  `/classes/<slug>` page. The set is re-registered on every
-  `urlchange` event so the per-slug command's label tracks the
-  current category. Save actions read the live URL query string,
+- **Menu commands** — `GM_registerMenuCommand` exposes the three
+  save/reset actions while on a `/classes/<slug>` page. The set is
+  rebuilt at init, after a save or reset (so the "clear saved
+  defaults" item appears and disappears with the config), and on any
+  path change. `refreshMenu` unregisters everything before
+  re-registering and returns early when the path has no slug, so the
+  same function both rebuilds the menu on a class list and clears it
+  when the user navigates away. The path is compared against the
+  previous pathname before rebuilding — Peloton mutates history for
+  same-path UI state too (opening a class-detail modal rewrites only
+  the query string), and rebuilding on those would churn the menu
+  and re-log the active config on every modal open. Save actions
+  read the live URL query string,
   filter it against `NON_FILTER_PARAMS`, store the remainder under
   the chosen key, and trigger a re-walk of anchors.
 - **Logging** — At init we log the loaded config. On save we log the
