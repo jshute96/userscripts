@@ -23,19 +23,28 @@
     }
   },
   {
-    "path": "sites/example.com/bold-on-hover.user.js"
+    "path": "sites/example.com/bold-on-hover.user.js",
+    "category": "examples"
   },
   {
-    "path": "sites/example.com/error-button.user.js"
+    "path": "sites/example.com/config-value.user.js",
+    "category": "examples"
   },
   {
-    "path": "sites/example.com/error-on-load.user.js"
+    "path": "sites/example.com/error-button.user.js",
+    "category": "examples"
   },
   {
-    "path": "sites/example.com/show-gm-info.user.js"
+    "path": "sites/example.com/error-on-load.user.js",
+    "category": "examples"
   },
   {
-    "path": "sites/example.com/updated-script.user.js"
+    "path": "sites/example.com/show-gm-info.user.js",
+    "category": "examples"
+  },
+  {
+    "path": "sites/example.com/updated-script.user.js",
+    "category": "examples"
   },
   {
     "path": "sites/feedly.com/scroll-index-to-top.user.js",
@@ -76,13 +85,16 @@
     }
   },
   {
-    "path": "sites/news.ycombinator.com/keyboard-comment-navigation.user.js"
+    "path": "sites/news.ycombinator.com/keyboard-comment-navigation.user.js",
+    "category": "keyboard-comments"
   },
   {
-    "path": "sites/nytimes.com/athletic-keyboard-comment-navigation.user.js"
+    "path": "sites/nytimes.com/athletic-keyboard-comment-navigation.user.js",
+    "category": "keyboard-comments"
   },
   {
-    "path": "sites/nytimes.com/keyboard-comment-navigation.user.js"
+    "path": "sites/nytimes.com/keyboard-comment-navigation.user.js",
+    "category": "keyboard-comments"
   },
   {
     "path": "sites/nytimes.com/spelling-bee.user.js",
@@ -107,13 +119,15 @@
   },
   {
     "path": "sites/pinkbike.com/keyboard-comment-navigation.user.js",
+    "category": "keyboard-comments",
     "greasyfork": {
       "id": 591542,
       "url": "https://greasyfork.org/scripts/591542-pinkbike-keyboard-comment-navigation"
     }
   },
   {
-    "path": "sites/reddit.com/keyboard-comment-navigation.user.js"
+    "path": "sites/reddit.com/keyboard-comment-navigation.user.js",
+    "category": "keyboard-comments"
   },
   {
     "path": "sites/strava.com/fix-climb-slider.user.js",
@@ -154,6 +168,7 @@
     }
   },
   {
-    "path": "sites/washingtonpost.com/keyboard-comment-navigation.user.js"
+    "path": "sites/washingtonpost.com/keyboard-comment-navigation.user.js",
+    "category": "keyboard-comments"
   }
 ]

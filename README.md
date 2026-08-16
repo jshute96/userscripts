@@ -17,6 +17,7 @@ My modest ambition: **Fix the internet.**  Every broken or annoying website I us
 
 ### Miscellaneous
 
+<!-- update_readme.py category=default -->
 | Script | Doc | Description |
 | --- | --- | --- |
 | [Google Calendar: Highlight matching meeting rooms](sites/calendar.google.com/highlight-local-rooms.user.js) | [doc](sites/calendar.google.com/highlight-local-rooms.md) | Highlights meeting locations matching a regex you configure, so your own building stands out in a long room list. Also formats the room list one room per line. |
@@ -45,6 +46,7 @@ My modest ambition: **Fix the internet.**  Every broken or annoying website I us
 These scripts are all adding keyboard navigation in comments or forum pages,
 using the same hotkeys.
 
+<!-- update_readme.py category=keyboard-comments -->
 | Script | Doc | Description |
 | --- | --- | --- |
 | [Hacker News: Keyboard comment navigation](sites/news.ycombinator.com/keyboard-comment-navigation.user.js) | [doc](sites/news.ycombinator.com/keyboard-comment-navigation.md) | Adds keyboard shortcuts for moving through a thread by comment, sibling, parent or root, and adds the navigation links HN is missing to each comment. |
@@ -63,6 +65,7 @@ those can be tested without depending on a real site. The directory also has
 `installed-list.js`, a shared `@require` helper rather than a userscript of
 its own ([doc](sites/example.com/installed-list.md)).
 
+<!-- update_readme.py category=examples -->
 | Script | Doc | Description |
 | --- | --- | --- |
 | [example.com: Bold word on hover](sites/example.com/bold-on-hover.user.js) | [doc](sites/example.com/bold-on-hover.md) | Test fixture: bolds and reddens the single word under the mouse cursor while hovering over text. |

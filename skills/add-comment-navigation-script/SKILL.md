@@ -223,3 +223,7 @@ comments-section root or the "N comments" header itself.
 ## Script name
 
 Use `keyboard-comment-navigation.user.js` as the script name.
+
+Its `script_manifest.json` entry gets `"category": "keyboard-comments"`,
+so `scripts/update_readme.py` files it under the README's "Keyboard
+comment navigation" table rather than Miscellaneous.

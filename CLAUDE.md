@@ -78,16 +78,17 @@ maybe HTML), follow this flow:
 3. **Write the script** under `sites/<site>/`, with its sibling
    `.md` doc. Name and describe it per "Naming and describing a
    script" below.
-4. **List it in `README.md`.** Add a row to the table under
-   "My userscripts", in site order — see "Keeping the script list
-   current" below.
+4. **List it.** Add an entry to `script_manifest.json`, in site
+   order, then run `scripts/update_readme.py` to regenerate the
+   README tables — see "Keeping the script list current" below.
+   Only set a `category` if the user asks for one.
 5. **Manually verify in Playwright.** Inject the script the same way
    the `loadUserscript` fixture does, confirm the button appears,
    click it, watch logs and effects. If you get stuck, stop and
    report exactly where — don't guess.
 6. **Suggest install**
-   - If using SourceMonkey (the default), the directory should be installed already.
-     Add the new script to `./script_manifest.json` -- see below. Then run the
+   - If using SourceMonkey (the default), the directory should be installed
+     already, and the manifest entry was added in step 4. Run the
      `install-in-SourceMonkey` skill's `refresh` command once so
      SourceMonkey picks up the new file.
    - If using Tampermonkey, use the `install-in-tampermonkey` skill's
@@ -99,36 +100,38 @@ maybe HTML), follow this flow:
 
 ### Keeping the script list current
 
-Two files list every script and both have to be updated by hand:
+**`script_manifest.json`** — the list SourceMonkey loads, and our
+source of truth for which scripts exist. Edit it by hand. One entry
+per script, in site order, each an object with:
 
-* **`script_manifest.json`** — the list SourceMonkey loads. One
-  entry per script, in site order, each an object with a `path`
-  field with the relative path from the repo root. SourceMonkey ignores other fields.
-  Add the `path` by hand when adding a script.
-  We also use a `greasyfork` field holding the id and URL of the script when we've published it.
-  Don't update the `greasyfork` fields until publishing the script.
-* **`README.md`, under "My userscripts"** — one table per `###`
-  category, each with columns Script / Doc / Description and
-  sorted by site directory. The Script cell links the `@name` to the
-  `.user.js`; the Doc cell links the word "doc" to the `.md`; the
-  Description cell is the `@description`, copied verbatim.
-  - Both links are plain relative paths (`sites/<site>/<name>.md`).
-  - If a `@description` contains something Markdown would eat —
-    angle brackets like `<value>`, or a `|` — escape it in the
-    table cell (`&lt;value&gt;`) rather than reword the header.
-  - Categories group scripts that do the same job across sites
-    (currently "Keyboard comment navigation"), with
-    "Miscellaneous" holding everything that isn't part of such a
-    family, and "Testing and experimentation" holding the
-    `example.com` fixtures. A category earns its own table once
-    there are a few siblings; until then the script goes in
-    Miscellaneous.
-  - A new category gets a sentence under the heading saying what
-    its scripts have in common, so the grouping explains itself.
+* `path` — the relative path from the repo root. Required.
+* `category` — which README table the script belongs in. Omit it for
+  the "Miscellaneous" table (equivalent to `"default"`).
+* `greasyfork` — the id and URL of the published script. Don't add
+  it until the script is published.
 
-Update both when adding a script, removing one, or renaming its files.
-Update the README row **whenever a script's `@name` or
-`@description` changes**, so the table doesn't go stale.
+SourceMonkey reads `path` and ignores the other fields.
+
+**`README.md`, under "My userscripts"** — generated. Run
+`scripts/update_readme.py` after adding, removing, or when its
+`@name` or `@description` changes. `--check` just reports whether 
+the file is stale, without writing.
+
+Each table sits under a placeholder comment naming its category.
+
+```markdown
+<!-- update_readme.py category=keyboard-comments -->
+```
+
+The script rewrites the table under that placeholder.
+
+### Script categories
+
+Scripts omit `category` by default, and then go in a default category.
+
+If the user asks you to put the script in a particular category, add
+the `category` tag. This should match some existing `category` in the
+manifest (and a placeholder in `README.md`).
 
 ### State-checking for option-change scripts
 
@@ -515,8 +518,8 @@ title must match the `@name`, and the doc's
 `Summary` should include more details on what's in the `@description`.
 
 When any of them changes on an existing script, update the `.md`
-title and the `README.md` table row in the same edit — see "Keeping
-the script list current" above — and bump the `@version`, so
+title and run `scripts/update_readme.py` in the same edit — see
+"Keeping the script list current" above — and bump the `@version`, so
 installed copies pick the new text up.
 
 ### 1. `@name` — one line, "Site Name: title"
