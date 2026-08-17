@@ -7,7 +7,7 @@
 //
 // Then in another terminal:
 //
-//     npm test
+//     pnpm test
 //
 // Override the article under test with PINKBIKE_ARTICLE_URL if the
 // default ever stops being available. The article only has to have

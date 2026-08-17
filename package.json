@@ -2,9 +2,10 @@
   "name": "userscripts",
   "private": true,
   "description": "Personal userscripts collection with a Playwright-based test harness.",
+  "packageManager": "pnpm@11.22.0",
   "scripts": {
-    "pretest": "node scripts/test-preflight.mjs",
-    "test": "playwright test",
+    "preinstall": "npx only-allow pnpm",
+    "test": "node scripts/test-preflight.mjs && playwright test",
     "open-browser": "scripts/open-browser.sh"
   },
   "devDependencies": {

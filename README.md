@@ -219,8 +219,8 @@ During development, Claude can also explore sites and test scripts interactively
 One-time setup:
 
 ```
-npm install
-npx playwright install chromium
+pnpm install
+pnpm exec playwright install chromium
 ```
 
 To run tests:
@@ -230,14 +230,14 @@ To run tests:
 # You may need to log in to sites the tests need to access.
 scripts/open-browser.sh
 
-npm test                                                  # all tests
-npx playwright test sites/feedly.com                      # one site's tests
-npx playwright test sites/feedly.com/sort-filter-presets.spec.js  # one file
-npx playwright test -g "Newest preset"                    # by test name
+pnpm test                                                       # all tests
+pnpm exec playwright test sites/feedly.com                      # one site's tests
+pnpm exec playwright test sites/feedly.com/sort-filter-presets.spec.js  # one file
+pnpm exec playwright test -g "Newest preset"                    # by test name
 ```
 
-`npm test`'s pretest hook launches the browser if it isn't already running on CDP (Chrome DevTools Protocol) port 9233; subsequent runs reuse it.
-The direct `npx playwright test …` invocations skip the pretest hook, so launch the browser yourself for those.
+`pnpm test` runs a preflight that launches the browser if it isn't already running on CDP (Chrome DevTools Protocol) port 9233; subsequent runs reuse it.
+The direct `pnpm exec playwright test …` invocations skip the preflight, so launch the browser yourself for those.
 
 See [CLAUDE.md](CLAUDE.md)'s "Testing" section for why we don't let Playwright
 launch the browser itself, and [test/fixtures.js](test/fixtures.js) for the shared

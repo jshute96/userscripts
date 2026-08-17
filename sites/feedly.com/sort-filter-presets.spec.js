@@ -8,7 +8,7 @@
 // Log in once (the profile dir persists the session). Then in a
 // second terminal:
 //
-//     npm test
+//     pnpm test
 //
 // The tests pick whichever feed appears first on /i/feedIndex — no
 // need to hardcode a subscription URL. Override via FEEDLY_FEED_URL

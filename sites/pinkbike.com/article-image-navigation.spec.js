@@ -7,7 +7,7 @@
 //
 // Then in another terminal:
 //
-//     npm test
+//     pnpm test
 //
 // Override the article under test with PINKBIKE_ARTICLE_URL. The
 // default has 5 qualifying images in its body, which is more than

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Preflight check for `npm test`. Verifies the test browser is running
+// Preflight check for `pnpm test`. Verifies the test browser is running
 // on CDP port 9233, and launches it if not. Without this, a cold-start
-// `npm test` runs every spec to failure on connectOverCDP — slow and
+// `pnpm test` runs every spec to failure on connectOverCDP — slow and
 // noisy.
 //
 // Env vars:

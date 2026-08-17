@@ -390,7 +390,7 @@ in `test/fixtures.js`.
      Chromium with `--user-data-dir=.playwright-profile` and
      `--remote-debugging-port=9233`. Leave it running. Log in to test
      sites once; the profile persists.
-  2. `npm test` — tests connect over CDP and reuse that running
+  2. `pnpm test` — tests connect over CDP and reuse that running
      browser, so they get the logged-in session for free.
 
 * **Don't let Playwright launch the browser.** Both system Chrome

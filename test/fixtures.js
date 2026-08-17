@@ -17,7 +17,7 @@
 //     # one shell, leave running
 //     scripts/open-browser.sh https://feedly.com
 //     # second shell, after logging in once
-//     npm test
+//     pnpm test
 
 const fs = require('fs');
 const path = require('path');

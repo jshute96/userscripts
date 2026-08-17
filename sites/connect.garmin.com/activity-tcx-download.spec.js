@@ -5,7 +5,7 @@
 // hardcode an ID. Override via GARMIN_ACTIVITY_ID for ad-hoc runs.
 //
 //     scripts/open-browser.sh https://connect.garmin.com/app/home
-//     npm test
+//     pnpm test
 
 const path = require('path');
 const { test, expect } = require('../../test/fixtures');

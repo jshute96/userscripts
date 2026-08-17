@@ -8,7 +8,7 @@
 // Log in once (the profile dir persists the session). Then in a
 // second terminal:
 //
-//     npm test
+//     pnpm test
 
 const path = require('path');
 const { test, expect } = require('../../test/fixtures');

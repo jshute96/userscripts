@@ -15,7 +15,7 @@
 //
 // Log in once, then in a second terminal:
 //
-//     npm test
+//     pnpm test
 
 const path = require('path');
 const { test, expect } = require('../../test/fixtures');
