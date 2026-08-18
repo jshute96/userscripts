@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Garmin Connect → Strava: Upload new activities with one click
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.3.8
+// @version      0.3.11
 // @description  Adds an Upload to Strava button to Garmin's toolbar and an Upload from Garmin item to Strava's upload menu. Either sends all new rides you haven't uploaded yet.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -17,6 +17,7 @@
 // @grant        GM_openInTab
 // @grant        GM_registerMenuCommand
 // @grant        window.onurlchange
+// @grant        window.focus
 // @noframes
 // @run-at       document-idle
 // ==/UserScript==
@@ -572,6 +573,22 @@
     // An upload that ran entirely on the Strava side still changes what
     // counts as new here, so follow the history rather than the run.
     GM_addValueChangeListener(K_SEEN, () => refreshNewBadges());
+
+    // Second trigger for the gear-menu item, independent of the
+    // MutationObserver. The observer is the main path, but whether its
+    // callback lands after React has finished building the menu depends
+    // on how the render batches — and if it lands early, the menu is
+    // fully rendered with no further mutation to retry on, so the item
+    // silently never appears. Retrying briefly after a click on the gear
+    // closes that window without polling. Registered once, globally, and
+    // self-gating on the path (CLAUDE.md → SPA sites).
+    document.addEventListener('click', (event) => {
+      if (!ACTIVITY_PATH_RE.test(location.pathname)) return;
+      const container = document.querySelector(GEAR_CONTAINER_SELECTOR);
+      if (!container || !container.contains(event.target)) return;
+      // ensureActivityMenuItem is idempotent, so extra passes are no-ops.
+      for (const delay of [0, 60, 200, 500]) setTimeout(ensureActivityMenuItem, delay);
+    }, true);
   }
 
   function onGarminUrl() {
@@ -712,14 +729,20 @@
   async function ensureConsumer(requestId) {
     try {
       await waitForValue(K_CLAIM, (v) => v && v.requestId === requestId, CONSUMER_GRACE_MS);
+      // No status update: the tab that claimed it raises itself (see
+      // tryClaim), so by now the user is looking at it, not at this.
       console.log(TAG, 'an open Strava upload tab took the request; not opening one');
     } catch {
       console.log(TAG, `no upload tab took the request within ${CONSUMER_GRACE_MS}ms; ` +
         'opening one');
+      // Foreground: this is where the upload lands, where the status
+      // shows, and where the user edits titles and clicks save. Watching
+      // it happen in a background tab is no use to anybody.
+      //
       // GM_openInTab is an extension API, so unlike window.open it
       // doesn't need the click's user activation — which the first-run
       // prompt() would have spent by now anyway.
-      GM_openInTab(STRAVA_UPLOAD_URL, { active: false, setParent: true });
+      GM_openInTab(STRAVA_UPLOAD_URL, { active: true, setParent: true });
     }
   }
 
@@ -727,16 +750,35 @@
   // a Strava upload tab, and report what happens. The files themselves
   // are fetched over there.
   async function runFromGarmin() {
-    const start = performance.now();
     setStatus('Checking Garmin for new activities…');
     const session = await garminSession();
     const fresh = await newActivities(session);
     if (!fresh.length) return;
+    await dispatchToStrava(fresh);
+  }
 
+  // Hand a fixed list of activities to a Strava upload tab and report
+  // what happens. The caller decides what's in the list — the whole diff
+  // for the toolbar button, or a single activity for the gear menu — so
+  // this half knows nothing about what counts as new.
+  // One run at a time. dispatchToStrava starts by clearing the very keys
+  // a run in flight is waiting on, so a second click — the toolbar button
+  // twice, or the button and then the gear item — would strand the first
+  // until its ten-minute timeout.
+  let dispatchInFlight = false;
+
+  async function dispatchToStrava(activities) {
+    if (dispatchInFlight) {
+      console.log(TAG, 'a run is already in flight; ignoring this one');
+      setStatus('Already sending to Strava — wait for that to finish.');
+      return;
+    }
+    dispatchInFlight = true;
+    const start = performance.now();
     clearRequestKeys();
     const requestId = `r${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-    GM_setValue(K_REQUEST, { requestId, activities: fresh, ts: Date.now() });
-    setStatus(`Handing ${plural(fresh.length, 'activity', 'activities')} to Strava…`);
+    GM_setValue(K_REQUEST, { requestId, activities, ts: Date.now() });
+    setStatus(`Handing ${plural(activities.length, 'activity', 'activities')} to Strava…`);
 
     // Runs alongside the wait rather than blocking it, so it needs its
     // own handler — nothing is awaiting it to surface a throw.
@@ -760,6 +802,7 @@
       setStatus(`Sent ${plural(result.count, 'activity', 'activities')} to Strava.`,
         { done: true });
     } finally {
+      dispatchInFlight = false;
       GM_removeValueChangeListener(progressId);
       // Leaving a finished request in storage makes the next upload tab
       // to open think there's one in flight and try to claim it.
@@ -769,6 +812,94 @@
 
   function clearRequestKeys() {
     for (const key of [K_REQUEST, K_CLAIM, K_PROGRESS, K_RESULT]) GM_deleteValue(key);
+  }
+
+  // -------------------------------------------- the activity page's menu
+
+  // On a single activity's page, an "Upload to Strava" item at the top of
+  // the gear (More…) menu, sending just that activity — whether or not
+  // it counts as new. Useful for re-sending one after an edit, or picking
+  // up something older than the window the buttons look at.
+  const ACTIVITY_PATH_RE = /^\/app\/activity\/(\d+)/;
+  // The gear menu's own container, tagged with a semantic CSS-module
+  // prefix. Its items only exist in the DOM while the menu is open.
+  const GEAR_CONTAINER_SELECTOR = '[class*="ActivitySettingsMenu_menuContainer"]';
+  const MENU_WRAPPER_SELECTOR = '[class*="Menu_menuItemWrapper"]';
+  const MENU_ITEM_SELECTOR = '[class*="Menu_menuItems"]';
+  // Garmin's own separators between groups of items ("Set as PR" from
+  // "Export File", and again before "Edit"). We copy one rather than
+  // draw our own line, so ours matches whatever they look like.
+  const MENU_DIVIDER_SELECTOR = '[class*="Menu_divider"]';
+  const ACTIVITY_NAME_SELECTOR = '[class*="ActivityNameIconRow_activityNameIconRow"]';
+  const MENU_ITEM_ID = 'jshute-garmin-upload-one-to-strava';
+
+  // Read fresh at click time, not at insert time: the SPA can route to
+  // another activity while a stale menu node is still around.
+  function currentActivity() {
+    const match = location.pathname.match(ACTIVITY_PATH_RE);
+    if (!match) return null;
+    const nameEl = document.querySelector(ACTIVITY_NAME_SELECTOR);
+    const name = (nameEl && nameEl.textContent.trim()) || '';
+    return { id: match[1], name: name || 'this activity' };
+  }
+
+  function onMenuItemClick(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    const activity = currentActivity();
+    if (!activity) return;
+    // React doesn't know this item exists, so it won't close the menu
+    // for us. Toggling the gear button does. Re-queried rather than
+    // captured at insert time: the SPA rebuilds this subtree, and a
+    // captured node can be detached by the time it's clicked.
+    const container = document.querySelector(GEAR_CONTAINER_SELECTOR);
+    const gear = container && container.querySelector('button[class*="Menu_menuBtn"]');
+    if (gear) gear.click();
+    console.log(TAG, `gear menu: sending activity ${activity.id} to Strava`);
+    setStatus(`Sending ${activity.name} to Strava…`);
+    // Straight to dispatch — no list, no diff. Sending an activity that
+    // was already sent is the point of the item, not a mistake to guard
+    // against. It lands in the history either way, because the Strava
+    // side records whatever it actually attached.
+    dispatchToStrava([activity]).catch((err) => {
+      clearRequestKeys();
+      reportFailure(err, 'upload failed');
+    });
+  }
+
+  // Idempotent, and cheap enough to run from the observer: it returns at
+  // the first missing piece, and the menu's items don't exist at all
+  // until it's open.
+  function ensureActivityMenuItem() {
+    if (!ACTIVITY_PATH_RE.test(location.pathname)) return;
+    const container = document.querySelector(GEAR_CONTAINER_SELECTOR);
+    if (!container) return;
+    const wrapper = container.querySelector(MENU_WRAPPER_SELECTOR);
+    if (!wrapper || document.getElementById(MENU_ITEM_ID)) return;
+    const sampleItem = wrapper.querySelector(MENU_ITEM_SELECTOR);
+    if (!sampleItem) return;
+
+    const item = document.createElement('div');
+    item.id = MENU_ITEM_ID;
+    // Copy a sibling's className rather than hardcoding the build-hashed
+    // suffix, same reason as the toolbar buttons.
+    item.className = sampleItem.className;
+    item.textContent = 'Upload to Strava';
+    item.addEventListener('click', onMenuItemClick);
+
+    const sampleDivider = wrapper.querySelector(MENU_DIVIDER_SELECTOR);
+    const divider = document.createElement('div');
+    if (sampleDivider) {
+      divider.className = sampleDivider.className;
+    } else {
+      // Only if Garmin ever stops grouping its own items.
+      divider.style.borderTop = '1px solid rgba(0,0,0,0.12)';
+      divider.style.margin = '4px 0';
+    }
+
+    wrapper.insertBefore(item, wrapper.firstElementChild);
+    wrapper.insertBefore(divider, item.nextSibling);
+    console.log(TAG, 'added "Upload to Strava" to the activity gear menu');
   }
 
   // ------------------------------------------------------------- buttons
@@ -879,6 +1010,9 @@
 
     const observer = new MutationObserver(() => {
       scheduleBadges();
+      // The gear menu is built and torn down every time it opens, so
+      // this has to run on mutations rather than once at startup.
+      ensureActivityMenuItem();
       if (ensureButtons()) return;
       const ref = document.querySelector(SECONDARY_SELECTOR);
       if (!ref) return;
@@ -1118,6 +1252,20 @@
       }
       console.log(TAG, `claimed request ${request.requestId} with ` +
         `${request.activities.length} activit${request.activities.length === 1 ? 'y' : 'ies'}`);
+      // Raise this tab. The work, the status panel, and the editing the
+      // user is about to do are all here, so this is where they should
+      // be looking — and a reused background tab would otherwise be
+      // invisible while the Garmin tab sat there saying nothing useful.
+      //
+      // Done by the tab that won the claim rather than by the Garmin
+      // side, because it's the one that knows it's about to work, and
+      // because `window.focus` only ever raises the caller.
+      //
+      // With `@grant window.focus` the manager selects this tab and
+      // raises its window; without the grant this is the page's own
+      // no-op for a background tab, so it degrades quietly rather than
+      // throwing on a manager that lacks it.
+      window.focus();
       runOnStrava(request).catch((err) => {
         // No escalation: the Garmin tab that started this opens the
         // sign-in page, so we don't each open our own.
@@ -1138,7 +1286,9 @@
     const start = performance.now();
     const requestId = request && request.requestId;
 
-    setStatus('Checking Garmin for new activities…');
+    setStatus(request
+      ? 'Connecting to Garmin…'
+      : 'Checking Garmin for new activities…');
     const session = await garminSession();
 
     // A handover from the Garmin button carries a fixed list; a run this

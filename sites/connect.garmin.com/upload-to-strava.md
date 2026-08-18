@@ -14,12 +14,12 @@ new `Upload from Garmin` item that triggers the upload.
 On the Garmin activities page, new rides (not yet uploaded) are highlighted
 with a `NEW` badge. Those are the ones that will be uploaded.
 
-The script only looks at the first page of activities — the newest 20,
-matching what Garmin's own list shows before you scroll — for both
-badging and uploading. It remembers well beyond that, so nothing gets
-re-sent if the list shifts under it. On the first run, and from the
-userscript manager's menu, you can reset the `NEW` state for the top N
-rides.
+On an activity page, the gear menu gets an `Upload to Strava`
+item at the top, which uploads just that ride.
+
+The script only looks at the first page of activities (the newest 20).
+On the first run, and from the userscript manager's menu, you can reset
+the `NEW` state for the newest N rides.
 
 ### Alternative: Strava's Garmin connector
 
@@ -52,6 +52,12 @@ triggered myself.
   as an upload finishes — including one run entirely on the Strava side
   — and when either of the history commands changes it. Nothing is badged
   before the first upload, when there's no history to compare against.
+* An **Upload to Strava** item appears at the top of the gear (More…)
+  menu on a single activity's page, above a separator matching Garmin's
+  own. It sends that one activity regardless of its New state, and
+  records it as sent like any other upload.
+* The Strava upload tab comes to the front when a run starts from
+  Garmin, whether it's newly opened or an existing one being reused.
 * An **Upload from Garmin** item appears at the top of Strava's upload
   drop-down, above Upload activity. It sends the current tab to the
   upload page and runs the whole upload there. No Garmin tab is opened.
@@ -266,8 +272,29 @@ address a tab anyway. Instead tabs volunteer, and a claim decides:
   loser stands down.
 * The Garmin side runs `ensureConsumer()` alongside its wait: it gives a
   claim 2.5 s to appear — an already-open tab needs one storage
-  round-trip — and only opens a background upload tab of its own if none
-  does.
+  round-trip — and only opens an upload tab of its own if none does.
+
+Either way the upload tab ends up in front, by two different mechanisms.
+A tab we open ourselves is created with `active: true`. A tab we *reuse*
+raises itself: the tab that wins the claim calls `window.focus()`, under
+`@grant window.focus`, which selects the tab and raises its window.
+
+Both matter because that tab is where the status panel is, where the
+upload lands, and where you edit titles and click save. Watching that
+happen in a background tab is no use.
+
+Raising has to be done by the claiming tab, not by the Garmin side:
+`window.focus` only ever raises its own caller, and the claiming tab is
+the one that knows it's about to do the work. Without the grant — a
+manager that doesn't implement it — the call is the page's own
+`window.focus`, which is a silent no-op for a background tab, so this
+degrades to "the tab doesn't come forward" rather than throwing.
+
+Reuse happens in exactly one situation: a Strava tab already sitting on
+`/upload/*` when the request is written. Any other Strava tab — the
+dashboard, an activity, a segment — never claims and is never navigated
+anywhere. And a run started from Strava's own menu item never involves
+this at all: that tab navigates itself, so it's already the focused one.
 
 ### The storage keys
 
@@ -358,6 +385,59 @@ start the run in place, if you were already on the upload page).
 One consequence worth knowing: clicking the item from another Strava
 page navigates that tab away to the upload page. If the run then fails,
 you've lost whatever page you were on.
+
+### The activity page's gear menu
+
+The gear menu's markup, captured with it open:
+
+```html
+<div class="ActivitySettingsMenu_menuContainer__giAbC">
+  <div class="Menu_menuWrapper__a-liz">
+    <button class="Menu_menuBtn__nELvF">…</button>       <!-- the gear -->
+    <div class="Menu_menuItemWrapper__X00xZ">            <!-- only while open -->
+      <div class="Menu_menuItems__eNgH5 ">Compare</div>
+      …
+      <div class="Menu_divider__J1hP1"></div>            <!-- between groups -->
+```
+
+We prepend a `Menu_menuItems` div and a `Menu_divider` div to that
+wrapper, copying both classNames off existing siblings rather than
+hardcoding the build-hashed suffixes — which also means our separator
+tracks whatever Garmin's look like. Verified against the live page: same
+computed font, padding, color and height as a native item, and a
+separator indistinguishable from the two Garmin already draws.
+
+The wrapper only exists while the menu is open, and is rebuilt on each
+open, so insertion is driven from the same `MutationObserver` as the
+toolbar buttons rather than done once at startup. It bails at the first
+missing piece, so a closed menu costs one failed `querySelector`.
+
+There's a **second, independent trigger**: a capture-phase click listener
+that re-runs the insert on a few short timers (0/60/200/500 ms) after a
+click inside the gear container. The observer alone turned out not to be
+reliable — whether its callback lands before or after React has finished
+building the menu depends on how the render batches, and if it lands
+early the menu is then fully rendered with *no further mutation to retry
+on*, so the item silently never appears. Reproduced with trusted input
+(`Input.dispatchMouseEvent`): first open after load, no item; with the
+click trigger, it appears every time. `ensureActivityMenuItem` is
+idempotent, so the extra passes are no-ops.
+
+Two things the item has to do that a native one gets for free:
+
+* **Close the menu.** React doesn't know the item exists, so it won't
+  close on click. Toggling the gear button does it.
+* **Read the activity at click time**, not at insert time — `location`
+  can have moved to another activity while a stale menu node is around.
+
+Clicking goes straight to `dispatchToStrava([activity])`, skipping the
+list fetch and the diff entirely: sending something already sent is the
+point of the item, not a mistake to guard against. It still lands in the
+history afterwards, because the Strava side records whatever it actually
+attached, without caring where the list came from.
+
+There's no spec for this. Driving it needs a real activity page, and the
+URL of one is account data we keep out of the repo.
 
 ### The "New" badges
 
