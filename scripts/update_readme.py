@@ -5,8 +5,8 @@ Each table in README.md sits under a placeholder comment naming its
 category:
 
   <!-- update_readme.py category=default -->
-  | Script | Doc | Description |
-  | --- | --- | --- |
+  | Script | Doc | GF | Description |
+  | --- | --- | --- | --- |
   | ... |
 
 Everything from the line after the placeholder up to the next blank line
@@ -35,7 +35,8 @@ README = REPO_ROOT / 'README.md'
 
 PLACEHOLDER_RE = re.compile(r'<!--\s*update_readme\.py\s+category=([\w-]+)\s*-->')
 
-HEADER = ['| Script | Doc | Description |', '| --- | --- | --- |']
+HEADER = ['| Script | Doc | GF | Description |',
+          '| --- | --- | --- | --- |']
 
 
 def read_metadata(script_path):
@@ -70,8 +71,10 @@ def build_rows(manifest):
     if not (REPO_ROOT / doc).exists():
       sys.exit(f'{doc}: doc file missing for {rel}')
     name, description = read_metadata(script)
+    gf = entry.get('greasyfork')
+    gf_cell = f'[GF]({gf["url"]})' if gf else ''
     row = (f'| [{escape_cell(name)}]({rel}) | [doc]({doc}) '
-           f'| {escape_cell(description)} |')
+           f'| {gf_cell} | {escape_cell(description)} |')
     rows.setdefault(entry.get('category', 'default'), []).append(row)
   return rows
 
