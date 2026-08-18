@@ -59,8 +59,12 @@ Both the main segments table and the hidden-segments one.
 |---|---|---|
 | the elevation figure | `501 m` | `+507 m −9 m` |
 | — where Strava reports 0 | `318 m` | `+328 m −7 m` — both ours |
-| Distance, Avg Grade, everything else | | unchanged |
+| Distance, Avg Grade, everything else | | unchanged values, right-justified |
 | the expanded panel's `Elev Diff` | `93 m` | unchanged |
+
+With four figures on the line instead of three, ragged spacing made the
+rows hard to scan, so all four — distance, gain, loss, grade — are laid
+out as right-justified columns that line up down the table.
 
 The expanded panel is deliberately left alone: its only elevation row is
 the same Elev Diff, and gain/loss there would just repeat the row above.
@@ -209,6 +213,32 @@ DOM anchors:
 * `td.name-col .stats span[title="Elevation difference"]` — the figure
   we replace. Its `<abbr class="unit">` is reused verbatim for our
   numbers, so our unit label can never disagree with the page's.
+* `span[title="Distance"]` and `span[title="Average grade"]`, the other
+  two figures on the same stats line. We never change their contents —
+  only their width, for the column alignment below.
+
+### Column alignment
+
+The four figures are plain inline spans, so each row's numbers start
+wherever the previous one happened to end. We give each figure
+`display: inline-block; text-align: right` and a width taken from the
+widest example anywhere on the page:
+
+* Each span is tagged `data-jshute-elev-col="dist|gain|loss|grade"` —
+  keyed by *what* the figure is (matched on its `title`), not by
+  position, so a row missing one still lines the rest up.
+* The width comes from a CSS custom property (`--jshute-elev-w-<col>`)
+  set on `<html>`, so re-measuring is four property writes rather than
+  an inline style on every row.
+* Measuring clears those properties first (so each span reports its
+  natural width), reads every span, then writes the maxima back — one
+  read pass, one write pass.
+* `<html>` is outside the `MutationObserver`'s subtree (`document.body`),
+  so the width writes can't wake it. The `data-` attributes are inside
+  it, and are written only when missing. The observer watches
+  `childList` only, so that guard is belt-and-braces today — but a no-op
+  `setAttribute` does queue a mutation record, so adding
+  `attributes: true` without it would give a permanent re-measure loop.
 
 ### Segment pages — what the page gives us
 
@@ -285,6 +315,9 @@ Activity pages:
   full-length altitude array in metres, indexed the same way.
 * `tr[data-segment-effort-id]`, `td.name-col .stats`, the
   `span[title="Elevation difference"]`, and `abbr.unit` inside it.
+* The `title` attributes `Distance` and `Average grade` on the other two
+  figures in `.stats`. If either is renamed that column simply stops
+  being aligned; nothing else breaks.
 
 Segment pages:
 
@@ -296,5 +329,5 @@ Segment pages:
 
 Logging is under the `[strava-elev]` prefix: init, how many rows were
 updated and how many fell back to our own gain, rows updated after a
-re-render, the segment stat's value, giving up on the stream, and the
-unit sanity-check warning.
+re-render, the column widths whenever they change, the segment stat's
+value, giving up on the stream, and the unit sanity-check warning.

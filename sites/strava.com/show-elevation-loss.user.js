@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Strava: Show elevation gain *and loss* for each segment
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.3.2
+// @version      0.3.3
 // @description  Strava shows climbing but never descending. This adds Elevation Loss next to Elevation Gain on the segment and activity pages.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -218,6 +218,92 @@
     }
   }
 
+  // ----------------------------------------------------- column alignment
+
+  // The stats line under each segment name holds four figures — Strava's
+  // distance and average grade, and the gain/loss pair we write. They are
+  // plain inline spans, so each row's numbers start wherever the previous
+  // one happened to end. Giving each figure a fixed width, sized to the
+  // widest example anywhere on the page, turns them into right-justified
+  // columns that line up down the table.
+  const COL_ATTR = 'data-jshute-elev-col';
+  const COLS = ['dist', 'gain', 'loss', 'grade'];
+  const ALIGN_STYLE_ID = 'jshute-elev-align';
+
+  function ensureAlignStyle() {
+    if (document.getElementById(ALIGN_STYLE_ID)) return;
+    const style = document.createElement('style');
+    style.id = ALIGN_STYLE_ID;
+    // Width comes from a custom property so re-measuring is one property set
+    // per column rather than an inline style write on every row.
+    style.textContent = COLS.map((name) => `
+      td.name-col .stats [${COL_ATTR}="${name}"] {
+        display: inline-block;
+        white-space: nowrap;
+        text-align: right;
+        width: var(--jshute-elev-w-${name}, auto);
+      }`).join('\n');
+    (document.head || document.documentElement).appendChild(style);
+  }
+
+  // Keyed by what each figure is, not by position, so a row missing one of
+  // them still lines the rest up.
+  function statCells(row) {
+    const stats = row.querySelector('td.name-col .stats');
+    if (!stats) return null;
+    const cells = {};
+    for (const span of stats.querySelectorAll('span')) {
+      const title = span.getAttribute('title') || '';
+      if (/^distance/i.test(title)) cells.dist = span;
+      else if (/^elevation gain/i.test(title)) cells.gain = span;
+      else if (/^elevation loss/i.test(title)) cells.loss = span;
+      else if (/^average grade/i.test(title)) cells.grade = span;
+    }
+    return cells;
+  }
+
+  let alignedWidths = {};
+  function alignColumns() {
+    const rows = document.querySelectorAll('tr[data-segment-effort-id]');
+    if (!rows.length) return;
+    ensureAlignStyle();
+    const found = {};
+    for (const row of rows) {
+      const cells = statCells(row);
+      if (!cells) continue;
+      for (const name of COLS) {
+        const el = cells[name];
+        if (!el) continue;
+        // Only write the attribute when it is missing. Our observer watches
+        // childList only, so an attribute write can't wake it today — but a
+        // no-op setAttribute still queues a mutation record, and the day
+        // someone adds `attributes: true` this becomes a re-measure loop.
+        if (el.getAttribute(COL_ATTR) !== name) el.setAttribute(COL_ATTR, name);
+        (found[name] || (found[name] = [])).push(el);
+      }
+    }
+    // Drop the current widths so each figure reports its natural size, measure
+    // them all, then write the maxima back: one read pass, one write pass.
+    // The custom properties live on <html>, outside the observer's subtree.
+    const root = document.documentElement.style;
+    for (const name of COLS) root.removeProperty(`--jshute-elev-w-${name}`);
+    const widths = {};
+    for (const name of COLS) {
+      if (!found[name]) continue;
+      widths[name] = Math.ceil(Math.max.apply(null,
+        found[name].map((el) => el.getBoundingClientRect().width)));
+    }
+    const changed = COLS.some((name) => widths[name] !== alignedWidths[name]);
+    for (const name of COLS) {
+      if (widths[name]) root.setProperty(`--jshute-elev-w-${name}`, `${widths[name]}px`);
+    }
+    if (changed) {
+      alignedWidths = widths;
+      console.log(TAG, 'aligned stat columns to ' +
+        COLS.filter((n) => widths[n]).map((n) => `${n} ${widths[n]}px`).join(', '));
+    }
+  }
+
   function applyToActivity(altitude) {
     const efforts = effortsById();
     if (!efforts.size) return 0;
@@ -234,11 +320,13 @@
     console.log(TAG, 'init on', location.pathname);
     whenReady(altitudeStream, (altitude) => {
       const changed = applyToActivity(altitude);
+      alignColumns();
       const ours = document.querySelectorAll(`span[${ROW_DONE}="computed-gain"]`).length;
       console.log(TAG, `gain/loss shown on ${changed} effort row(s)` +
         (ours ? `; ${ours} used our own gain because Strava reports 0 for the segment` : ''));
       const rerun = debounced(() => {
         const more = applyToActivity(altitude);
+        alignColumns();
         if (more) console.log(TAG, `updated ${more} more effort row(s) after a re-render`);
       }, 100);
       new MutationObserver(rerun).observe(document.body, { childList: true, subtree: true });
