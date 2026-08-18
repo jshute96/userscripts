@@ -89,19 +89,9 @@ test.describe('Garmin Connect → Strava: Upload new activities with one click',
     await page.waitForURL('**/app/activities*', { timeout: 10000 });
   });
 
-  test('Upload to Strava navigates to the list when clicked elsewhere', async ({ page }) => {
-    // Off the activities list there is nothing to diff against, so the
-    // button only gets you there — no tabs opened, no transfer started.
-    await page.goto(HOME_URL);
-    const btn = page.locator('#' + UPLOAD_BUTTON_ID);
-    await expect(btn).toBeVisible({ timeout: 10000 });
-
-    let opened = 0;
-    page.context().on('page', () => { opened += 1; });
-    await btn.click();
-    await page.waitForURL('**/app/activities*', { timeout: 10000 });
-    expect(opened).toBe(0);
-  });
+  // There is no test for clicking Upload to Strava. Everything past the
+  // click is GM_xmlhttpRequest against Garmin's API, and a fake for that
+  // would be a fake of the entire feature — see CLAUDE.md → Testing.
 
   test('adds "Upload from Garmin" above "Upload activity" in Strava\'s upload menu', async ({ page }) => {
     await page.goto(STRAVA_URL);
@@ -120,6 +110,23 @@ test.describe('Garmin Connect → Strava: Upload new activities with one click',
 
     expect(menu.isFirst).toBe(true);
     expect(menu.labels.slice(0, 2)).toEqual(['Upload from Garmin', 'Upload activity']);
-    expect(menu.href).toBe('https://connect.garmin.com/app/activities#upload-from-garmin');
+    expect(menu.href).toBe('https://www.strava.com/upload/select#upload-from-garmin');
+  });
+
+  test('"Upload from Garmin" sends this tab to the upload page', async ({ page }) => {
+    // The run happens on the upload page, in this same tab — no Garmin
+    // tab is opened. The click handler navigates before it touches
+    // Garmin, so this half is testable without a manager.
+    await page.goto(STRAVA_URL);
+    await expect(page.locator('#' + STRAVA_ITEM_ID)).toHaveCount(1, { timeout: 10000 });
+
+    let opened = 0;
+    page.context().on('page', () => { opened += 1; });
+    // The item is inside a closed drop-down, so click it directly rather
+    // than through the locator's visibility check.
+    await page.evaluate((id) => document.getElementById(id).querySelector('a').click(),
+      STRAVA_ITEM_ID);
+    await page.waitForURL('**/upload/select*', { timeout: 10000 });
+    expect(opened).toBe(0);
   });
 });

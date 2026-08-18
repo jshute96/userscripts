@@ -458,6 +458,25 @@ in `test/fixtures.js`.
   the only place the real semantics exist: storage that persists,
   writes that are debounced, values that reach another tab.
 
+* **When a change moves *where* a request comes from, send one real
+  request from the new place before building on it.** Page context and
+  `GM_xmlhttpRequest` are not interchangeable: the manager's request
+  comes from the extension, so it carries different cookies, no
+  `Origin`, and `Sec-Fetch-Site: none` — a value no page can produce and
+  that WAFs reject. Measuring the endpoint from a page tells you almost
+  nothing about whether the manager can reach it.
+
+  This cost a 1100-line rewrite that had to be debugged backwards: the
+  Garmin→Strava script was rebuilt around "the Strava page can fetch
+  from Garmin now", verified with a page-context `fetch`, and then
+  every API call 403'd. One `GM_xmlhttpRequest` to one endpoint, first,
+  would have found both blockers at once.
+
+  Corollary for diagnosing it: a 403 that a page can't reproduce is
+  probably not the site. Check whether the response came from the edge
+  rather than the origin — with Cloudflare, a missing `cf-cache-status`
+  on the failure where the success has one.
+
 * **A test that genuinely needs `GM_*` can inject stubs** ahead of
   `loadUserscript`. `test/gm-stubs.js` has `injectGmStubs(page, {values})`
   — an in-memory store for the storage calls and value-change
@@ -636,6 +655,8 @@ who found the script in a search, not for us.
 * Give a reader enough to decide whether they want the script: what
   the problem is (what was wrong, missing, or annoying before), and
   what the script adds or changes.
+  - Don't explain all the exact details, exact wording of messages, etc, or
+    other details that become obvious as soon as someone uses the feature.
 * Multiple paragraphs are fine, as are tables, lists, and links.
   Formatting is free — but keep it readable top to bottom.
 * If the script needs usage instructions to be useful — key bindings,

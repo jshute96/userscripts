@@ -1,12 +1,14 @@
 // ==UserScript==
 // @name         Garmin Connect → Strava: Upload new activities with one click
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.2.3
-// @description  Adds Upload to Strava button on Garmin's toolbar, and an Upload from Garmin item on Strava's upload menu. Either one uploads all the rides you haven't uploaded yet.
+// @version      0.3.8
+// @description  Adds an Upload to Strava button to Garmin's toolbar and an Upload from Garmin item to Strava's upload menu. Either sends all new rides you haven't uploaded yet.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://connect.garmin.com/*
 // @match        https://www.strava.com/*
+// @connect      connect.garmin.com
+// @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_deleteValue
@@ -19,10 +21,32 @@
 // @run-at       document-idle
 // ==/UserScript==
 
-// One script, two origins. Garmin Connect drives the batch; the Strava
-// upload page is the other half of the same conversation. They share a
-// single GM storage namespace (GM storage is per-script, not per-origin),
-// which is the only channel that reaches across the origin boundary.
+// One script, two origins. It reads Garmin's activity list and pulls
+// each TCX with `GM_xmlhttpRequest`, which the manager runs from the
+// extension — so the same three requests work identically from a Garmin
+// tab and from a Strava tab.
+//
+// That means the Strava upload page can fetch the files itself. When
+// the run starts on Strava, nothing leaves the tab: it downloads from
+// Garmin and attaches the files to the form in one go, with no Garmin
+// tab involved at all. When it starts from the button on Garmin, the
+// only thing crossing between the two tabs is a short list of activity
+// ids — the bytes never do.
+//
+// Two things had to be true for that, and neither is the default:
+//
+//   1. The request carries the user's Garmin cookies. `fetch` from a
+//      service worker is anonymous unless the manager asks otherwise.
+//   2. It carries `Sec-Fetch-Site: same-origin`. Cloudflare fronts
+//      connect.garmin.com and rejects /gc-api/* at the edge without it,
+//      and a service worker's fetch always says `none`. `Sec-` headers
+//      are forbidden to all JS, so only a manager that routes them
+//      around `fetch` can set it — see `garminApiHeaders`.
+//
+// Before both, the bytes had to be fetched in a Garmin tab and shuttled
+// to Strava through GM storage, gzipped and a chunk at a time, because
+// Garmin sends no CORS headers and 403s the preflight. That apparatus is
+// what this version deletes.
 
 (function () {
   'use strict';
@@ -35,49 +59,54 @@
 
   // Array of activity IDs we've already sent. `null` means "never run".
   const K_SEEN = 'seenActivityIds';
-  // { batchId, ids, count, state: 'sending' | 'done', ts } — the batch
-  // currently in flight. The Strava side reads `count` to know when it
-  // has everything.
-  const K_HANDOFF = 'handoff';
-  // { batchId, who } — set by the first Strava tab to pick up a batch, so
-  // two open upload tabs don't both try to consume it.
+  // { requestId, activities: [{id, name}], ts } — the Garmin side asking
+  // a Strava upload tab to fetch and upload these. Nothing but ids and
+  // names; the tab that takes it does all the work.
+  const K_REQUEST = 'request';
+  // { requestId, who } — set by the first Strava tab to pick up a
+  // request, so two open upload tabs don't both run it.
   const K_CLAIM = 'claim';
-  // { batchId, id, name, seq, gz } — exactly one file at a time. gzipped
-  // and base64'd because chrome.storage.local is capped at 10 MB for the
-  // whole extension and a raw TCX runs to several MB. Measured: a 6.5 MB
-  // TCX gzips to 366 KB, ~488 KB once base64'd.
-  const K_FILE = 'file';
-  // { batchId, seq } — the Strava side's receipt for K_FILE, so the Garmin
-  // side knows the slot is free for the next one.
-  const K_TAKEN = 'fileTaken';
-  // { batchId, count, ts } — Strava confirming the files are attached and
-  // uploading. Only after this do we record the activities as seen.
-  const K_ACK = 'ack';
-  // { batchId, reason } — the Strava side reporting it can't take the
-  // batch, so the Garmin side fails now instead of waiting out a timeout.
-  const K_FAIL = 'failure';
+  // { requestId, done, total } — the working tab reporting how far it
+  // has got, so the Garmin tab's status panel can follow along.
+  const K_PROGRESS = 'progress';
+  // { requestId, ok, count, error } — the outcome, so the Garmin side
+  // can report it and stop waiting.
+  const K_RESULT = 'result';
   // { ts, message } — a note left for the sign-in page we're about to
   // open, so the explanation lands in the tab the user ends up looking at.
   const K_SIGNIN_HINT = 'signinHint';
 
-  // A batch is abandoned if nothing picks it up in this long — the Strava
-  // tab may have landed on the login page, or been closed.
-  const HANDOFF_TIMEOUT_MS = 90000;
-  // How long to let an already-open Strava upload tab claim a batch
-  // before we open one ourselves. Short by default — an open tab only
-  // needs a storage round-trip — and long when the run was started from
-  // Strava, because that tab is still navigating to the upload page.
+  // How long the Garmin side waits for a Strava tab to finish. Only a
+  // backstop against a tab that was closed mid-run: the status panel is
+  // driven by K_PROGRESS, so a slow-but-alive transfer still looks alive.
+  const RESULT_TIMEOUT_MS = 10 * 60 * 1000;
+  // How long to let an already-open Strava upload tab claim a request
+  // before we open one ourselves. An open tab only needs a storage
+  // round-trip.
   const CONSUMER_GRACE_MS = 2500;
-  const CONSUMER_GRACE_FROM_STRAVA_MS = 25000;
   // How long to let a claim propagate before re-reading it to see who
   // won. Must comfortably exceed the manager's write debounce (150 ms in
   // SourceMonkey) plus the service-worker round trip and broadcast.
   const CLAIM_SETTLE_MS = 600;
-  // Ignore a handoff left behind by a run that died half way through.
-  const HANDOFF_STALE_MS = 15 * 60 * 1000;
-  // Keep the seen list from growing without bound. Garmin's activity list
-  // page shows 20 at a time, so this is far more history than we need.
+  // Ignore a request left behind by a run that died half way through.
+  const REQUEST_STALE_MS = 15 * 60 * 1000;
+  // Keep the seen list from growing without bound.
   const SEEN_LIMIT = 500;
+  // The window: how many of the most recent activities the script
+  // considers at all, for both uploading and badging.
+  //
+  // 20 because that is exactly what Garmin's own list uses — measured,
+  // its page requests `limit=20&start=0` and renders 20 rows before any
+  // scrolling. (The API's own default, with no `limit`, is 99.) Matching
+  // it keeps "what has a New badge" and "what an upload would send" the
+  // same set, which is the whole point of the badges.
+  //
+  // The Activities page is infinite-scroll, not paged, so this has to be
+  // enforced on the badge side too — see refreshNewBadges. Without that,
+  // scrolling appends rows older than anything in the history and every
+  // one of them gets marked New, promising an upload that would never
+  // include them.
+  const LIST_LIMIT = 20;
 
   // --------------------------------------------------------------- shared
 
@@ -107,9 +136,9 @@
 
   // A single panel that stays put and gets rewritten as the transfer
   // moves along, rather than a series of toasts that each vanish. The
-  // Strava tab in particular sits idle for most of a minute waiting on
-  // the Garmin side, and a blank page gives no sign anything is
-  // happening — or that the tab is the right one to be looking at.
+  // Strava upload page in particular is blank while it downloads, and
+  // gives no other sign that anything is happening — or that the tab is
+  // the right one to be looking at.
   const STATUS_ID = 'jshute-garmin-strava-status';
 
   function setStatus(message, options = {}) {
@@ -143,42 +172,13 @@
   const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
   // Elapsed time since a performance.now() mark, for the timing in the
-  // logs. Most of a transfer is Garmin's export endpoint generating and
+  // logs. Most of a run is Garmin's export endpoint generating and
   // shipping several MB of XML — measured at ~1s per ride — so when this
   // feels slow the logs should say where the time actually went.
   const since = (mark) => {
     const ms = performance.now() - mark;
     return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}s`;
   };
-
-  // btoa() takes a binary string, and String.fromCharCode(...bytes) blows
-  // the argument limit on anything over ~100 KB, so go in chunks.
-  function bytesToBase64(bytes) {
-    let s = '';
-    for (let i = 0; i < bytes.length; i += 0x8000) {
-      s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-    }
-    return btoa(s);
-  }
-
-  function base64ToBytes(b64) {
-    const s = atob(b64);
-    const bytes = new Uint8Array(s.length);
-    for (let i = 0; i < s.length; i++) bytes[i] = s.charCodeAt(i);
-    return bytes;
-  }
-
-  async function gzipToBase64(blob) {
-    const stream = blob.stream().pipeThrough(new CompressionStream('gzip'));
-    const buf = await new Response(stream).arrayBuffer();
-    return bytesToBase64(new Uint8Array(buf));
-  }
-
-  async function base64ToBlob(b64) {
-    const src = new Blob([base64ToBytes(b64)]);
-    const stream = src.stream().pipeThrough(new DecompressionStream('gzip'));
-    return await new Response(stream).blob();
-  }
 
   // Resolve when `key`'s value satisfies `predicate`, checking the current
   // value first so we don't miss a write that landed before we listened.
@@ -204,21 +204,344 @@
   }
 
   // =====================================================================
+  //                        Talking to Garmin's API
+  // =====================================================================
+  //
+  // These three requests are the entire Garmin side of the feature, and
+  // they run the same way from either origin. `GM_xmlhttpRequest` issues
+  // them from the extension rather than the page, which both sidesteps
+  // CORS (Garmin sends no Access-Control-* headers and answers a
+  // preflight with 403) and — as of the manager's credentialed-by-default
+  // behavior — carries the user's Garmin cookies.
+
+  const GARMIN_ORIGIN = 'https://connect.garmin.com';
+  const ACTIVITIES_PATH = '/app/activities';
+  const ACTIVITIES_URL = GARMIN_ORIGIN + ACTIVITIES_PATH;
+  const GARMIN_SIGNIN_URL = GARMIN_ORIGIN + '/signin/';
+
+  // Declared here rather than in the Strava section below because both
+  // halves use them, and because SIGNIN_PAGES is built at load time —
+  // referencing a `const` declared further down throws before the script
+  // has done anything.
+  const STRAVA_UPLOAD_URL = 'https://www.strava.com/upload/select';
+  const STRAVA_LOGIN_URL = 'https://www.strava.com/login';
+
+  // GM_xmlhttpRequest is callback-shaped. Everything below wants a
+  // promise, and wants a non-2xx to stay a resolved response (each
+  // caller reads the status itself) while a transport failure rejects.
+  function gmFetch(url, options = {}) {
+    return new Promise((resolve, reject) => {
+      GM_xmlhttpRequest({
+        method: options.method || 'GET',
+        url,
+        headers: options.headers,
+        responseType: options.responseType,
+        timeout: options.timeoutMs || 120000,
+        onload: resolve,
+        onerror: (err) => reject(new Error(
+          `couldn't reach Garmin (${(err && err.message) || 'network error'})`)),
+        ontimeout: () => reject(new Error('Garmin took too long to answer')),
+      });
+    });
+  }
+
+  // The token lives in a <meta> on every server-rendered Garmin page.
+  const extractCsrf = (html) => {
+    const meta = (html.match(/<meta[^>]*name="csrf-token"[^>]*>/i) || [])[0] || '';
+    return (meta.match(/content="([^"]+)"/i) || [])[1] || '';
+  };
+
+  function signedOutError(where) {
+    const err = new Error(`You're not signed in to ${where}`);
+    err.signedOutOf = where;
+    return err;
+  }
+
+  // The activities page is a server-rendered 8 KB shell — the list itself
+  // arrives later over the API — and it carries the two things the API
+  // wants: the session's CSRF token in a <meta>, and the app version in
+  // the ?bust= query on its own asset URLs. Signed out, the same request
+  // 302s to /signin/ and the token isn't there, which is how both sides
+  // detect a lapsed Garmin session.
+  async function garminSession() {
+    // `GM_xmlhttpRequest` has no `cache` option, so ask for revalidation
+    // the HTTP way. Garmin sends no caching headers on this page at all,
+    // which leaves it open to heuristic caching — and a token read from
+    // a cached copy would look perfectly valid while belonging to a
+    // session the request never actually established.
+    const response = await gmFetch(ACTIVITIES_URL,
+      { headers: { 'Cache-Control': 'no-cache' } });
+    const html = response.responseText || '';
+    const csrf = extractCsrf(html);
+    if (/\/signin/.test(response.finalUrl || '') || !csrf) {
+      console.log(TAG, 'Garmin sent us to the sign-in page');
+      throw signedOutError('Garmin');
+    }
+    const bust = (html.match(/bust=([\d.]+)/) || [])[1];
+    console.log(TAG, `Garmin session ok (app version ${bust || 'unknown'})`);
+    return { csrf, bust };
+  }
+
+  // Connect-Csrf-Token is the one Garmin's own server enforces — without
+  // it every gc-api call answers 403. X-app-ver isn't checked today, but
+  // Garmin's own client always sends it and we have the value for free.
+  //
+  // Sec-Fetch-Site is the one that isn't Garmin's at all. Cloudflare
+  // fronts connect.garmin.com and rejects /gc-api/* at the edge unless
+  // the request says `same-origin` — the response comes back 403 with an
+  // empty body and no `cf-cache-status`, never reaching Garmin. A
+  // service worker's fetch always says `none`, a value no page can
+  // produce, so without this every call fails no matter how right the
+  // cookies and the token are. (`/app/activities` isn't covered by the
+  // rule, which is why the session fetch above needs none of this.)
+  //
+  // `Sec-` headers are forbidden to all JS — fetch() strips them in the
+  // service worker exactly as on a page — so this only works on a
+  // manager that routes them around fetch. SourceMonkey compiles them
+  // into a declarativeNetRequest rule; see its issue #21.
+  function garminApiHeaders(session) {
+    return {
+      'Connect-Csrf-Token': session.csrf,
+      'X-app-ver': session.bust || '5.27.2.1',
+      'Sec-Fetch-Site': 'same-origin',
+    };
+  }
+
+  // Newest first, same order and length as the list page shows.
+  async function garminList(session, limit = LIST_LIMIT) {
+    const url = `${GARMIN_ORIGIN}/gc-api/activitylist-service/activities/` +
+      `search/activities?limit=${limit}&start=0`;
+    const response = await gmFetch(url, {
+      headers: garminApiHeaders(session), responseType: 'json',
+    });
+    if (response.status !== 200) {
+      throw new Error(`couldn't read the Garmin activity list (HTTP ${response.status})`);
+    }
+    const rows = Array.isArray(response.response) ? response.response : [];
+    return rows.map((a) => ({
+      id: String(a.activityId),
+      name: (a.activityName || '').trim() || 'activity',
+    }));
+  }
+
+  // The same endpoint Garmin's own "Export to TCX" menu item uses.
+  async function fetchTcx(session, id) {
+    const url = `${GARMIN_ORIGIN}/gc-api/download-service/export/tcx/activity/${id}`;
+    const response = await gmFetch(url, {
+      headers: garminApiHeaders(session), responseType: 'blob',
+    });
+    if (response.status !== 200) {
+      throw new Error(`export failed for activity ${id} (HTTP ${response.status})`);
+    }
+    return response.response;
+  }
+
+  // Everything here rides on GM_xmlhttpRequest reaching Garmin as the
+  // signed-in user *and* getting past Cloudflare, neither of which is
+  // visible from the page. Both failures look the same from outside: a
+  // 403 with an empty body. This tells them apart.
+  //
+  //  * `csrfAndSameOrigin` 200 while `csrfOnly` 403 => working normally.
+  //    Both gates are real and independent, which is the point of
+  //    running the two side by side.
+  //  * `csrfAndSameOrigin` also 403 => the Sec-Fetch-Site override isn't
+  //    reaching the wire. That's the manager's header surgery, not this
+  //    script — see SourceMonkey issue #21.
+  //  * a token that doesn't match the tab's => the extension's requests
+  //    are in a different session from the tab's.
+  //  * the activities page itself failing, or landing on /signin =>
+  //    not signed in to Garmin at all.
+  // Registered on Garmin only. Every request it makes goes to Garmin and
+  // works identically from either origin, so putting it in the menu on
+  // Strava as well only adds a Garmin-shaped command to every Strava
+  // page. Run it from a Garmin tab — which is also the only place its
+  // token comparison means anything.
+  function registerDiagnostic() {
+    GM_registerMenuCommand('Diagnose Garmin API access', async () => {
+      const report = {};
+      const dump = (label, value) => {
+        report[label] = value;
+        console.log(TAG, `diagnose ${label}:`, value);
+      };
+      try {
+        const page = await gmFetch(ACTIVITIES_URL);
+        const html = page.responseText || '';
+        const csrf = extractCsrf(html);
+        dump('activities page', {
+          status: page.status, finalUrl: page.finalUrl, htmlLength: html.length,
+        });
+        // The token is session-bound and stable, so the extension's copy
+        // matching this tab's is proof they're the same session.
+        const inPage = document.querySelector('meta[name="csrf-token"]');
+        dump('csrf token', {
+          fromExtension: csrf ? `${csrf.slice(0, 8)}… (${csrf.length} chars)` : '(none found)',
+          inThisTab: inPage ? `${inPage.content.slice(0, 8)}… (${inPage.content.length} chars)`
+            : '(no token on this page)',
+          same: inPage ? csrf === inPage.content : 'n/a',
+        });
+
+        const listUrl = `${GARMIN_ORIGIN}/gc-api/activitylist-service/activities/` +
+          'search/activities?limit=1&start=0';
+        for (const [label, headers] of Object.entries({
+          noHeaders: {},
+          csrfOnly: { 'Connect-Csrf-Token': csrf },
+          sameOriginOnly: { 'Sec-Fetch-Site': 'same-origin' },
+          // The four together are a 2x2 over the two gates, so the report
+          // says which one is refusing rather than just that something is.
+          csrfAndSameOrigin: { 'Connect-Csrf-Token': csrf, 'Sec-Fetch-Site': 'same-origin' },
+        })) {
+          const r = await gmFetch(listUrl, { headers });
+          dump(`list (${label})`, {
+            status: r.status, body: (r.responseText || '').slice(0, 200),
+          });
+        }
+        // A second gc-api endpoint, with the headers a real call uses,
+        // to show the fix isn't specific to the activity list.
+        const profile = await gmFetch(
+          `${GARMIN_ORIGIN}/gc-api/userprofile-service/socialProfile`,
+          { headers: { 'Connect-Csrf-Token': csrf, 'Sec-Fetch-Site': 'same-origin' } });
+        dump('social profile', {
+          status: profile.status, body: (profile.responseText || '').slice(0, 120),
+        });
+      } catch (err) {
+        dump('threw', (err && err.message) || String(err));
+      }
+      console.log(TAG, 'diagnose report:', JSON.stringify(report, null, 2));
+      toast('Garmin API diagnosis written to the console.', 0);
+    });
+
+  }
+
+  // =====================================================================
+  //                       What counts as "new"
+  // =====================================================================
+
+  function loadSeen() {
+    const stored = GM_getValue(K_SEEN, null);
+    return Array.isArray(stored) ? stored : null;
+  }
+
+  function recordSeen(ids) {
+    const merged = [...ids, ...(loadSeen() || [])];
+    GM_setValue(K_SEEN, [...new Set(merged)].slice(0, SEEN_LIMIT));
+    refreshNewBadges();
+  }
+
+  // Mark the newest `count` listed activities as unsent and everything
+  // else — listed or remembered — as sent. This is how both the first-run
+  // prompt and the menu command set the starting point.
+  function keepNewestUnsent(listed, count) {
+    const unsent = new Set(listed.slice(0, count).map((a) => a.id));
+    const older = listed.slice(count).map((a) => a.id);
+    const merged = [...older, ...(loadSeen() || [])].filter((id) => !unsent.has(id));
+    GM_setValue(K_SEEN, [...new Set(merged)].slice(0, SEEN_LIMIT));
+    refreshNewBadges();
+  }
+
+  // Ask for a count, defaulting to 1. Returns null if the user cancels or
+  // types something that isn't a number, in which case nothing changes.
+  function askCount(message, max, defaultCount = 1) {
+    const answer = window.prompt(message, String(Math.min(defaultCount, max)));
+    if (answer === null) return null;
+    const count = parseInt(answer.trim(), 10);
+    if (!Number.isFinite(count) || count < 0) {
+      console.log(TAG, `didn't understand "${answer}"; nothing changed`);
+      toast(`"${answer}" isn't a number — nothing changed.`);
+      return null;
+    }
+    return Math.min(count, max);
+  }
+
+  // Diff the fetched list against what we've sent before, and return the
+  // activities to upload, oldest first so Strava lists them in the order
+  // they happened. Returns [] when there's nothing to do (already said
+  // so on screen). Runs on whichever side started the run, so the prompt
+  // lands in the tab the user is looking at.
+  function chooseActivities(listed) {
+    const seen = loadSeen();
+    const seenSet = new Set(seen || []);
+    const recognized = listed.filter((a) => seenSet.has(a.id)).length;
+
+    if (seen !== null && recognized > 0) {
+      const fresh = listed.filter((a) => !seenSet.has(a.id)).reverse();
+      if (!fresh.length) {
+        console.log(TAG, 'no new activities');
+        setStatus('No new activities to send.', { done: true });
+      }
+      return fresh;
+    }
+
+    // Either we've never run, or our memory has nothing in common with
+    // what's on the page — a cleared history, or a long enough gap that
+    // the whole list has turned over. Both look identical from here:
+    // every activity is "new", and silently sending twenty rides to
+    // Strava is not what anyone wants. Ask instead.
+    const headline = seen === null
+      ? 'First upload.'
+      : 'None of the listed activities have been uploaded before.';
+    const count = askCount(
+      `${headline} The newest N activities will be uploaded to Strava. ` +
+      `How many should we send? (0–${listed.length})\n\n` +
+      'After this, previously uploaded activities will be remembered.',
+      listed.length);
+    if (count === null) {
+      console.log(TAG, 'first-run prompt cancelled; nothing changed');
+      setStatus('Cancelled — nothing was uploaded or recorded.', { done: true });
+      return [];
+    }
+    // Everything older than the newest `count` is declared already
+    // uploaded right away. The ones we're about to send are recorded
+    // only once they're attached to the upload form.
+    keepNewestUnsent(listed, count);
+    console.log(TAG, `first run: sending the newest ${count} of ${listed.length}, ` +
+      `recorded the other ${listed.length - count} as already sent`);
+    if (count === 0) {
+      setStatus(`Recorded all ${listed.length} listed activities as already uploaded.`,
+        { done: true });
+      return [];
+    }
+    return listed.slice(0, count).reverse();
+  }
+
+  // Shared error reporting. A lapsed session on either site is the one
+  // failure the user can actually do something about, so it gets the
+  // sign-in page opened in front of them rather than a line of red text
+  // in a tab they may not be looking at.
+  //
+  // `escalate: false` reports without opening anything. A Strava tab
+  // serving a request from the Garmin button passes it: the failure
+  // travels back over `result` and the tab the user actually clicked in
+  // does the escalating, so one lapsed session opens one sign-in tab
+  // rather than one per tab involved.
+  const SIGNIN_PAGES = {
+    Garmin: GARMIN_SIGNIN_URL,
+    Strava: STRAVA_LOGIN_URL,
+  };
+
+  function reportFailure(err, context, options = {}) {
+    const { escalate = true } = options;
+    const message = (err && err.message) || 'unknown error';
+    const site = err && err.signedOutOf;
+    console.log(TAG, `${context}:`, message);
+    if (site && SIGNIN_PAGES[site]) {
+      setStatus(`${message}. Sign in on the ${site} tab, then try again.`, { error: true });
+      if (!escalate) return;
+      GM_setValue(K_SIGNIN_HINT, {
+        ts: Date.now(),
+        message: `Sign in to ${site}, then start the upload again.`,
+      });
+      GM_openInTab(SIGNIN_PAGES[site], { active: true, setParent: true });
+      return;
+    }
+    setStatus(`Upload failed: ${message}. Nothing was recorded as sent — try again.`,
+      { error: true });
+  }
+
+  // =====================================================================
   //                          Garmin Connect side
   // =====================================================================
 
-  const ACTIVITIES_URL = 'https://connect.garmin.com/app/activities';
-  const STRAVA_UPLOAD_URL = 'https://www.strava.com/upload/select';
-  const STRAVA_LOGIN_URL = 'https://www.strava.com/login';
-  const ACTIVITIES_PATH = '/app/activities';
-
-  // Strava's "Upload from Garmin" menu item points here. A signed-out
-  // visit to /app/* 302s to /signin/?service=… on the same origin, and
-  // the browser carries the fragment across the redirect — so the hash
-  // survives to tell the sign-in page that we're the reason it's there.
-  const TRIGGER_HASH = '#upload-from-garmin';
   const GARMIN_APP_RE = /^\/app(\/|$)/;
-  const GARMIN_SIGNIN_RE = /^\/signin(\/|$)/;
 
   const ACTIVITIES_BUTTON_ID = 'jshute-garmin-activities-btn';
   const UPLOAD_BUTTON_ID = 'jshute-garmin-upload-to-strava-btn';
@@ -228,8 +551,6 @@
   const TOGGLE_SELECTOR = 'button[class*="TopHeaderBarView_navToggle"]';
 
   let garminAppStarted = false;
-  let signinNoticeShown = false;
-  let triggerHandled = false;
 
   function initGarmin() {
     console.log(TAG, 'init on', location.pathname);
@@ -239,133 +560,43 @@
     // pushState with no reload. Without re-dispatching on URL changes the
     // buttons would never appear in that tab, which is the trap CLAUDE.md
     // describes under "SPA sites: broaden @match, gate inside the script".
+    // Outside the /app/* gate below: the page we send a signed-out user
+    // to is /signin/, which onGarminUrl() returns early for. Gating this
+    // on /app/* means the note explaining why they're looking at a login
+    // page never appears on the login page.
+    showSigninHint();
+
     window.addEventListener('urlchange', onGarminUrl);
     onGarminUrl();
+
+    // An upload that ran entirely on the Strava side still changes what
+    // counts as new here, so follow the history rather than the run.
+    GM_addValueChangeListener(K_SEEN, () => refreshNewBadges());
   }
 
   function onGarminUrl() {
-    if (GARMIN_SIGNIN_RE.test(location.pathname)) {
-      // We match all of connect.garmin.com precisely so we're running
-      // here: a signed-out visit never reaches /app/*, and without this
-      // the Strava-initiated flow would look like it did nothing.
-      if (location.hash === TRIGGER_HASH && !signinNoticeShown) {
-        signinNoticeShown = true;
-        console.log(TAG, 'sign-in page instead of the activities list');
-        toast("You're not signed in to Garmin. Sign in here, then click " +
-          'Upload from Garmin again.', 0);
-      }
-      return;
-    }
-
     if (!GARMIN_APP_RE.test(location.pathname)) {
       console.log(TAG, `${location.pathname} is outside /app/; waiting for the app`);
       return;
     }
-
-    if (!garminAppStarted) {
-      garminAppStarted = true;
-      sweepStaleBatch();
-      installButtons();
-      registerMenuCommands();
-    }
-    // startTriggeredRun clears the hash, which itself fires urlchange —
-    // and a second run would re-send everything. Once only.
-    if (location.hash === TRIGGER_HASH && !triggerHandled) {
-      triggerHandled = true;
-      startTriggeredRun();
-    }
+    if (garminAppStarted) return;
+    garminAppStarted = true;
+    sweepStaleRequest();
+    installButtons();
+    registerMenuCommands();
   }
 
-  // A run that dies without rejecting — tab closed, navigated away —
-  // never reaches clearBatchKeys(), and leaves a ~425 KB gzipped payload
-  // parked in GM storage. HANDOFF_STALE_MS only stops us *reading* one of
-  // those; nothing deleted it. Sweep on init so they can't accumulate
-  // against the extension's 10 MB budget.
-  function sweepStaleBatch() {
-    const handoff = GM_getValue(K_HANDOFF, null);
-    if (!handoff || !handoff.ts) return;
-    const age = Date.now() - handoff.ts;
-    if (age <= HANDOFF_STALE_MS) return;
-    console.log(TAG, `clearing an abandoned batch from ${Math.round(age / 60000)} ` +
+  // A run that dies without reporting — tab closed, navigated away —
+  // leaves a request parked in storage that a later Strava upload tab
+  // would otherwise pick up and act on. Sweep on init.
+  function sweepStaleRequest() {
+    const request = GM_getValue(K_REQUEST, null);
+    if (!request || !request.ts) return;
+    const age = Date.now() - request.ts;
+    if (age <= REQUEST_STALE_MS) return;
+    console.log(TAG, `clearing an abandoned request from ${Math.round(age / 60000)} ` +
       'minutes ago');
-    clearBatchKeys();
-  }
-
-  // Entered from Strava's "Upload from Garmin". The tab is opened in the
-  // foreground, which matters: the first-run prompt() and every notice
-  // below would be invisible in a background tab.
-  async function startTriggeredRun() {
-    // Drop the hash so a reload doesn't silently start another transfer.
-    history.replaceState(null, '', location.pathname + location.search);
-
-    if (location.pathname !== ACTIVITIES_PATH) {
-      window.location.assign(ACTIVITIES_URL + TRIGGER_HASH);
-      return;
-    }
-
-    console.log(TAG, 'triggered from Strava; waiting for the activity list');
-    try {
-      await waitForStableList();
-    } catch (err) {
-      console.log(TAG, 'activity list never appeared:', err && err.message);
-      toast("Couldn't read the activities list — reload and try again.", 0);
-      return;
-    }
-    startUpload(true);
-  }
-
-  // The list streams in a row at a time, so "the first link exists" is too
-  // early — we'd diff against a partial page and call older rides new.
-  // Wait for the count to hold steady instead.
-  function waitForStableList(timeoutMs = 30000) {
-    return new Promise((resolve, reject) => {
-      const deadline = Date.now() + timeoutMs;
-      let last = -1;
-      let stableTicks = 0;
-      const tick = () => {
-        const count = listedActivities().length;
-        if (count > 0 && count === last) {
-          if (++stableTicks >= 2) return resolve(count);
-        } else {
-          stableTicks = 0;
-        }
-        last = count;
-        if (Date.now() > deadline) return reject(new Error('list never settled'));
-        setTimeout(tick, 300);
-      };
-      tick();
-    });
-  }
-
-  // ------------------------------------------------------- activity list
-
-  // Every row in the activities list links to /app/activity/<id>. The row
-  // markup is CSS-module soup, but the href is stable and is the only
-  // thing we need.
-  function listedActivities() {
-    const out = [];
-    const seen = new Set();
-    for (const a of document.querySelectorAll('a[href*="/app/activity/"]')) {
-      const id = ((a.getAttribute('href') || '').match(/\/app\/activity\/(\d+)/) || [])[1];
-      if (!id || seen.has(id)) continue;
-      seen.add(id);
-      out.push({ id, name: (a.textContent || '').trim() });
-    }
-    return out;
-  }
-
-  function loadSeen() {
-    // Returning null when GM storage is missing keeps every caller — the
-    // badges especially, which run off a MutationObserver — from throwing
-    // under the Playwright fixture, which injects the body with no GM_*.
-    const stored = GM_getValue(K_SEEN, null);
-    return Array.isArray(stored) ? stored : null;
-  }
-
-  function recordSeen(ids) {
-    const merged = [...ids, ...(loadSeen() || [])];
-    GM_setValue(K_SEEN, [...new Set(merged)].slice(0, SEEN_LIMIT));
-    refreshNewBadges();
+    clearRequestKeys();
   }
 
   // ------------------------------------------------------------- badges
@@ -406,6 +637,7 @@
   // Idempotent, and safe to call as often as the observer fires: it adds
   // and removes only where the row disagrees with the stored history.
   function refreshNewBadges() {
+    if (location.hostname !== 'connect.garmin.com') return;
     if (location.pathname !== ACTIVITIES_PATH) return;
     const rows = document.querySelectorAll(ROW_SELECTOR);
     if (!rows.length) return;
@@ -415,9 +647,18 @@
     const seenSet = seen === null ? null : new Set(seen);
     let added = 0;
     let removed = 0;
+    let index = -1;
     for (const row of rows) {
+      index += 1;
       const id = rowActivityId(row);
-      const wanted = !!id && seenSet !== null && !seenSet.has(id);
+      // Rows past the window are outside what an upload looks at, and
+      // the history says nothing about them either way — scrolling far
+      // enough back always reaches activities from before the script was
+      // installed. Badging those would advertise an upload that isn't
+      // going to happen. Rows arrive newest-first, same order as the API,
+      // so position is the window.
+      const inWindow = index < LIST_LIMIT;
+      const wanted = inWindow && !!id && seenSet !== null && !seenSet.has(id);
       const existing = row.querySelector('.' + BADGE_CLASS);
       if (wanted && !existing) {
         const typeLine = row.querySelector(TYPE_LINE_SELECTOR);
@@ -443,106 +684,38 @@
       }
     }
     if (added || removed) {
-      console.log(TAG, `New badges: ${added} added, ${removed} removed`);
+      const beyond = rows.length > LIST_LIMIT
+        ? `; ${rows.length - LIST_LIMIT} scrolled-in rows past the newest ${LIST_LIMIT} left alone`
+        : '';
+      console.log(TAG, `New badges: ${added} added, ${removed} removed${beyond}`);
     }
   }
 
-  // Mark the newest `count` listed activities as unsent and everything
-  // else — listed or remembered — as sent. This is how both the first-run
-  // prompt and the menu command set the starting point.
-  function keepNewestUnsent(listed, count) {
-    const unsent = new Set(listed.slice(0, count).map((a) => a.id));
-    const older = listed.slice(count).map((a) => a.id);
-    const merged = [...older, ...(loadSeen() || [])].filter((id) => !unsent.has(id));
-    GM_setValue(K_SEEN, [...new Set(merged)].slice(0, SEEN_LIMIT));
-    refreshNewBadges();
-  }
+  // ----------------------------------------------------------- the run
 
-  // Ask for a count, defaulting to 1. Returns null if the user cancels or
-  // types something that isn't a number, in which case nothing changes.
-  function askCount(message, max, defaultCount = 1) {
-    const answer = window.prompt(message, String(Math.min(defaultCount, max)));
-    if (answer === null) return null;
-    const count = parseInt(answer.trim(), 10);
-    if (!Number.isFinite(count) || count < 0) {
-      console.log(TAG, `didn't understand "${answer}"; nothing changed`);
-      toast(`"${answer}" isn't a number — nothing changed.`);
-      return null;
+  // Fetch the list and diff it against the history. Shared, because
+  // either side may be the one that starts a run — and the prompt has to
+  // land in the tab the user is looking at.
+  async function newActivities(session) {
+    const listed = await garminList(session);
+    console.log(TAG, `Garmin lists ${listed.length} recent activities`);
+    const fresh = chooseActivities(listed);
+    if (fresh.length) {
+      console.log(TAG, `${plural(fresh.length, 'new activity', 'new activities')}:`,
+        fresh.map((a) => a.id).join(', '));
     }
-    return Math.min(count, max);
+    return fresh;
   }
 
-  // ------------------------------------------------------------ download
-
-  // Garmin's own "Export to TCX" menu item fetches this endpoint. It needs
-  // the session's CSRF token — which the server puts in a <meta> tag on
-  // every page — plus an X-app-ver header; without either it answers 401.
-  // The app version is in the ?bust= query on the page's own asset URLs.
-  function garminApiHeaders() {
-    const csrf = document.querySelector('meta[name="csrf-token"]');
-    const asset = document.querySelector('link[href*="bust="], script[src*="bust="]');
-    const bust = asset && ((asset.href || asset.src).match(/bust=([\d.]+)/) || [])[1];
-    return {
-      'Connect-Csrf-Token': csrf ? csrf.content : '',
-      'X-app-ver': bust || '5.27.2.1',
-    };
-  }
-
-  async function fetchTcx(id) {
-    const url = `/gc-api/download-service/export/tcx/activity/${id}`;
-    let response = await fetch(url, { headers: garminApiHeaders(), credentials: 'include' });
-    if (response.status === 401) {
-      // The SPA can sit open long enough for the session to lapse, and
-      // then every gc-api call 401s. Re-requesting a normal page refreshes
-      // the cookies; if that doesn't take, the user needs to reload.
-      console.log(TAG, `401 on activity ${id}, refreshing the session and retrying`);
-      await fetch(ACTIVITIES_PATH, { credentials: 'include' });
-      response = await fetch(url, { headers: garminApiHeaders(), credentials: 'include' });
-    }
-    if (!response.ok) throw new Error(`export failed for ${id}: HTTP ${response.status}`);
-    return await response.blob();
-  }
-
-  // Save to the browser's download folder under the name Garmin itself
-  // uses, activity_<id>.tcx. Chrome asks once per site before allowing a
-  // run of programmatic downloads.
-  function saveToDisk(id, blob) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `activity_${id}.tcx`;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
-  }
-
-  // ----------------------------------------------------------- the batch
-
-  // A promise that rejects the moment the Strava side reports it can't
-  // take this batch, and otherwise never settles — so racing it against a
-  // wait turns "the upload tab bounced to the login page" into an
-  // immediate, specific error instead of a 90-second timeout.
-  function failureWatcher(batchId) {
-    return waitForValue(K_FAIL, (v) => v && v.batchId === batchId, HANDOFF_STALE_MS)
-      .then(
-        (v) => { throw new Error(v.reason); },
-        () => new Promise(() => {}),
-      );
-  }
-
-  // Prefer a Strava upload tab that's already open — in particular the
-  // one the user clicked "Upload from Garmin" in, which navigates itself
-  // to the upload page and waits to be offered a batch. Only if nobody
-  // claims within the grace period do we open a tab of our own.
-  async function ensureConsumer(batchId, fromStrava) {
-    const grace = fromStrava ? CONSUMER_GRACE_FROM_STRAVA_MS : CONSUMER_GRACE_MS;
+  // Prefer a Strava upload tab that's already open. Only if nobody claims
+  // within the grace period do we open a tab of our own.
+  async function ensureConsumer(requestId) {
     try {
-      await waitForValue(K_CLAIM, (v) => v && v.batchId === batchId, grace);
-      console.log(TAG, 'an open Strava upload tab claimed the batch; not opening one');
+      await waitForValue(K_CLAIM, (v) => v && v.requestId === requestId, CONSUMER_GRACE_MS);
+      console.log(TAG, 'an open Strava upload tab took the request; not opening one');
     } catch {
-      console.log(TAG, `no upload tab claimed the batch within ${grace}ms; opening one`);
+      console.log(TAG, `no upload tab took the request within ${CONSUMER_GRACE_MS}ms; ` +
+        'opening one');
       // GM_openInTab is an extension API, so unlike window.open it
       // doesn't need the click's user activation — which the first-run
       // prompt() would have spent by now anyway.
@@ -550,83 +723,52 @@
     }
   }
 
-  async function runBatch(batchId, activities, fromStrava) {
-    const batchStart = performance.now();
-    const ids = activities.map((a) => a.id);
-    GM_setValue(K_HANDOFF, {
-      batchId, ids, count: ids.length, state: 'sending', ts: Date.now(),
+  // The Garmin side's whole job: work out what's new, hand the id list to
+  // a Strava upload tab, and report what happens. The files themselves
+  // are fetched over there.
+  async function runFromGarmin() {
+    const start = performance.now();
+    setStatus('Checking Garmin for new activities…');
+    const session = await garminSession();
+    const fresh = await newActivities(session);
+    if (!fresh.length) return;
+
+    clearRequestKeys();
+    const requestId = `r${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    GM_setValue(K_REQUEST, { requestId, activities: fresh, ts: Date.now() });
+    setStatus(`Handing ${plural(fresh.length, 'activity', 'activities')} to Strava…`);
+
+    // Runs alongside the wait rather than blocking it, so it needs its
+    // own handler — nothing is awaiting it to surface a throw.
+    ensureConsumer(requestId).catch((err) => {
+      console.log(TAG, "couldn't open a Strava upload tab:", (err && err.message) || err);
     });
-    // Runs alongside the first fetch rather than blocking it: an
-    // existing upload tab usually claims well before we have a file to
-    // hand over, so the reuse case costs nothing.
-    ensureConsumer(batchId, fromStrava);
-    const failed = failureWatcher(batchId);
-    // The watcher outlives a successful batch — it holds a listener and a
-    // long timer. Attaching a no-op handler marks it handled, so a K_FAIL
-    // written afterwards can't surface as an unhandled rejection. The
-    // Promise.race calls below still see the rejection.
-    failed.catch(() => {});
 
-    let seq = 0;
-    let index = 0;
-    for (const activity of activities) {
-      index += 1;
-      const step = activities.length === 1 ? '' : ` (${index} of ${activities.length})`;
-      setStatus(`Downloading ${activity.name || 'activity'}${step}…`);
-      const fetchStart = performance.now();
-      const blob = await fetchTcx(activity.id);
-      console.log(TAG, `fetched activity ${activity.id} ` +
-        `(${blob.size} bytes in ${since(fetchStart)})`);
-      saveToDisk(activity.id, blob);
-
-      setStatus(`Compressing ${activity.name || 'activity'}${step}…`);
-      const gzipStart = performance.now();
-      const gz = await gzipToBase64(blob);
-      const gzipTime = since(gzipStart);
-      seq += 1;
-      GM_setValue(K_FILE, {
-        batchId, id: activity.id, name: `activity_${activity.id}.tcx`, seq, gz,
-      });
-      console.log(TAG, `handed activity ${activity.id} to Strava ` +
-        `(${gz.length} base64 chars, compressed in ${gzipTime})`);
-      const receiptStart = performance.now();
-      setStatus(`Sending ${activity.name || 'activity'}${step} to Strava…`);
-
-      // Only one file sits in storage at a time — wait for the receipt
-      // before fetching the next, so we never hold more than one in the
-      // extension's 10 MB storage budget.
-      const taken = await Promise.race([failed, waitForValue(
-        K_TAKEN,
-        (v) => v && v.batchId === batchId && v.seq === seq,
-        HANDOFF_TIMEOUT_MS,
-      )]);
-      if (!taken) throw new Error('no receipt from the Strava tab');
-      console.log(TAG, `Strava took activity ${activity.id} (${since(receiptStart)})`);
+    const progressId = GM_addValueChangeListener(K_PROGRESS, (key, oldV, newV) => {
+      if (!newV || newV.requestId !== requestId) return;
+      setStatus(`Strava is downloading from Garmin — ${newV.done} of ${newV.total} done…`);
+    });
+    try {
+      const result = await waitForValue(
+        K_RESULT, (v) => v && v.requestId === requestId, RESULT_TIMEOUT_MS);
+      if (!result.ok) {
+        const err = new Error(result.error || 'the Strava tab reported a failure');
+        if (result.signedOutOf) err.signedOutOf = result.signedOutOf;
+        throw err;
+      }
+      console.log(TAG, `Strava uploaded ${result.count} file(s) in ${since(start)}`);
+      setStatus(`Sent ${plural(result.count, 'activity', 'activities')} to Strava.`,
+        { done: true });
+    } finally {
+      GM_removeValueChangeListener(progressId);
+      // Leaving a finished request in storage makes the next upload tab
+      // to open think there's one in flight and try to claim it.
+      clearRequestKeys();
     }
-
-    GM_setValue(K_HANDOFF, {
-      batchId, ids, count: ids.length, state: 'done', ts: Date.now(),
-    });
-    console.log(TAG, 'all files sent; waiting for Strava to confirm the upload');
-    setStatus('Waiting for Strava to start the upload…');
-
-    await Promise.race([failed,
-      waitForValue(K_ACK, (v) => v && v.batchId === batchId, HANDOFF_TIMEOUT_MS)]);
-
-    // Only now — after the files are actually attached and uploading — do
-    // these count as sent. Anything short of that leaves them new, so the
-    // next click retries them.
-    recordSeen(ids);
-    console.log(TAG, `Strava confirmed ${ids.length} file(s) after ` +
-      `${since(batchStart)} total; recorded as sent`);
-    setStatus(`Sent ${plural(ids.length, 'activity', 'activities')} to Strava.`,
-      { done: true });
   }
 
-  function clearBatchKeys() {
-    for (const key of [K_HANDOFF, K_CLAIM, K_FILE, K_TAKEN, K_ACK, K_FAIL]) {
-      GM_deleteValue(key);
-    }
+  function clearRequestKeys() {
+    for (const key of [K_REQUEST, K_CLAIM, K_PROGRESS, K_RESULT]) GM_deleteValue(key);
   }
 
   // ------------------------------------------------------------- buttons
@@ -639,106 +781,10 @@
 
   function onUploadClick(event) {
     event.preventDefault();
-    startUpload(false);
-  }
-
-  // `fromStrava` means the run was started by Strava's "Upload from
-  // Garmin" item, so the tab that started it is on its way to the upload
-  // page and should be given time to take the batch itself.
-  function startUpload(fromStrava) {
-    // Everything that needs the click's user-activation — reading the
-    // list, opening tabs — happens synchronously here. GM_getValue is
-    // synchronous, so the whole decision is made before we yield.
-    if (location.pathname !== ACTIVITIES_PATH) {
-      console.log(TAG, 'not on the activities list; navigating there first');
-      toast('Opening the Activities list — click Upload to Strava again.');
-      window.location.assign(ACTIVITIES_URL);
-      return;
-    }
-
-    const listed = listedActivities();
-    if (!listed.length) {
-      console.log(TAG, 'no activity links found on the page');
-      toast('No activities found on this page.');
-      return;
-    }
-
-    const seen = loadSeen();
-    const seenSet = new Set(seen || []);
-    const recognized = listed.filter((a) => seenSet.has(a.id)).length;
-
-    let fresh;
-    if (seen === null || recognized === 0) {
-      // Either we've never run, or our memory has nothing in common with
-      // what's on the page — a cleared history, or a long enough gap that
-      // the whole list has turned over. Both look identical from here:
-      // every activity is "new", and silently sending twenty rides to
-      // Strava is not what anyone wants. Ask instead.
-      const headline = seen === null
-        ? 'First upload.'
-        : 'None of the listed activities have been uploaded before.';
-      const count = askCount(
-        `${headline} The newest N activities will be uploaded to Strava. ` +
-        `How many should we send? (0–${listed.length})\n\n` +
-        'After this, previously uploaded activities will be remembered.',
-        listed.length);
-      if (count === null) {
-        console.log(TAG, 'first-run prompt cancelled; nothing changed');
-        return;
-      }
-      // Everything older than the newest `count` is declared already
-      // uploaded right away. The ones we're about to send are recorded
-      // only once Strava confirms them, same as any other batch.
-      keepNewestUnsent(listed, count);
-      console.log(TAG, `first run: sending the newest ${count} of ${listed.length}, ` +
-        `recorded the other ${listed.length - count} as already sent`);
-      if (count === 0) {
-        toast(`Recorded all ${listed.length} listed activities as already uploaded.`);
-        return;
-      }
-      // Listed newest first; send oldest first so Strava lists them in
-      // the order they happened.
-      fresh = listed.slice(0, count).reverse();
-    } else {
-      fresh = listed.filter((a) => !seenSet.has(a.id)).reverse();
-      if (!fresh.length) {
-        console.log(TAG, 'no new activities');
-        toast('No new activities to send.');
-        return;
-      }
-    }
-
-    console.log(TAG, `${fresh.length} new activit${fresh.length === 1 ? 'y' : 'ies'}:`,
-      fresh.map((a) => a.id).join(', '));
-
-    clearBatchKeys();
-    const batchId = `b${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-
-    setStatus(`Starting — ${plural(fresh.length, 'new activity', 'new activities')} to send…`);
-
-    runBatch(batchId, fresh, fromStrava).catch((err) => {
-      const message = (err && err.message) || 'unknown error';
-      console.log(TAG, 'batch failed:', message);
-      clearBatchKeys();
-
-      if (/signed in/.test(message)) {
-        // The upload tab that bounced is in the background, and a page
-        // can't pull itself to the front — window.focus() from a
-        // background tab is ignored. So open the login page in the
-        // foreground instead, and leave the explanation there, where the
-        // user will actually be looking.
-        GM_setValue(K_SIGNIN_HINT, {
-          ts: Date.now(),
-          message: `Sign in to Strava, then click Upload to Strava on the Garmin ` +
-            `tab to send ${fresh.length} activit${fresh.length === 1 ? 'y' : 'ies'}.`,
-        });
-        GM_openInTab(STRAVA_LOGIN_URL, { active: true, setParent: true });
-        setStatus(`${message}. Sign in on the Strava tab, then click Upload to ` +
-          'Strava again.', { error: true });
-        return;
-      }
-      setStatus(`Transfer failed: ${message}. Nothing was recorded as sent — ` +
-        'reload and try again.', { error: true });
+    console.log(TAG, 'Upload to Strava clicked');
+    runFromGarmin().catch((err) => {
+      clearRequestKeys();
+      reportFailure(err, 'upload failed');
     });
   }
 
@@ -806,8 +852,7 @@
       ACTIVITIES_BUTTON_ID, 'Activities', 'Open the Activities list', onActivitiesClick);
     const upload = makeButton(
       UPLOAD_BUTTON_ID, 'Upload to Strava',
-      "Download every activity that hasn't been sent to Strava yet as TCX, " +
-      'and upload it', onUploadClick);
+      "Send every activity that hasn't been uploaded to Strava yet", onUploadClick);
     toggle.parentElement.insertBefore(activities, toggle.nextSibling);
     toggle.parentElement.insertBefore(upload, activities.nextSibling);
     console.log(TAG, 'buttons inserted next to nav toggle');
@@ -851,34 +896,39 @@
     scheduleBadges();
   }
 
+  // The menu commands work off the fetched list, not the rendered rows,
+  // so they behave the same on any /app/ page — and match exactly what an
+  // upload would consider.
   function registerMenuCommands() {
     GM_registerMenuCommand('Set how many activities are unsent…', () => {
-      const listed = listedActivities();
-      if (!listed.length) {
-        console.log(TAG, 'menu: no activities listed on this page');
-        toast('No activities listed on this page — open the Activities list first.');
-        return;
-      }
-      const count = askCount(
-        'The newest N activities will be marked as not yet uploaded, so the ' +
-        `next upload sends them. How many? (0–${listed.length})\n\n` +
-        'Everything older is recorded as already uploaded.',
-        listed.length);
-      if (count === null) return;
-      keepNewestUnsent(listed, count);
-      console.log(TAG, `menu: left the newest ${count} of ${listed.length} unsent`);
-      toast(count === 0
-        ? `Marked all ${listed.length} listed activities as already uploaded.`
-        : `The newest ${count} will be sent on the next upload.`);
+      garminSession().then(garminList).then((listed) => {
+        if (!listed.length) {
+          console.log(TAG, 'menu: Garmin returned no activities');
+          toast('Garmin returned no activities.');
+          return;
+        }
+        const count = askCount(
+          'The newest N activities will be marked as not yet uploaded, so the ' +
+          `next upload sends them. How many? (0–${listed.length})\n\n` +
+          'Everything older is recorded as already uploaded.',
+          listed.length);
+        if (count === null) return;
+        keepNewestUnsent(listed, count);
+        console.log(TAG, `menu: left the newest ${count} of ${listed.length} unsent`);
+        toast(count === 0
+          ? `Marked all ${listed.length} listed activities as already uploaded.`
+          : `The newest ${count} will be sent on the next upload.`);
+      }).catch((err) => reportFailure(err, 'menu command failed'));
     });
     GM_registerMenuCommand('Forget which activities were sent', () => {
       GM_deleteValue(K_SEEN);
-      clearBatchKeys();
+      clearRequestKeys();
       refreshNewBadges();
       console.log(TAG, 'cleared the sent-activity history');
       toast('Cleared the sent-activity history — the next upload will ask how ' +
         'many to send.');
     });
+    registerDiagnostic();
   }
 
   // =====================================================================
@@ -891,18 +941,21 @@
   const STRAVA_INPUT_SELECTOR =
     'form[action*="/upload/files"] input[type="file"][name="files[]"]';
 
-  // We match all of strava.com, not just /upload/*, so that a redirect to
-  // the login page still lands somewhere this script runs and can say so.
+  // We match all of strava.com, not just /upload/*, so the menu item can
+  // go in the nav on every page, and so a redirect to the login page
+  // still lands somewhere this script runs and can say so.
   const STRAVA_UPLOAD_PATH_RE = /^\/upload(\/|$)/;
-  // How soon after a batch starts a non-upload Strava page counts as "the
-  // tab we just opened got bounced" rather than ordinary browsing.
+  // How soon after a request starts a non-upload Strava page counts as
+  // "the tab we just opened got bounced" rather than ordinary browsing.
   const BOUNCE_WINDOW_MS = 60000;
 
   // Strava's global nav holds the upload drop-down. Plain server-rendered
   // markup, no framework: li.upload-menu > ul.options > li > a.
   const STRAVA_MENU_SELECTOR = 'li.upload-menu ul.options';
   const STRAVA_MENU_ITEM_ID = 'jshute-strava-upload-from-garmin';
-  const GARMIN_TRIGGER_URL = ACTIVITIES_URL + TRIGGER_HASH;
+  // Set on the upload page's URL when we send this tab there to start a
+  // run, so the page knows to start one on arrival.
+  const STRAVA_TRIGGER_HASH = '#upload-from-garmin';
 
   function ensureStravaMenuItem() {
     if (document.getElementById(STRAVA_MENU_ITEM_ID)) return false;
@@ -912,9 +965,9 @@
     const item = document.createElement('li');
     item.id = STRAVA_MENU_ITEM_ID;
     const link = document.createElement('a');
-    link.href = GARMIN_TRIGGER_URL;
-    link.title = 'Open Garmin Connect and upload every activity that ' +
-      "hasn't been sent to Strava yet";
+    link.href = STRAVA_UPLOAD_URL + STRAVA_TRIGGER_HASH;
+    link.title = 'Download every activity that has not been sent to Strava yet ' +
+      'from Garmin Connect, and upload it here';
     // Borrow the Upload activity icon so our label lines up with the
     // items below it rather than sitting flush against the edge.
     const icon = document.createElement('span');
@@ -923,23 +976,30 @@
     link.appendChild(document.createTextNode('Upload from Garmin'));
     link.addEventListener('click', (event) => {
       event.preventDefault();
-      // Foreground, so the first-run prompt and any notices are visible,
-      // and so this Strava page survives for the upload tab to come back to.
-      console.log(TAG, 'Upload from Garmin clicked; opening Garmin activities');
-      GM_openInTab(GARMIN_TRIGGER_URL, { active: true, setParent: true });
-      // Put *this* tab on the upload page so it can take the files
-      // itself. Garmin waits for a claim before opening its own tab, so
-      // the transfer lands back here rather than in a third tab. Done
-      // after GM_openInTab, since navigating away tears this script down.
-      if (!STRAVA_UPLOAD_PATH_RE.test(location.pathname)) {
-        console.log(TAG, 'sending this tab to the upload page to receive the files');
-        window.location.assign(STRAVA_UPLOAD_URL);
+      console.log(TAG, 'Upload from Garmin clicked');
+      if (STRAVA_UPLOAD_PATH_RE.test(location.pathname)) {
+        startStravaRun();
+        return;
       }
+      // The files have to be attached to the upload form, so the run has
+      // to happen on that page. Nothing goes to Garmin in a tab any more
+      // — this one fetches from Garmin itself once it gets there.
+      console.log(TAG, 'going to the upload page to run there');
+      window.location.assign(STRAVA_UPLOAD_URL + STRAVA_TRIGGER_HASH);
     });
     item.appendChild(link);
     list.insertBefore(item, list.firstElementChild);
     console.log(TAG, 'added "Upload from Garmin" to the upload menu');
     return true;
+  }
+
+  // A note left by whichever side sent us to a sign-in page.
+  function showSigninHint() {
+    const hint = GM_getValue(K_SIGNIN_HINT, null);
+    if (!hint || Date.now() - hint.ts >= 60000) return;
+    GM_deleteValue(K_SIGNIN_HINT);
+    console.log(TAG, 'showing the sign-in hint left by the other tab');
+    toast(hint.message, 0);
   }
 
   function initStrava() {
@@ -951,152 +1011,156 @@
     new MutationObserver(() => ensureStravaMenuItem())
       .observe(document.body, { childList: true, subtree: true });
 
-    // A note left by the Garmin side just before it opened this page.
-    const hint = GM_getValue(K_SIGNIN_HINT, null);
-    if (hint && Date.now() - hint.ts < 60000) {
-      GM_deleteValue(K_SIGNIN_HINT);
-      console.log(TAG, 'showing the sign-in hint left by the Garmin tab');
-      toast(hint.message, 0);
-    }
+    showSigninHint();
 
-    const handoff = GM_getValue(K_HANDOFF, null);
-    const live = handoff && handoff.state === 'sending' &&
-      Date.now() - handoff.ts <= HANDOFF_STALE_MS;
+    const request = GM_getValue(K_REQUEST, null);
+    const live = request && Date.now() - request.ts <= REQUEST_STALE_MS;
 
     if (STRAVA_UPLOAD_PATH_RE.test(location.pathname)) {
-      // An open upload tab is a standing offer to be the consumer — for
-      // the batch running right now and for every later one. So the
-      // listener goes on unconditionally and is never torn down: a tab
-      // left on this page should keep taking batches for as long as it's
-      // open, not just the first.
+      // An open upload tab is a standing offer to serve the Garmin
+      // button — for a request in flight right now and for every later
+      // one. So the listener goes on unconditionally and is never torn
+      // down: a tab left on this page should keep taking requests for as
+      // long as it's open, not just the first.
       //
-      // The guard is per-batch rather than a latch. Latching would leave
-      // the tab deaf after one transfer (and deaf forever if it lost a
+      // The guard is per-request rather than a latch. Latching would
+      // leave the tab deaf after one run (and deaf forever if it lost a
       // claim race), which is exactly the case tab reuse exists for.
       let offered = null;
       const offer = (candidate) => {
-        if (!candidate || candidate.state !== 'sending') return;
-        if (offered === candidate.batchId) return;
-        if (Date.now() - candidate.ts > HANDOFF_STALE_MS) return;
-        offered = candidate.batchId;
+        if (!candidate || !candidate.requestId) return;
+        if (offered === candidate.requestId) return;
+        if (Date.now() - candidate.ts > REQUEST_STALE_MS) return;
+        offered = candidate.requestId;
         tryClaim(candidate);
       };
-      GM_addValueChangeListener(K_HANDOFF, (key, oldValue, newValue) => offer(newValue));
-      if (live) {
-        offer(handoff);
-      } else {
-        console.log(TAG, 'no batch in flight; waiting to be offered one');
+      GM_addValueChangeListener(K_REQUEST, (key, oldValue, newValue) => offer(newValue));
+
+      // Registered before this branch, not after it: a tab that arrived
+      // here to run the Strava menu item's upload is still an upload tab
+      // afterwards, and should go on serving the Garmin button like any
+      // other. Returning early here left it deaf for the rest of its life.
+      if (location.hash === STRAVA_TRIGGER_HASH) {
+        // Drop the hash so a reload doesn't silently start another run.
+        history.replaceState(null, '', location.pathname + location.search);
+        startStravaRun();
+        return;
       }
+
+      if (live) offer(request);
+      else console.log(TAG, 'no request in flight; waiting to be offered one');
       return;
     }
 
     if (!live) {
-      console.log(TAG, 'no batch in flight; idle');
+      console.log(TAG, 'no request in flight; idle');
       return;
     }
 
-    {
-      // Strava sends signed-out visitors from /upload/select to /login,
-      // and the upload tab we opened is the overwhelmingly likely source
-      // of a non-upload Strava page seconds after a batch started. Report
-      // it so the Garmin side fails immediately with a useful message
-      // rather than waiting out its timeout.
-      if (Date.now() - handoff.ts > BOUNCE_WINDOW_MS) {
-        console.log(TAG, `on ${location.pathname}, not the upload page; leaving the ` +
-          'batch alone (too long after it started to blame this tab)');
-        return;
-      }
-      // Only a sign-in page is real evidence that the upload tab
-      // bounced. Any other Strava page is far more likely to be the user
-      // browsing in a different tab while a transfer runs — killing
-      // their batch for that would be a false positive.
-      if (!/login|signup|onboarding/.test(location.pathname)) {
-        console.log(TAG, `on ${location.pathname} during a transfer; not the upload ` +
-          'page but not a sign-in page either, so leaving the batch alone');
-        return;
-      }
-      const reason = "Strava isn't signed in";
-      console.log(TAG, `${reason}; reporting the batch as failed`);
-      GM_setValue(K_FAIL, { batchId: handoff.batchId, reason });
+    // Strava sends signed-out visitors from /upload/select to /login, and
+    // the upload tab the Garmin side just opened is the overwhelmingly
+    // likely source of a non-upload Strava page seconds after a request
+    // started. Report it so the Garmin side fails immediately with a
+    // useful message rather than waiting out its timeout.
+    if (Date.now() - request.ts > BOUNCE_WINDOW_MS) {
+      console.log(TAG, `on ${location.pathname}, not the upload page; leaving the ` +
+        'request alone (too long after it started to blame this tab)');
       return;
     }
+    // Only a sign-in page is real evidence that the upload tab bounced.
+    // Any other Strava page is far more likely to be the user browsing in
+    // a different tab while a run happens — killing it for that would be
+    // a false positive.
+    if (!/login|signup|onboarding/.test(location.pathname)) {
+      console.log(TAG, `on ${location.pathname} during a run; not the upload page ` +
+        'but not a sign-in page either, so leaving the request alone');
+      return;
+    }
+    console.log(TAG, "Strava isn't signed in; reporting the request as failed");
+    GM_setValue(K_RESULT, {
+      requestId: request.requestId, ok: false,
+      error: "You're not signed in to Strava", signedOutOf: 'Strava',
+    });
   }
 
-  // Take the batch, but only if we actually won it.
+  // Started from Strava's own menu item, on the upload page. Everything
+  // happens here — the list, the downloads, the upload — with no Garmin
+  // tab involved.
+  function startStravaRun() {
+    runOnStrava(null).catch((err) => reportFailure(err, 'upload failed'));
+  }
+
+  // Take the request, but only if we actually won it.
   //
   // GM storage has no compare-and-swap: `GM_setValue` is an
   // unconditional last-write-wins overwrite. Two upload tabs get the
-  // same `handoff` broadcast at the same instant, both read no claim,
+  // same `request` broadcast at the same instant, both read no claim,
   // and both write one — so a bare read-then-write would have both tabs
-  // collecting the same files and uploading the ride to Strava twice.
+  // downloading the same activities and uploading each ride twice.
   //
   // Instead: write optimistically, let the writes settle, then re-read.
   // Both tabs converge on the same stored value, so exactly one sees its
   // own id and proceeds; the loser stands down.
-  function tryClaim(handoff) {
+  function tryClaim(request) {
     const me = `s${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
     const existing = GM_getValue(K_CLAIM, null);
-    if (existing && existing.batchId === handoff.batchId) {
-      console.log(TAG, 'another upload tab already claimed this batch; idle');
+    if (existing && existing.requestId === request.requestId) {
+      console.log(TAG, 'another upload tab already claimed this request; idle');
       return;
     }
-    GM_setValue(K_CLAIM, { batchId: handoff.batchId, who: me });
+    GM_setValue(K_CLAIM, { requestId: request.requestId, who: me });
 
     setTimeout(() => {
       const winner = GM_getValue(K_CLAIM, null);
-      if (!winner || winner.batchId !== handoff.batchId || winner.who !== me) {
+      if (!winner || winner.requestId !== request.requestId || winner.who !== me) {
         console.log(TAG, 'lost the claim race to another upload tab; idle');
         return;
       }
-      console.log(TAG, `claimed batch ${handoff.batchId}, expecting ${handoff.count} file(s)`);
-      setStatus(`Downloading ${plural(handoff.count, 'activity', 'activities')} from Garmin…`);
-      collect(handoff.batchId, handoff.count).catch((err) => {
-        const message = (err && err.message) || 'unknown error';
-        console.log(TAG, 'collection failed:', message);
-        setStatus(/timed out/.test(message)
-          ? "Gave up waiting for Garmin — the transfer didn't finish. Nothing was " +
-            'uploaded; start it again from the Garmin tab.'
-          : `Transfer failed: ${message}`, { error: true });
+      console.log(TAG, `claimed request ${request.requestId} with ` +
+        `${request.activities.length} activit${request.activities.length === 1 ? 'y' : 'ies'}`);
+      runOnStrava(request).catch((err) => {
+        // No escalation: the Garmin tab that started this opens the
+        // sign-in page, so we don't each open our own.
+        reportFailure(err, 'upload failed', { escalate: false });
+        GM_setValue(K_RESULT, {
+          requestId: request.requestId, ok: false,
+          error: (err && err.message) || 'unknown error',
+          signedOutOf: err && err.signedOutOf,
+        });
       });
     }, CLAIM_SETTLE_MS);
   }
 
-  async function collect(batchId, count) {
-    const collectStart = performance.now();
-    const files = [];
-    let seq = 0;
-    while (files.length < count) {
-      seq += 1;
-      setStatus(count === 1
-        ? 'Downloading from Garmin…'
-        : `Downloading activity ${files.length + 1} of ${count} from Garmin…`);
-      const waitStart = performance.now();
-      const record = await waitForValue(
-        K_FILE,
-        (v) => v && v.batchId === batchId && v.seq === seq,
-        HANDOFF_TIMEOUT_MS,
-      );
-      const waitTime = since(waitStart);
-      setStatus(`Unpacking ${record.name} (${files.length + 1} of ${count})…`);
-      const unpackStart = performance.now();
-      const blob = await base64ToBlob(record.gz);
-      files.push(new File([blob], record.name, { type: 'application/vnd.garmin.tcx+xml' }));
-      console.log(TAG, `received ${record.name} (${blob.size} bytes), ` +
-        `${files.length}/${count} — waited ${waitTime} for Garmin, ` +
-        `unpacked in ${since(unpackStart)}`);
-      // Free the slot so the Garmin side sends the next one. Clearing the
-      // payload first keeps at most one file in storage.
-      GM_deleteValue(K_FILE);
-      GM_setValue(K_TAKEN, { batchId, seq });
-    }
+  // The whole upload, on the page that owns the form. `request` is the
+  // Garmin side's handover (a fixed list of activities to send), or null
+  // when this tab started the run itself and has to pick the list too.
+  async function runOnStrava(request) {
+    const start = performance.now();
+    const requestId = request && request.requestId;
 
-    setStatus(`Received all ${plural(count, 'activity', 'activities')} — waiting for ` +
-      'Garmin to finish…');
-    await waitForValue(
-      K_HANDOFF,
-      (v) => v && v.batchId === batchId && v.state === 'done',
-      HANDOFF_TIMEOUT_MS,
-    );
+    setStatus('Checking Garmin for new activities…');
+    const session = await garminSession();
+
+    // A handover from the Garmin button carries a fixed list; a run this
+    // tab started itself has to pick one.
+    const activities = request ? request.activities : await newActivities(session);
+    if (!activities.length) return;
+
+    const files = [];
+    for (const activity of activities) {
+      const step = activities.length === 1
+        ? '' : ` (${files.length + 1} of ${activities.length})`;
+      setStatus(`Downloading ${activity.name} from Garmin${step}…`);
+      const fetchStart = performance.now();
+      const blob = await fetchTcx(session, activity.id);
+      files.push(new File([blob], `activity_${activity.id}.tcx`,
+        { type: 'application/vnd.garmin.tcx+xml' }));
+      console.log(TAG, `downloaded activity ${activity.id} ` +
+        `(${blob.size} bytes in ${since(fetchStart)})`);
+      if (requestId) {
+        GM_setValue(K_PROGRESS, { requestId, done: files.length, total: activities.length });
+      }
+    }
 
     setStatus(`Attaching ${plural(files.length, 'file', 'files')} to the upload form…`);
     const input = await waitForElement(STRAVA_INPUT_SELECTOR, 30000);
@@ -1105,9 +1169,19 @@
     input.files = transfer.files;
     input.dispatchEvent(new Event('change', { bubbles: true }));
     console.log(TAG, `attached ${files.length} file(s) and started the upload ` +
-      `(${since(collectStart)} since claiming the batch)`);
+      `(${since(start)} for the whole run)`);
 
-    GM_setValue(K_ACK, { batchId, count: files.length, ts: Date.now() });
+    // Only now — once the files are actually attached and uploading — do
+    // these count as sent. Anything short of that leaves them new, so the
+    // next click retries them.
+    recordSeen(activities.map((a) => a.id));
+    if (requestId) {
+      // Retire the request here as well as on the Garmin side, so a run
+      // whose initiating tab was closed still doesn't leave one parked.
+      GM_deleteValue(K_REQUEST);
+      GM_deleteValue(K_PROGRESS);
+      GM_setValue(K_RESULT, { requestId, ok: true, count: files.length });
+    }
     setStatus(`Uploading ${plural(files.length, 'activity', 'activities')} from Garmin.`,
       { done: true });
   }

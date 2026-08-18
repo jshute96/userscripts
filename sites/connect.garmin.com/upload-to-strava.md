@@ -2,104 +2,73 @@
 
 ## Summary
 
-**Note:** This is more like an experiment or demo than a useful
-script, since the same thing can be done by linking Garmin in Strava.
+This script adds one-click buttons to upload all new rides from
+Garmin Connect to Strava.
 
-Garmin Connect has no way to send an activity to Strava, so moving
-rides across means doing it by hand, one at a time: open the activity,
-dig through the More… menu for Export to TCX, wait for the download,
-switch to Strava's upload page, find the files, and remember which ones
-you already did.
+On Garmin, there's an `Activities` button to jump directly to that page,
+and an `Upload to Strava` button that triggers the upload (from any page).
 
-This script adds two buttons to Garmin Connect's top toolbar.
-**Activities** just opens the Activities list. **Upload to Strava**
-does the whole transfer: it works out which rides you haven't sent yet,
-downloads each one as a TCX file, and hands them straight to Strava's
-upload page, which starts uploading them.
+On Strava, under the Plus menu, just above `Upload activity`, there's a
+new `Upload from Garmin` item that triggers the upload.
 
-You can start the same transfer from the other end: Strava's upload
-drop-down gets an **Upload from Garmin** item above Upload activity,
-which opens Garmin and runs the transfer from there.
+On the Garmin activities page, new rides (not yet uploaded) are highlighted
+with a `NEW` badge. Those are the ones that will be uploaded.
 
-It remembers what it has already sent, so a click after a ride sends
-exactly that ride. The record is only updated once Strava confirms the
-files are attached and uploading — if anything fails part way, nothing
-is marked as sent and the next click retries.
+The script only looks at the first page of activities — the newest 20,
+matching what Garmin's own list shows before you scroll — for both
+badging and uploading. It remembers well beyond that, so nothing gets
+re-sent if the list shifts under it. On the first run, and from the
+userscript manager's menu, you can reset the `NEW` state for the top N
+rides.
 
-### Using it
+### Alternative: Strava's Garmin connector
 
-Click **Upload to Strava** on the Activities list. It opens Strava's
-upload page in a background tab and reports progress in a panel at the
-top right of both pages.
+**Note:** Strava can link to Garmin directly and auto-upload every new
+ride, so strictly speaking this script isn't necessary. It's partly an
+experiment in complex cross-site userscript flows.
 
-Expect roughly a second per ride: almost all of it is Garmin's export
-endpoint generating and sending several megabytes of XML. Compressing
-and handing it to Strava costs well under a tenth of that. The console
-logs carry timings for each step if a run ever feels slower than that.
-
-The first click ever asks how many to send rather than assuming, since
-at that point every listed ride looks new:
-
-> First upload. The newest N activities will be uploaded to Strava.
-> How many should we send? (0–20)
->
-> After this, previously uploaded activities will be remembered.
-
-It defaults to 1. Everything older than the number you give is recorded
-as already uploaded. The same prompt comes back — with a different first
-line — any time none of the listed activities are recognized, which
-means either the record was cleared or you've been away long enough for
-the whole page to turn over. Cancelling changes nothing.
-
-Two entries in the userscript manager's menu adjust the record:
-
-| Menu command | Effect |
-| --- | --- |
-| Set how many activities are unsent… | Asks for a number; marks the newest N unsent and everything older as uploaded |
-| Forget which activities were sent | Clears the record, so the next upload asks again |
-
-The TCX files are also saved to your downloads folder as
-`activity_<id>.tcx`, the same names Garmin gives them. Chrome asks once
-whether to allow a run of several downloads from the site.
-
-If either site turns out to be signed out, the transfer stops at once
-rather than timing out, and you're left looking at the sign-in page you
-need, with a notice on it saying what to do next. Nothing is recorded as
-uploaded, so you can pick up where you left off after signing in.
+It does fit my workflow better, though. I like to add ride titles, set
+which bike I used, and sometimes change visibility — and Strava's
+auto-upload always uses the defaults. Editing rides after the fact, one
+by one, is more annoying than making the same edits on an upload page I
+triggered myself.
 
 ## Visible changes
 
-* Two text buttons in the top header bar, just right of the nav-toggle
-  arrow: **Activities**, then **Upload to Strava**.
+* Two text buttons in Garmin's top header bar, just right of the
+  nav-toggle arrow: **Activities**, then **Upload to Strava**.
 * **Activities** navigates to the Activities list.
-* **Upload to Strava**, from the Activities list, opens Strava's upload
-  page in a background tab, saves each new ride as `activity_<id>.tcx`,
-  and attaches them to Strava's upload form, which begins uploading.
-  From any other page it just navigates to the Activities list.
+* **Upload to Strava** downloads every ride that hasn't been sent yet
+  and attaches them to Strava's upload form, opening a background Strava
+  upload tab only if one isn't already open. It works from any Garmin
+  `/app/` page, not just the Activities list.
 * An orange **New** badge appears on the Activities list, on the second
-  line just after the activity type, on every activity that hasn't been
-  uploaded to Strava yet — so the list itself shows what the next click
-  will send. Hovering explains what it means. The badges update as soon
-  as an upload finishes, or when either menu command changes the
-  history. Nothing is badged before the first upload, when there's no
-  history to compare against.
+  line just after the activity type, on any of the **newest 20**
+  activities that hasn't been uploaded to Strava yet — so the list
+  itself shows what the next click will send. The list is
+  infinite-scroll, and rows scrolled in past the newest 20 are never
+  badged: they're outside what an upload looks at, so marking them New
+  would promise a send that isn't going to happen. Hovering explains what it means. The badges update as soon
+  as an upload finishes — including one run entirely on the Strava side
+  — and when either of the history commands changes it. Nothing is badged
+  before the first upload, when there's no history to compare against.
 * An **Upload from Garmin** item appears at the top of Strava's upload
-  drop-down, above Upload activity. It opens Garmin's Activities list in
-  a foreground tab and runs the transfer there.
+  drop-down, above Upload activity. It sends the current tab to the
+  upload page and runs the whole upload there. No Garmin tab is opened.
 * All three added controls carry a tooltip describing what they do.
-* A status panel in the top right of **both** tabs reports what's
-  happening for the whole transfer, rewriting itself as it goes rather
-  than flashing a message and vanishing — which ride is downloading,
-  compressing or sending on the Garmin side, and what the Strava side
-  is downloading and how many files it has. It turns green when the
-  upload starts and clears itself after ten seconds; red on failure,
-  and stays until clicked.
+* A status panel in the top right reports what's happening for the whole
+  run, rewriting itself as it goes rather than flashing a message and
+  vanishing — which ride is downloading, and how far along the run is.
+  It turns green when the upload starts and clears itself after ten
+  seconds; red on failure, and stays until clicked. When the run is
+  started from Garmin, both tabs show it.
 * Short one-off notices still appear for things that aren't part of a
-  running transfer — "No new activities to send", and the like.
+  running upload — the menu commands' confirmations, and the like.
 * A prompt asks how many of the newest activities to send, on the first
   upload and any time none of the listed activities are recognized.
-* Two userscript-manager menu commands adjust which activities count as
-  already uploaded.
+* Three userscript-manager menu commands, on Garmin Connect pages only:
+  two that adjust which activities count as already uploaded, and one
+  that diagnoses a failing run.
 
 ## Implementation
 
@@ -109,83 +78,235 @@ One script, matched on both `https://connect.garmin.com/*` and
 `https://www.strava.com/*`, branching on `location.hostname` at the
 bottom of the IIFE. It has to be one script rather than two, because GM
 storage is scoped per script and that storage is the only channel that
-crosses the origin boundary — see "Talking across the two pages" below.
+crosses the origin boundary.
 
 Both matches are whole sites rather than the specific sections we care
 about (`/app/*`, `/upload/*`), with the path checked inside the script.
-That's deliberate: it's the only way to be running on the sign-in page
-when either site turns out to be signed out — see "Signed-out
-detection" below.
+That's deliberate: it's the only way to be running on a Strava sign-in
+page when Strava turns out to be signed out — see "Signed-out detection"
+below — and it puts the Strava menu item in the nav on every page.
 
-### Starting from Strava
+### Talking to Garmin's API
 
-Strava's global nav holds the upload drop-down, in plain
-server-rendered markup with no framework:
+Three requests are the entire Garmin side of the feature, and they run
+identically from either origin, because they go out through
+`GM_xmlhttpRequest` — issued by the extension rather than by the page.
+That sidesteps CORS (see below). `@connect connect.garmin.com` is
+required.
 
-```html
-<li class="nav-item drop-down-menu upload-menu enabled">
-  <a class="nav-link selection" href="/upload">…</a>
-  <ul class="options">
-    <li><a href="/upload">…Upload activity</a></li>
-    …
-```
+| Request | Purpose |
+| --- | --- |
+| `GET /app/activities` | 8 KB server-rendered shell; scrape `<meta name="csrf-token">` and `?bust=<version>` |
+| `GET /gc-api/activitylist-service/activities/search/activities?limit=20&start=0` | JSON list, newest first, with `activityId` and `activityName` |
+| `GET /gc-api/download-service/export/tcx/activity/<id>` | the TCX, `application/vnd.garmin.tcx+xml` — the same endpoint Garmin's own "Export to TCX" menu item uses |
 
-We prepend our own `<li>` to `ul.options`, reusing the
-`icon-upload-activity` span class so the label lines up with its
-neighbours instead of sitting flush left, and giving the link a `title`
-(Strava's own items have none, but ours is the one that needs
-explaining). A `MutationObserver` re-adds it if Strava re-renders the
-nav; a fixed `id` keeps that idempotent — which also means an edit to
-the tooltip only shows up after a page reload, not on a re-insert.
+#### The two gates on `gc-api`
 
-The item's href is
-`https://connect.garmin.com/app/activities#upload-from-garmin`, but the
-click handler cancels the navigation and uses `GM_openInTab(…,
-{active: true})` instead, so the Strava page survives and the Garmin tab
-is in the **foreground**. Foreground matters: the first-run `prompt()`
-and every notice would be invisible in a background tab.
+Both `gc-api` calls are guarded twice, by two different parties, and a
+request needs to satisfy both. Measured directly, with the same session
+and token, varying one header at a time:
 
-The clicked tab then sends *itself* to `/upload/select`, so the files
-come back to the tab you started in rather than a third one. Nothing
-passes a tab id around — there's no userscript API that could address a
-tab anyway. Instead the tab volunteers, and the claim decides:
+| Headers sent | Result |
+| --- | --- |
+| neither | 403 |
+| `Connect-Csrf-Token` only | 403 |
+| `Sec-Fetch-Site: same-origin` only | 403 |
+| both | **200** |
 
-* Any Strava upload tab with no batch in flight registers a
-  `GM_addValueChangeListener` on `handoff` and waits. An open upload tab
-  is a standing offer to be the consumer. That listener is registered
-  **only** on `/upload/*` — a Strava tab on any other page never claims
-  and is never navigated anywhere.
-* When a batch starts, tabs race to write `claim`. GM storage has no
-  compare-and-swap — `GM_setValue` is an unconditional last-write-wins
-  overwrite — so a bare read-then-write lets two tabs both see no claim
-  and both proceed, which would upload the same ride twice. Instead each
-  writes optimistically, waits `CLAIM_SETTLE_MS` (600 ms, comfortably
-  over the 150 ms write debounce plus the round trip), then re-reads:
-  both converge on the same stored value, so exactly one sees its own id
-  and continues while the loser stands down.
-* The Garmin side runs `ensureConsumer()` alongside the first fetch: it
-  waits for a claim, and only opens an upload tab of its own if none
-  arrives. The grace period is 2.5 s normally — an already-open tab
-  needs one storage round-trip — and 25 s when the run came from Strava,
-  since that tab is still loading the upload page.
+* **`Connect-Csrf-Token`** is Garmin's. It's a per-session value in the
+  page's `<meta name="csrf-token">`; a wrong one answers 403 as well.
+  We fetch it fresh at the start of every run, so a long-open tab can't
+  be holding a stale one. Cookies do the actual authentication — a
+  request with none answers **401**, which is how you tell the two
+  failures apart.
+* **`Sec-Fetch-Site: same-origin`** is Cloudflare's, and it is not
+  Garmin's app at all. The 403 comes back with an empty body and **no
+  `cf-cache-status` header** — where a 200 carries
+  `cf-cache-status: DYNAMIC` — so the request is refused at the edge and
+  never reaches Garmin. A service worker's `fetch` always sends
+  `Sec-Fetch-Site: none`, a value no page can produce, so every call
+  fails without the override. `/app/activities` isn't covered by the
+  rule, which is why the session fetch works unaided and made this look
+  for a long time like an authentication problem.
 
-The fallback keeps this robust when the volunteer never turns up (tab
-closed, navigation failed, signed out), at the cost of a redundant tab
-in that case only. Both branches are verified: with no claimer the
-Garmin side logs `no upload tab claimed the batch within 2500ms;
-opening one` and opens it; with a claimer it logs `an open Strava upload
-tab claimed the batch; not opening one` and opens nothing.
+`Sec-` headers are *forbidden request headers*: `fetch()` strips them
+for everybody, in a service worker exactly as on a page. So this only
+works on a manager that routes them around `fetch` — SourceMonkey
+compiles them into a `declarativeNetRequest` rule (its issue #21), and
+deliberately doesn't default them, since stamping `same-origin` on every
+request would silently defeat this kind of cross-origin check
+everywhere. A script has to ask.
 
-One consequence worth knowing: clicking the item from a non-upload
-Strava page navigates that tab away to the upload page. If the transfer
-then fails, you've lost whatever page you were on.
+`X-app-ver` (from the `bust=` query) is **not** checked by anything, but
+Garmin's own client always sends it and we have the value for free.
 
-On the Garmin side, `initGarmin` sees the hash and runs the same
-`startUpload()` the button calls, after `waitForStableList()` — the
-list streams in a row at a time, and diffing against a half-rendered
-page would call older rides new. The hash is cleared with
-`history.replaceState` first, so a reload doesn't silently start another
-transfer.
+If a run fails with `HTTP 403`, the **Diagnose Garmin API access** menu
+command runs that table live. `csrfAndSameOrigin` returning 200 while
+`csrfOnly` returns 403 is the healthy shape; both failing means the
+`Sec-Fetch-Site` override isn't reaching the wire, which is a manager
+problem rather than a script one. The report also compares the CSRF
+token the extension fetches against the one in the tab's own `<meta>` —
+they should be identical, since the token is session-bound and stable,
+and a mismatch would mean the extension's requests are in a different
+session. (That line only means something on a Garmin page; Strava has an
+unrelated `csrf-token` meta of its own.)
+
+Ruled out by measurement, and *not* what a 403 here means: a missing or
+wrong `Referer`, an `Origin: chrome-extension://…`, missing `sec-ch-ua`
+client hints, a malformed or absent `X-app-ver`, a token with trailing
+whitespace, and a differently-cased header name. Every one of those
+still returns 200.
+
+#### Ordering, and rides that arrive out of order
+
+**Detection is by identity, not position.** `chooseActivities()` is a
+set difference — `listed.filter(a => !seen.has(a.id))` — so where an
+activity sits in the list has no bearing on whether it's recognized as
+new. A ride that appears in the middle of the list is picked up exactly
+like one at the top. (The `.reverse()` afterwards is only about the
+order files reach Strava, so they land oldest-first.)
+
+That matters because the list **is not in upload order**. Measured: the
+API sorts by activity *start* time descending — `sortBy=startLocal`
+returns byte-identical output to the default — and the response carries
+no upload or created timestamp at all, only `startTimeLocal`,
+`startTimeGMT`, `beginTimestamp` and `endTimeGMT`. So a ride that syncs
+late (a watch left un-synced for a week, a manual file import, a device
+that backfills) appears at its *chronological* position, part-way down,
+not at the top. Detection handles that.
+
+**The window is the real limit.** `LIST_LIMIT` is 20, matching what
+Garmin's own Activities page shows, which keeps "what has a New badge"
+and "what an upload would send" the same set on the first screen. But
+the window is applied by the server, *before* we see anything — so a
+late-syncing ride whose start time puts it beyond position 20 is
+invisible to the script, and no amount of client-side sorting can
+recover it. Raising `LIST_LIMIT` is the only lever; the response is
+small (a few KB per activity), so a larger window is cheap if late
+syncs by more than ~20 rides ever become a real case.
+
+One related wrinkle: `keepNewestUnsent()` — the first-run prompt and the
+"how many are unsent" menu command — slices positionally, so its
+"newest N" means newest *by start time*, which for an out-of-order sync
+isn't the same as the most recently added. That only affects those two
+starting-point commands, never ordinary detection.
+
+#### Why `GM_xmlhttpRequest` and not `fetch`
+
+A plain `fetch` to Garmin from a Strava page is impossible: Garmin sends
+no `Access-Control-*` headers on any of these endpoints and answers a
+CORS preflight with `403`. Verified from a real Strava page — plain,
+credentialed, and with the required headers all fail with
+`TypeError: Failed to fetch` before the request leaves the browser.
+
+Version 0.2 worked around that by fetching on the Garmin side and
+shipping the bytes to the Strava tab through GM storage — which meant
+gzip + base64 to fit `chrome.storage.local`'s 10 MB extension-wide
+budget, a six-hop per-file handshake with one payload in flight at a
+time, staleness sweeping for abandoned batches, and a hard dependency on
+cross-tab value broadcasts.
+
+Two SourceMonkey gaps had to close before this version could exist, and
+each was found the hard way, by the endpoint failing:
+
+* **Issue #20 — no cookies.** `GM_xmlhttpRequest` built its
+  `RequestInit` without `credentials`, so every request went out
+  anonymous and Garmin answered 401. Now
+  `credentials: request.anonymous ? 'omit' : 'include'`, matching
+  Tampermonkey and Violentmonkey.
+* **Issue #21 — no way to set `Sec-Fetch-*`.** Cookies alone still left
+  every `gc-api` call answering 403 at Cloudflare's edge. Forbidden
+  headers now travel as a `declarativeNetRequest` session rule instead
+  of through `fetch`.
+
+With both, this version deletes about 200 lines of protocol, replaced by
+three requests either side can make.
+
+Strava still can't ingest a URL — its upload form is
+`multipart/form-data` to `/upload/files`, and the public API's
+`POST /uploads` is multipart too — so the bytes do have to pass through
+the browser. They just no longer pass through storage.
+
+### Who does what
+
+The files have to be attached to a form that only exists on Strava's
+upload page, so the download always happens **in a Strava upload tab**.
+The only question is who picks the list.
+
+* **Started on Strava.** The menu item sends the tab to
+  `/upload/select#upload-from-garmin`; on arrival the script clears the
+  hash (so a reload doesn't start another run) and does everything
+  there — session, list, diff, downloads, attach. Nothing is written to
+  GM storage except the updated history. No Garmin tab is involved.
+* **Started on Garmin.** The Garmin tab fetches the list and does the
+  diff and any prompt itself, so the prompt lands in the tab the user is
+  looking at. It then writes a `request` — *just* the ids and names —
+  and a Strava upload tab does the fetching.
+
+The cross-tab half is therefore only a short JSON list, and only in one
+of the two directions.
+
+### Finding a Strava upload tab
+
+Nothing passes a tab id around — there's no userscript API that could
+address a tab anyway. Instead tabs volunteer, and a claim decides:
+
+* Any Strava tab **on `/upload/*`** registers a
+  `GM_addValueChangeListener` on `request` and waits. That's a standing
+  offer, per-request rather than latched, so a tab left on the page keeps
+  serving runs for as long as it's open. A Strava tab on any other page
+  never claims and is never navigated anywhere.
+* Tabs race to write `claim`. GM storage has no compare-and-swap —
+  `GM_setValue` is an unconditional last-write-wins overwrite — so a bare
+  read-then-write lets two tabs both see no claim and both proceed, which
+  would upload the same ride twice. Instead each writes optimistically,
+  waits `CLAIM_SETTLE_MS` (600 ms, comfortably over the 150 ms write
+  debounce plus the round trip), then re-reads: both converge on the same
+  stored value, so exactly one sees its own id and continues while the
+  loser stands down.
+* The Garmin side runs `ensureConsumer()` alongside its wait: it gives a
+  claim 2.5 s to appear — an already-open tab needs one storage
+  round-trip — and only opens a background upload tab of its own if none
+  does.
+
+### The storage keys
+
+| Key | Written by | Meaning |
+| --- | --- | --- |
+| `seenActivityIds` | whoever finishes a run | activity IDs already sent (`null` = never run) |
+| `request` | Garmin | `{requestId, activities: [{id, name}], ts}` |
+| `claim` | Strava | which upload tab took the request |
+| `progress` | Strava | `{requestId, done, total}`, so the Garmin tab's panel can follow along |
+| `result` | Strava | `{requestId, ok, count, error}` — the outcome |
+| `signinHint` | either | a note to show on the sign-in page it's about to open |
+
+`request` is retired by both sides when a run finishes — the initiating
+tab in a `finally`, and the serving tab as it writes the result — so a
+run whose initiator was closed still doesn't leave one parked for the
+next upload tab to pick up.
+
+Every wait is a `waitForValue(key, predicate, timeout)` that checks the
+current value *before* listening, so a write that lands while the Strava
+tab is still loading isn't missed. Nothing polls.
+
+The Garmin tab's wait for `result` is 10 minutes — purely a backstop
+against a tab closed mid-run, since the panel is driven by `progress`
+and a slow-but-alive run still looks alive. Requests older than 15
+minutes are ignored, and swept from storage when a Garmin page next
+starts, so an abandoned one can't be picked up later.
+
+`seenActivityIds` is written by whichever side attached the files, which
+is usually the Strava tab. The Garmin side keeps its "New" badges in step
+by listening for changes to that key rather than to the run.
+
+> **Requires a userscript manager with reliable cross-tab value
+> broadcasts** for the Garmin-initiated path. Early SourceMonkey builds
+> dropped those broadcasts whenever the extension's service worker had
+> been evicted and respawned, and a tab that missed one could never
+> re-sync, because `GM_getValue` reads a page-local cache with no
+> round-trip to the extension — SourceMonkey issue #19, since fixed. If
+> a Garmin-initiated run ever stalls again, check that first; the
+> Strava-initiated path doesn't depend on it at all.
 
 ### The buttons
 
@@ -209,6 +330,35 @@ attribute selectors (`[class*="TopHeaderBarView_navToggle"]`).
   the className once a secondary button renders. There's an inline
   style fallback if no reference button ever appears.
 
+### Starting from Strava
+
+Strava's global nav holds the upload drop-down, in plain
+server-rendered markup with no framework:
+
+```html
+<li class="nav-item drop-down-menu upload-menu enabled">
+  <a class="nav-link selection" href="/upload">…</a>
+  <ul class="options">
+    <li><a href="/upload">…Upload activity</a></li>
+    …
+```
+
+We prepend our own `<li>` to `ul.options`, reusing the
+`icon-upload-activity` span class so the label lines up with its
+neighbours instead of sitting flush left, and giving the link a `title`
+(Strava's own items have none, but ours is the one that needs
+explaining). A `MutationObserver` re-adds it if Strava re-renders the
+nav; a fixed `id` keeps that idempotent — which also means an edit to
+the tooltip only shows up after a page reload, not on a re-insert.
+
+The href is the upload page with the trigger fragment, and the click
+handler cancels the navigation only to do the same thing itself (or to
+start the run in place, if you were already on the upload page).
+
+One consequence worth knowing: clicking the item from another Strava
+page navigates that tab away to the upload page. If the run then fails,
+you've lost whatever page you were on.
+
 ### The "New" badges
 
 Each row of the Activities list is `[class*="ActivityListItem_listItem"]`,
@@ -222,7 +372,10 @@ and its second line is:
 
 We match that line with `[class*="ActivityListItem_activityType__"]` —
 the trailing `__` before the build hash is what stops it also matching
-`activityTypeButton` — and append the badge after the button.
+`activityTypeButton` — and append the badge after the button. Row ids
+come from the `/app/activity/<id>` link in the row, the only stable
+thing about the row markup. (The badges are the one place we still read
+the list out of the DOM; everything else uses the API.)
 
 One layout wrinkle: the type **button** is `display: flex`, so it fills
 the line and an inline sibling drops to a row of its own underneath. We
@@ -231,216 +384,73 @@ inserting, which puts the badge alongside and shrinks the button to its
 content width (visually identical, since its content was already only
 ~83px of a 388px line).
 
+Two things decide whether a row is badged: its id being absent from the
+history, **and** its position being inside the window. The second is not
+optional. The page is infinite-scroll rather than paged, so scrolling
+appends rows indefinitely, and rows old enough predate anything the
+script ever recorded. Measured on a real list scrolled to 180 rows: the
+id check alone would badge 163 of them, against the 3 that an upload
+would actually send. Position works as the window because rows arrive
+newest-first, in the same order as the API.
+
 `refreshNewBadges()` is idempotent — it adds and removes only where a
 row disagrees with the stored history — so it's safe to call as often
 as we like. It's driven from:
 
 * a debounced hook on the existing `MutationObserver`, since the list
   streams in a row at a time and our own insertions re-trigger it;
-* `recordSeen()` and `keepNewestUnsent()`, the only two places the
-  history is written, so a finished upload or either menu command
-  refreshes the list immediately;
-* the "Forget which activities were sent" command.
+* a `GM_addValueChangeListener` on `seenActivityIds`, which covers both
+  a local change and an upload that ran in a Strava tab;
+* `recordSeen()` and `keepNewestUnsent()`, so a local change doesn't
+  wait on the broadcast round-trip.
 
 With no history at all (`loadSeen()` returns `null`), nothing is badged:
 every row would qualify, and twenty badges convey nothing.
 
 ### Where the time goes
 
-Measured on two real rides, in a logged-in Garmin tab:
+Measured on two real rides: the export endpoint takes 979 ms for a
+5.5 MB ride and 1219 ms for a 7.0 MB one, and that is essentially the
+whole cost of a run. The list and session requests are one small round
+trip each, and attaching the files is instant.
 
-| Phase | 5.5 MB ride | 7.0 MB ride |
-| --- | --- | --- |
-| `fetch` the TCX from Garmin | 979 ms | 1219 ms |
-| gzip | 88 ms | 75 ms |
-| base64 | 5 ms | 4 ms |
-| Strava-side decode back to a `File` | 52 ms | 66 ms |
+Version 0.2's gzip/base64/handshake apparatus added roughly 150 ms per
+ride plus a storage round-trip per hop; removing it is worth more as a
+simplification than as a speed-up.
 
-So the export endpoint is essentially the whole cost, and our own
-encoding is noise. Nothing in the transfer polls — every wait is a
-`GM_addValueChangeListener` — but the handshake is chatty, and the
-userscript manager debounces storage writes (150 ms in SourceMonkey),
-so each hop adds a beat: `file` → `fileTaken` per activity, then
-`done` → `ack`, six hops for a two-ride batch.
+`GM_xmlhttpRequest` does move each TCX through the service worker as
+base64 (the manager's binary transport, ~33% overhead on the wire
+between SW and page, against a 50 MB response cap). No measurable
+difference so far on a 5.7 MB file, but it's the thing to look at first
+if large rides ever feel slow.
 
-The transfer is deliberately sequential — the next activity isn't
-fetched until Strava acknowledges the last — which keeps exactly one
-payload in storage at a time, at the cost of not overlapping the ~1 s
-fetch with the ~0.3 s handshake. Pipelining is the obvious speed-up if
-it ever matters.
-
-Every phase is timed in the logs (`fetched activity … in 1.2s`,
-`waited 1.4s for Garmin`, `… after 3.1s total`), so a slow run can be
-attributed without re-measuring.
-
-An earlier version also opened a background tab per new ride, for
-eyeballing them. That's been removed: it's off-topic for what the
-script does now, and those tabs each load a full activity page with
-maps and charts, competing for bandwidth and CPU with the very fetch
-the transfer is waiting on.
-
-### Getting the TCX bytes
-
-Reading the activity list is easy: every row links to
-`/app/activity/<id>`, and that href is the only stable thing about the
-row markup.
-
-Garmin's own "Export to TCX" menu item fetches
-
-```
-GET /gc-api/download-service/export/tcx/activity/<id>
-```
-
-and that endpoint is usable from *any* Garmin page, for any activity
-ID — no per-activity tab is needed to download it. It needs two
-headers, and answers `401` with an empty body if either is missing:
-
-| Header | Where we get it |
-| --- | --- |
-| `Connect-Csrf-Token` | `<meta name="csrf-token" content="…">`, present on every server-rendered page |
-| `X-app-ver` | the `?bust=<version>` query on the page's own `<link>`/`<script>` asset URLs |
-
-Cookies do the actual authentication. A long-open SPA tab can outlive
-its session, at which point *every* `gc-api` call 401s, including
-harmless ones — so a 401 isn't a sign the token is wrong. We re-request
-`/app/activities` (which refreshes the cookies) and retry once; if that
-still fails the batch aborts and asks the user to reload.
-
-Each downloaded blob is saved to disk by clicking a hidden
-`<a download="activity_<id>.tcx">` on an object URL.
-
-### Why there's a transfer at all
-
-The obvious simpler design is for the Strava page to fetch the TCX
-itself, and skip the handoff entirely. It can't, today:
-
-* **Direct `fetch` is impossible.** Garmin sends no `Access-Control-*`
-  headers on the export endpoint and answers a CORS preflight with
-  `403`. Verified from a real Strava page — plain, credentialed, and
-  with the required headers all fail with `TypeError: Failed to fetch`
-  before the request leaves the browser.
-* **`GM_xmlhttpRequest` would sidestep CORS** — the extension's service
-  worker makes the request, so the page's same-origin policy doesn't
-  apply, and the cookie never leaves the browser's jar — **but
-  SourceMonkey doesn't send cookies** (`src/gm-xhr.ts` builds its
-  `RequestInit` without `credentials`, which defaults to `same-origin`
-  against the extension's own origin). Garmin answers `401`. Filed as
-  SourceMonkey issue #20.
-* **Strava can't ingest a URL.** Its upload form is `multipart/form-data`
-  to `/upload/files`, and the public API's `POST /uploads` is multipart
-  too. There's no URL to hand it, and the URL would be useless without
-  the cookies and CSRF token anyway.
-
-If #20 lands, the Strava side could scrape the CSRF token from a Garmin
-page and pull each TCX directly, and everything below — gzip, base64,
-the six-hop handshake, the storage budget, the staleness sweep, the
-dependency on cross-tab broadcasts — could go. Worth doing as a
-simplification rather than for speed: the current flow measures fast
-enough in practice.
-
-### Talking across the two pages
-
-The Strava upload page can't read the TCX files from the downloads
-folder — no page can — and it can't fetch them from Garmin either,
-because that's cross-origin and wouldn't carry Garmin's cookies. So the
-Garmin page has to push the bytes to it.
-
-GM storage is shared across every tab running this script, on either
-origin, and SourceMonkey implements `GM_addValueChangeListener` with
-the standard `(key, oldValue, newValue, remote)` signature, firing with
-`remote = true` when another tab writes. That gives both a transport
-and a completion signal. The keys:
-
-> **Requires a userscript manager with reliable cross-tab value
-> broadcasts.** The whole handoff rides on `GM_addValueChangeListener`
-> firing in the other tab. Early SourceMonkey builds dropped those
-> broadcasts whenever the extension's service worker had been evicted
-> and respawned, and a tab that missed one could never re-sync, because
-> `GM_getValue` reads a page-local cache with no round-trip to the
-> extension. That made transfers fail intermittently at whichever hop
-> happened to be crossed — see SourceMonkey issue #19. If this script
-> starts stalling mid-transfer again, check that first: the log will
-> stop cleanly at one of the four hops below, with the value sitting in
-> the manager's storage, unread.
-
-| Key | Written by | Meaning |
-| --- | --- | --- |
-| `seenActivityIds` | Garmin | activity IDs already sent (`null` = never run) |
-| `handoff` | Garmin | `{batchId, ids, count, state, ts}`; `state` goes `sending` → `done` |
-| `claim` | Strava | which upload tab took the batch, so two don't both consume it |
-| `file` | Garmin | one file at a time: `{batchId, id, name, seq, gz}` |
-| `fileTaken` | Strava | receipt for `file`, freeing the slot |
-| `ack` | Strava | the files are attached and uploading |
-| `failure` | Strava | this batch can't be taken, and why |
-| `signinHint` | Garmin | a note to show on the sign-in page it's about to open |
-
-`chrome.storage.local` is capped at 10 MB for the whole extension and
-SourceMonkey doesn't ask for `unlimitedStorage`, while a TCX for a long
-ride runs to several MB. Two things keep us well inside that:
-
-* Abandoned batches are swept at init. A run that dies without
-  rejecting — tab closed, navigated away — never reaches
-  `clearBatchKeys()`, and `HANDOFF_STALE_MS` only stops us *reading* a
-  stale batch, it deletes nothing. Without the sweep, each abandoned run
-  leaves ~425 KB parked in storage permanently.
-* Payloads are gzipped (`CompressionStream`) and base64'd. Measured on
-  a real ride: 6.5 MB of TCX → 366 KB gzipped → 488 KB of base64,
-  about 13× smaller. The Strava side inflates it with
-  `DecompressionStream` and the round trip is byte-identical.
-* Only **one** file is in storage at a time. Garmin writes `file`, then
-  blocks until Strava deletes it and posts `fileTaken` before fetching
-  the next.
-
-The exchange, in order:
-
-1. Garmin clears the batch keys and writes `handoff` as `sending`. In
-   parallel, `ensureConsumer()` waits for a claim and opens an upload tab
-   only if none arrives.
-2. Per activity: fetch → save to disk → gzip → write `file` → wait for
-   `fileTaken`.
-3. Garmin sets `handoff.state = 'done'`.
-4. Strava, having collected `count` files, waits for `done`, attaches
-   them, and writes `ack`.
-5. Garmin sees `ack` and only then adds the IDs to `seenActivityIds`.
-
-Every wait is a `waitForValue(key, predicate, timeout)` that checks the
-current value *before* listening, so a write that lands while the
-Strava tab is still loading isn't missed. Waits time out after 90 s, and
-a timeout aborts without touching `seenActivityIds`, so the next click
-retries.
+Every phase is timed in the logs (`downloaded activity … in 1.2s`,
+`… for the whole run`), so a slow run can be attributed without
+re-measuring.
 
 ### Signed-out detection
 
 By far the most likely failure at either end is not being signed in, and
-a timeout is a slow and unhelpful way to learn that. Both sites redirect
-signed-out visitors, and in both cases the redirect stays on the same
-origin, so a whole-site `@match` puts us on the sign-in page where we
-can say something:
+a timeout is a slow and unhelpful way to learn that.
 
-| | Signed-out redirect |
-| --- | --- |
-| Strava | `/upload/select` → `/login` |
-| Garmin | `/app/activities` → `/signin/?service=…` |
+**Garmin** is now checked directly, at the start of every run, from
+whichever side started it: the `GET /app/activities` that fetches the
+CSRF token 302s to `/signin/?service=…` when signed out, and the
+response carries no `csrf-token` meta. Either signal is enough. The
+error carries a `signedOutOf` marker, and `reportFailure()` opens
+Garmin's sign-in page in a foreground tab with a note on it.
 
-**Strava.** On a non-upload Strava page the script looks for a batch in
-`sending` state that started within the last 60 seconds — recent enough
+**Strava** can't be probed the same way, because we never fetch Strava —
+we *are* Strava. Instead the whole-site `@match` means a bounced upload
+tab is still running this script: on a non-upload Strava page it looks
+for a request that started within the last 60 seconds — recent enough
 that the tab we opened is the obvious explanation — **and** a
 login/signup/onboarding path. Only a sign-in page is real evidence the
 upload tab bounced; any other Strava page is far more likely to be the
-user browsing in a different tab while a transfer runs, and killing
-their batch over that would be a false positive. Both conditions met, it
-writes `failure` with `Strava isn't signed in`.
-
-On the Garmin side, `failureWatcher(batchId)` is a promise that rejects
-as soon as that key appears and otherwise never settles. Every wait is
-raced against it, so the batch fails immediately with the specific
-reason instead of after 90 seconds.
-
-**Garmin.** The `#upload-from-garmin` fragment survives the 302 —
-browsers carry a fragment onto a redirect target that has none of its
-own, which is verified behavior here, not just spec-reading — so the
-sign-in page can tell it was our navigation that landed there rather
-than an ordinary visit, and shows a notice instead of failing silently.
+user browsing in a different tab while a run happens, and killing it over
+that would be a false positive. Both conditions met, it writes `result`
+with `ok: false`, so the Garmin side fails immediately with the specific
+reason instead of waiting out its timeout.
 
 ### Status and where errors surface
 
@@ -448,38 +458,40 @@ Two `position: fixed` panels in the top right, both also logged with
 the `[garmin-dl]` prefix:
 
 * `setStatus(msg, {done, error})` owns a **single** element with a
-  fixed id, rewritten in place as the transfer advances. Both sides use
-  it, so whichever tab you're looking at says what's going on. The
-  Strava tab is the reason it exists: it spends most of a minute
-  waiting on Garmin to fetch and compress, and before this it showed an
-  empty upload page the whole time, then flashed one message just as it
-  finished. `done` turns it green and clears after 10 s; `error` turns
-  it red and leaves it until clicked.
-* `toast(msg, ms)` is still used for one-off notices outside a running
-  transfer ("No new activities to send"). `toast(msg, 0)` never
+  fixed id, rewritten in place as the run advances. Both sides use it,
+  so whichever tab you're looking at says what's going on. `done` turns
+  it green and clears after 10 s; `error` turns it red and leaves it
+  until clicked.
+* `toast(msg, ms)` is used for one-off notices outside a running upload
+  (the menu commands, the sign-in hint). `toast(msg, 0)` never
   auto-dismisses — a six-second toast in a tab the user hasn't switched
   to is a message nobody reads.
 
 Getting the user in front of the right page takes some care, because
 **a background tab cannot pull itself to the front**: `window.focus()`
 from a hidden tab is silently ignored (confirmed by driving two tabs
-over CDP and watching `document.visibilityState` refuse to change). So
-the bounced upload tab can't present itself, and there's no API for one
-tab to focus another.
+over CDP and watching `document.visibilityState` refuse to change). So a
+bounced upload tab can't present itself, and there's no API for one tab
+to focus another.
 
-What we do instead, per direction:
+`reportFailure()` handles both directions the same way: it writes
+`signinHint` to GM storage, then opens the relevant sign-in page as a
+*new foreground* tab. The script instance on that new page reads the
+hint (within 60 s), deletes it, and shows it as a persistent notice —
+which is what puts the explanation in the tab the user is actually
+looking at. Any already-bounced background tab is left alone rather than
+closed.
 
-* **Garmin signed out** — the tab we opened is already in the
-  foreground, showing Garmin's sign-in page. Nothing to move; we just
-  add the notice.
-* **Strava signed out** — the bounced upload tab is in the background,
-  so the Garmin side opens `strava.com/login` as a *new foreground* tab.
-  Before opening it, it writes `signinHint` to GM storage; the script
-  instance on that new page reads the hint (within 60 s), deletes it,
-  and shows it as a persistent notice. That's what puts the explanation
-  — "Sign in to Strava, then click Upload to Strava on the Garmin tab
-  to send N activities" — in the tab the user is actually looking at.
-  The already-bounced background tab is left alone rather than closed.
+Two things that have to hold for that, and both were briefly broken:
+
+* **The hint is read outside the `/app/*` gate.** The page we open is
+  `/signin/`, so reading it inside the gate means the note never appears
+  on the one page it exists for.
+* **Only the initiating tab escalates.** A Strava tab serving a request
+  from the Garmin button passes `escalate: false`: it shows the status
+  and reports the failure back over `result`, and the tab the user
+  actually clicked in opens the sign-in page. Otherwise one lapsed
+  session opens one tab per tab involved.
 
 ### Attaching to Strava
 
@@ -501,31 +513,38 @@ change event trigger the upload requests.)
 ### What we assume stays stable
 
 * `button[class*="TopHeaderBarView_navToggle"]` exists on `/app/*`.
-* Activity rows link to `/app/activity/<id>`.
+* Activity rows are `[class*="ActivityListItem_listItem"]`, each with a
+  type line at `[class*="ActivityListItem_activityType__"]` and a link
+  to `/app/activity/<id>`.
 * Strava's upload drop-down is `li.upload-menu ul.options`, with
   `<li><a>` items.
-* Activity rows are `[class*="ActivityListItem_listItem"]`, each with a
-  type line at `[class*="ActivityListItem_activityType__"]`.
 * Signed-out redirects stay on the same origin: Strava to `/login`,
   Garmin to `/signin/`.
 * `<meta name="csrf-token">` and a `?bust=<version>` asset URL are in
-  the server-rendered page.
-* `/gc-api/download-service/export/tcx/activity/<id>` serves TCX to a
-  cookie-authenticated request carrying those two headers.
+  the server-rendered `/app/activities`.
+* `/gc-api/activitylist-service/activities/search/activities` and
+  `/gc-api/download-service/export/tcx/activity/<id>` serve a
+  cookie-authenticated request carrying `Connect-Csrf-Token` and
+  `Sec-Fetch-Site: same-origin`.
 * Strava's upload page has
   `form[action*="/upload/files"] input[type="file"][name="files[]"]`
   and starts uploading on `change`.
+* The userscript manager sends cookies with `GM_xmlhttpRequest`, and
+  can put a forbidden `Sec-` header on the wire. Tampermonkey and
+  Violentmonkey have both; SourceMonkey since the fixes for its issues
+  #20 and #21. Without the second, everything under `gc-api` fails and
+  nothing else does.
 
 ### Testing
 
-`upload-to-strava.spec.js` covers the Garmin buttons and the
-Strava menu item. It injects `test/gm-stubs.js` before the script,
-because the fixture runs the raw body with no userscript manager and
-this script reads GM storage as soon as it starts.
+`upload-to-strava.spec.js` covers the Garmin buttons, the Strava menu
+item, and that the menu item sends its own tab to the upload page. It
+injects `test/gm-stubs.js` before the script, because the fixture runs
+the raw body with no userscript manager and this script reads GM storage
+as soon as it starts.
 
-Those stubs get the script running; they are not coverage of the
-transfer. The store they provide is same-page and instant, so it models
-neither the manager's write debounce nor — the part that matters here —
-delivery to another tab. The handoff, the claim protocol and the badges'
-response to a completed upload are verified by hand in a browser with
-the real manager, reading the `[garmin-dl]` logs in both tabs.
+Nothing past the click is covered. Every request goes through
+`GM_xmlhttpRequest`, and a fake for that would be a fake of the entire
+feature — the interesting behavior is exactly the part the manager
+provides. Runs are verified by hand in a browser with the real manager,
+reading the `[garmin-dl]` logs.
