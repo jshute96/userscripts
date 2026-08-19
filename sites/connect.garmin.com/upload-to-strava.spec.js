@@ -93,6 +93,26 @@ test.describe('Garmin Connect → Strava: Upload new activities with one click',
   // click is GM_xmlhttpRequest against Garmin's API, and a fake for that
   // would be a fake of the entire feature — see CLAUDE.md → Testing.
 
+  // The guard reads the DOM rather than GM storage, so a second
+  // addInitScript is a genuine second copy in one document.
+  test('a second copy stands down and says so on screen', async ({ page, loadUserscript }) => {
+    // beforeEach already loaded one copy; this is the duplicate.
+    await loadUserscript(SCRIPT_PATH);
+    await page.goto(HOME_URL);
+
+    const status = page.locator('#jshute-garmin-strava-status');
+    await expect(status).toBeVisible({ timeout: 10000 });
+    await expect(status).toContainText('Two copies');
+    // Red, not the neutral progress background — this is an error.
+    await expect(status).toHaveCSS('background-color', 'rgba(140, 26, 26, 0.94)');
+
+    // The copy that stood down did so before initializing: one set of
+    // buttons, and one status panel rather than two.
+    await expect(page.locator('#' + ACTIVITIES_BUTTON_ID)).toHaveCount(1);
+    await expect(page.locator('#' + UPLOAD_BUTTON_ID)).toHaveCount(1);
+    await expect(status).toHaveCount(1);
+  });
+
   test('adds "Upload from Garmin" above "Upload activity" in Strava\'s upload menu', async ({ page }) => {
     await page.goto(STRAVA_URL);
     const item = page.locator('#' + STRAVA_ITEM_ID);

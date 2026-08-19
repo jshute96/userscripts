@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Garmin Connect → Strava: Upload new activities with one click
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.3.11
+// @version      0.3.12
 // @description  Adds an Upload to Strava button to Garmin's toolbar and an Upload from Garmin item to Strava's upload menu. Either sends all new rides you haven't uploaded yet.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -1356,6 +1356,27 @@
   }
 
   // =====================================================================
+
+  // Only one copy per page. Two installs — the same script in two
+  // managers, say — get separate GM storage, so their sent-activity
+  // histories disagree and they fight over the "New" badges: one adds,
+  // the other's MutationObserver removes, forever. Nothing else shows
+  // it, since everything is idempotent by element id.
+  //
+  // Standing down isn't a fix — which copy wins is load order, decided
+  // per tab, so the Garmin side can hand its id list to a storage the
+  // Strava tab isn't reading. Hence the on-screen error. The marker
+  // goes on the DOM: the sandboxes share only the live document.
+  const CLAIM_ATTR = 'jshuteGarminStrava';
+  if (document.documentElement.dataset[CLAIM_ATTR]) {
+    const message = 'Two copies of the Garmin → Strava userscript are installed. ' +
+      'Uploads and the New badges will not work properly until you uninstall ' +
+      'one of them in your userscript manager and reload.';
+    console.log(TAG, message);
+    setStatus(message, { error: true });
+    return;
+  }
+  document.documentElement.dataset[CLAIM_ATTR] = '1';
 
   if (location.hostname.endsWith('strava.com')) {
     initStrava();

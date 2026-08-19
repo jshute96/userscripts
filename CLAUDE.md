@@ -327,6 +327,24 @@ if it's missing; it makes the next break diagnose itself.
   header makes that visible anywhere the script is installed or
   published.
 
+* **Two installed copies of a script get two separate GM storages.**
+  Easy to end up with (two managers, or a manager copy plus a
+  local-file pointer) and normally invisible, since idempotent-by-id
+  inserters just find the other copy's elements. It shows when the
+  copies disagree about stored state and each "corrects" the DOM: one
+  adds a marker, the other's `MutationObserver` removes it, forever.
+  If DOM changes flap in a steady alternating rhythm, count the `init`
+  log lines before debugging the logic. Guard scripts that write
+  persistent state by claiming the page at startup — a
+  `data-<script-slug>` attribute on `<html>`, since the sandboxes
+  share only the live document — and have later copies stand down
+  *with an on-screen error*: which copy wins is load order decided per
+  tab, so cross-tab state can still land in a storage the other tab
+  isn't reading, and the script stays broken until one is uninstalled.
+  Our Playwright harness can cover this, unusually for a manager-level
+  failure, because the guard reads the DOM: a second `loadUserscript()`
+  is a second copy in one document.
+
 * Default to `@noframes` in the header. Sites often embed hidden
   iframes; without `@noframes` the script
   runs in those too and you'll see init logs from contexts you

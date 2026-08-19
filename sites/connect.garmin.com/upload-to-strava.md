@@ -487,6 +487,28 @@ as we like. It's driven from:
 With no history at all (`loadSeen()` returns `null`), nothing is badged:
 every row would qualify, and twenty badges convey nothing.
 
+### Only one copy per page
+
+The script claims the page at startup with a
+`data-jshute-garmin-strava` attribute on `<html>`. A second copy finds
+it set, shows the red status panel, and stands down before
+initializing anything.
+
+Duplicate *installs* — the same script in two managers, or a manager
+copy alongside a local-file pointer — get separate GM storage, so their
+`seenActivityIds` disagree. The badges are where that shows: one copy
+adds a badge, the other's `MutationObserver` removes it, and the
+console fills with alternating `New badges: 2 added, 0 removed` /
+`0 added, 2 removed` forever. Nothing else surfaces it, since the
+buttons and menu items are idempotent by element id.
+
+The notice is deliberately loud, because standing down repairs
+nothing: which copy wins is load order, decided per tab, so a Garmin
+tab and a Strava tab can end up on different copies and the id list
+handed across never arrives. Uninstall one — then reset the starting
+point with the "Set how many activities are unsent…" menu command,
+since the survivor's history may be the stale one.
+
 ### Where the time goes
 
 Measured on two real rides: the export endpoint takes 979 ms for a
