@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Pinkbike: Auto-close the floating footer ads
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.2.0
+// @version      1.2.1
 // @description  Closes the sticky ad banners pinned to the bottom of the page that cover article text.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -81,6 +81,10 @@
       return;
     }
     entry.closes += 1;
+    // MAX_ATTEMPTS is about consecutive failures. A close that sticks means
+    // the button still works, so a long read that re-shows the ad many times
+    // must not exhaust the budget and report a break that isn't one.
+    entry.attempts = 0;
     console.log(TAG, t.name + ' ad closed' + (entry.closes > 1 ? ' (again, x' + entry.closes + ')' : ''));
   }
 
@@ -129,8 +133,6 @@
     pending = setTimeout(sweep, 100);
   }
 
-  sweep();
-
   observer = new MutationObserver(scheduleSweep);
   observer.observe(document.documentElement, {
     childList: true,
@@ -138,6 +140,8 @@
     attributes: true,
     attributeFilter: ['style', 'class'],
   });
+
+  sweep();
 
   // Distinguish "the ad never appeared" (normal) from "we found it and
   // couldn't close it" (a break) without needing DevTools open from load.

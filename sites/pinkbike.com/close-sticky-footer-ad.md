@@ -93,10 +93,13 @@ entries drives everything:
    raced a fade. This was the original bug: v1.0.x set a `dismissed`
    flag on the first apparent success and disconnected, so anything
    that reappeared afterwards stayed on screen for good.
-5. **Give up eventually.** After `MAX_ATTEMPTS` (10) clicks that
-   don't stick, the script stops clicking that unit and says so;
-   otherwise a changed close button means clicking forever. The
-   observer disconnects only once every unit has been given up on.
+5. **Give up eventually.** After `MAX_ATTEMPTS` (10) *consecutive*
+   clicks that don't stick, the script stops clicking that unit and
+   says so; otherwise a changed close button means clicking forever.
+   The count resets on every confirmed close, so a long read that
+   re-shows the ad a dozen times doesn't exhaust the budget and report
+   a break that isn't one. The observer disconnects only once every
+   unit has been given up on.
 
 Watching the whole document, rather than attaching to each container
 as it appears, means a unit that gets re-injected after being closed
