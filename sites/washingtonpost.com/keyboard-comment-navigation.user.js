@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Washington Post: Keyboard comment navigation
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.1.0
+// @version      1.1.1
 // @description  Adds keyboard shortcuts for moving through the comments drawer on an article — next and previous comment, parent, next thread, and open or jump to the drawer.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Hacker News: Keyboard comment navigation
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.2.0
+// @version      1.2.1
 // @description  Adds keyboard shortcuts for moving through the comments on a story — next and previous comment, parent, next thread, and jump to the comments section.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT

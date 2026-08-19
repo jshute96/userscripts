@@ -15,7 +15,7 @@ Scripts adding the [same key bindings for several other sites are available here
 | --- | --- |
 | `c` | Open the comments drawer |
 | `j` / `k` | Go to next / previous comment |
-| `h` / `l` | Go to next / previous sibling at the same depth, skipping the current subtree |
+| `h` / `l` | Go to next / previous comment at this level, skipping the current subtree |
 | `p` | Go to parent comment |
 | `r` | Go to root comment of this thread |
 | `n` | Go to next comment at parent level |

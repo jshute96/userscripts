@@ -72,22 +72,40 @@ they log that they have nowhere to go and don't scroll.
 ### The tree model
 
 The entire model is a flat display-ordered list of comments plus
-`parentOf(el)`. Siblings, thread root, next thread, and skip-past-
-subtree all derive from those two:
+`parentOf(el)`. Depth, thread root, next thread, and skip-past-subtree
+all derive from those two:
 
 ```js
-siblingsOf = el => all.filter(c => parentOf(c) === parentOf(el))
-rootOf     = el => { while (parentOf(el)) el = parentOf(el); return el }
-rootsOf    = () => all.filter(c => !parentOf(c))
+depthOf = el => { let d = 0; while ((el = parentOf(el))) d++; return d }
+rootOf  = el => { while (parentOf(el)) el = parentOf(el); return el }
+rootsOf = () => all.filter(c => !parentOf(c))
 ```
 
-Defining siblings as **same parent** rather than same depth is what
-makes the degradation work: with no `parentOf`, every comment has the
-null parent, so they're all siblings and `h` naturally becomes `j`.
+The level moves (`h`, `l`, `n`, `m`) are then a single primitive:
+scan display order from the current comment for the first one no
+deeper than a given depth — the current depth for `h`/`l`, one less
+for `n`, zero for `m`.
+
+Indexing into a sibling list would be the obvious implementation and
+is the wrong one: it dead-ends. On a thread's last reply `h` found no
+next sibling and reported "nowhere to go" with half the page still
+below, and `n` did the same whenever the *parent* was itself a last
+child. Scanning by depth escalates on its own, and where a sibling
+does exist it *is* the first comment at or above the current depth
+(everything in between is a descendant), so the common case is
+unchanged.
+
+Nothing is skipped in either direction. Forward, the comments passed
+over are the current subtree; backward, they're the previous sibling's
+subtree — and from a first child the previous comment at or above its
+depth is the parent itself, which is why `l` there behaves like `p`.
+
+Depth also carries the degradation: with no `parentOf`, every comment
+is at depth zero, so `h` naturally becomes `j`.
 
 `parentOf` returns live DOM elements, so identity comparison is valid.
 
-`siblingsOf` and `rootsOf` call it once per comment, so a `parentOf`
+`depthOf` and `rootsOf` call it once per comment, so a `parentOf`
 that *scans* the comment list to find the parent makes them quadratic.
 Sites in that shape derive the whole map in one left-to-right pass and
 wrap it in `CommentNav.parentMapper`:
