@@ -1,11 +1,13 @@
 // ==UserScript==
 // @name         The Athletic: Keyboard comment navigation
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.5
+// @version      1.1.0
 // @description  Adds keyboard shortcuts for moving through the comments on an article — next and previous comment, parent, next thread, and jump to the comments section.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://www.nytimes.com/athletic/*
+// @require      https://raw.githubusercontent.com/jshute96/userscripts/main/lib/keyboard-shortcuts.js
+// @require      https://raw.githubusercontent.com/jshute96/userscripts/main/lib/keyboard-comment-nav.js
 // @grant        none
 // @run-at       document-idle
 // @noframes
@@ -24,198 +26,70 @@
 
   console.log(TAG, 'initializing');
 
-  // The Athletic uses CSS-modules with hashed class suffixes that rotate on
-  // every deploy. Match by prefix using attribute-substring selectors.
+  // The Athletic uses CSS-modules with hashed class suffixes that
+  // rotate on every deploy. Match by prefix, never the full class.
   const SEL = {
     comment:       '[class*="Comment_Base"]',
     reply:         '[class*="Comment_Reply"]',
     bodyContainer: '[class*="Comment_BodyContainer"]',
-    // The "COMMENTS <count>" banner row, ordered most-specific first.
+    // The "COMMENTS <count>" banner row, most-specific first.
     // #comments-section sits above the banner with a sponsored puzzle
-    // tile in between, which is not where the user wants `c` to land.
+    // tile in between, which is not where `c` should land.
     sectionTop:  ['[class*="Comments_CommentBanner"]', '#comments-section'],
-    // Pill button in the article toolbar that opens / scrolls to
-    // comments. The Athletic doesn't render the comments markup until
-    // it scrolls near the viewport, so when the section anchors above
-    // aren't found we click this to make the site load and scroll
-    // there itself.
+    // The Athletic doesn't render the comments markup until it
+    // scrolls near the viewport, so when neither anchor above exists
+    // we click this pill and let the site load and scroll there.
     openButton:  'button[aria-label="Open Comments"]',
   };
 
-  function comments() {
-    return [...document.querySelectorAll(SEL.comment)];
-  }
+  const isReply = el => el.matches(SEL.reply);
 
-  function isReply(el) {
-    return el.matches(SEL.reply);
-  }
+  CommentNav.create({
+    tag: TAG,
 
-  function isTypingTarget(el) {
-    if (!el) return false;
-    const tag = el.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
-    if (el.isContentEditable) return true;
-    return false;
-  }
+    comments: () => [...document.querySelectorAll(SEL.comment)],
 
-  function stickyTopOffset() {
-    // NYT sets scroll-padding-top on <html> to clear the fixed top nav.
-    // We use it as a threshold so a comment that's mostly hidden behind
-    // the sticky header isn't treated as "current."
-    const v = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop);
-    return Number.isFinite(v) ? v : 0;
-  }
+    body: el => el.querySelector(SEL.bodyContainer) || el,
 
-  function bodyIntersectsViewport(el, padTop, vh) {
-    const body = el.querySelector(SEL.bodyContainer) || el;
-    const rect = body.getBoundingClientRect();
-    return rect.bottom > padTop && rect.top < vh;
-  }
-
-  // Remember the last comment we scrolled to, so chained keypresses during
-  // a smooth scroll advance instead of re-targeting the same comment. The
-  // viewport listeners below clear this whenever the user scrolls manually.
-  let lastJumpTarget = null;
-
-  function findCurrentComment() {
-    const all = comments();
-    // Trust the last jump target until the user does something to
-    // invalidate it (wheel, touchmove, non-nav keypress). This lets
-    // back-to-back j/n presses chain forward even when the smooth
-    // scroll hasn't caught up yet or the target is far off-screen.
-    if (lastJumpTarget && all.includes(lastJumpTarget)) return lastJumpTarget;
-    const vh = window.innerHeight;
-    const padTop = stickyTopOffset();
-    for (const el of all) {
-      if (bodyIntersectsViewport(el, padTop, vh)) return el;
-    }
-    return null;
-  }
-
-  function smoothScrollTo(el) {
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    lastJumpTarget = el;
-  }
-
-  function invalidateJumpTarget() {
-    lastJumpTarget = null;
-  }
-  window.addEventListener('wheel',     invalidateJumpTarget, { passive: true });
-  window.addEventListener('touchmove', invalidateJumpTarget, { passive: true });
-
-  function labelFor(el, list) {
-    const i = list.indexOf(el);
-    return i >= 0 ? `#${i + 1}${isReply(el) ? ' (reply)' : ''}` : '?';
-  }
-
-  function jumpNextPrev(direction) {
-    const all = comments();
-    if (!all.length) {
-      console.log(TAG, 'no comments on page');
-      return;
-    }
-    const current = findCurrentComment();
-    const idx = current ? all.indexOf(current) : -1;
-    const target = direction === 'next'
-      ? (idx >= 0 ? all[idx + 1] : all[0])
-      : (idx > 0 ? all[idx - 1] : null);
-    if (!target) {
-      console.log(TAG, `no ${direction} comment from ${current ? labelFor(current, all) : 'top'}`);
-      return;
-    }
-    console.log(TAG, `${direction} -> ${labelFor(target, all)}`);
-    smoothScrollTo(target);
-  }
-
-  function jumpParent() {
-    const all = comments();
-    const current = findCurrentComment();
-    if (!current) {
-      console.log(TAG, 'p pressed but no comment on screen');
-      return;
-    }
-    if (!isReply(current)) {
-      console.log(TAG, `p ignored: ${labelFor(current, all)} is already a root`);
-      return;
-    }
-    // Threads are flat: roots and replies are siblings in document order.
-    // Walk backwards through the flat comment list to find the most recent
-    // non-reply, which is this reply's thread root.
-    const idx = all.indexOf(current);
-    for (let i = idx - 1; i >= 0; i--) {
-      if (!isReply(all[i])) {
-        console.log(TAG, `parent ${labelFor(current, all)} -> ${labelFor(all[i], all)}`);
-        smoothScrollTo(all[i]);
-        return;
+    // Threads are one level deep, and flat in the DOM: roots and
+    // replies are siblings in document order rather than nested. So a
+    // reply's parent is the nearest preceding non-reply — tracked in
+    // one pass rather than scanned backwards per comment, which would
+    // be O(n) inside the library's O(n) sibling scan.
+    parentOf: CommentNav.parentMapper(all => {
+      const map = new Map();
+      let lastRoot = null;
+      for (const el of all) {
+        if (isReply(el)) {
+          map.set(el, lastRoot);
+        } else {
+          map.set(el, null);
+          lastRoot = el;
+        }
       }
-    }
-    console.log(TAG, `p failed: no root found before ${labelFor(current, all)}`);
-  }
+      return map;
+    }),
 
-  function jumpNextRoot() {
-    const all = comments();
-    const current = findCurrentComment();
-    if (!current) {
-      const first = all.find(el => !isReply(el));
-      if (first) {
-        console.log(TAG, `n (no current) -> first root ${labelFor(first, all)}`);
-        smoothScrollTo(first);
-      } else {
-        console.log(TAG, 'n: no comments on page');
+    // NYT sets scroll-padding-top on <html> to clear its fixed top
+    // nav; reuse it so a comment mostly hidden behind the nav isn't
+    // treated as "current".
+    headerOffset: () => {
+      const v = parseFloat(
+        getComputedStyle(document.documentElement).scrollPaddingTop);
+      return Number.isFinite(v) ? v : 0;
+    },
+
+    commentsTop: () => {
+      for (const sel of SEL.sectionTop) {
+        const el = document.querySelector(sel);
+        if (el) return el;
       }
-      return;
-    }
-    const idx = all.indexOf(current);
-    for (let i = idx + 1; i < all.length; i++) {
-      if (!isReply(all[i])) {
-        console.log(TAG, `next-root ${labelFor(current, all)} -> ${labelFor(all[i], all)}`);
-        smoothScrollTo(all[i]);
-        return;
-      }
-    }
-    console.log(TAG, `n: no next thread after ${labelFor(current, all)}`);
-  }
+      return null;
+    },
 
-  function jumpToCommentsTop() {
-    for (const sel of SEL.sectionTop) {
-      const target = document.querySelector(sel);
-      if (target) {
-        console.log(TAG, `c -> ${sel}`);
-        smoothScrollTo(target);
-        return;
-      }
-    }
-    const openBtn = document.querySelector(SEL.openButton);
-    if (openBtn) {
-      console.log(TAG, `c -> click ${SEL.openButton} (comments not loaded yet)`);
-      openBtn.click();
-      return;
-    }
-    console.log(TAG, `c: no comments anchor or open button found`);
-  }
-
-  const NAV_KEYS = new Set(['j', 'k', 'p', 'n', 'c']);
-
-  function onKeyDown(e) {
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
-    if (isTypingTarget(e.target)) return;
-    if (!NAV_KEYS.has(e.key)) {
-      // Manual scroll keys (PageUp/Down, arrows, space, Home/End)
-      // mean the user is moving the viewport themselves; the jump
-      // target is no longer authoritative.
-      invalidateJumpTarget();
-      return;
-    }
-
-    switch (e.key) {
-      case 'j': e.preventDefault(); jumpNextPrev('next'); return;
-      case 'k': e.preventDefault(); jumpNextPrev('prev'); return;
-      case 'p': e.preventDefault(); jumpParent(); return;
-      case 'n': e.preventDefault(); jumpNextRoot(); return;
-      case 'c': e.preventDefault(); jumpToCommentsTop(); return;
-    }
-  }
-
-  document.addEventListener('keydown', onKeyDown);
-  console.log(TAG, 'keys: j=next, k=prev, p=parent, n=next-root, c=comments-top');
+    open: {
+      canOpen: () => !!document.querySelector(SEL.openButton),
+      click: () => document.querySelector(SEL.openButton).click(),
+    },
+  });
 })();

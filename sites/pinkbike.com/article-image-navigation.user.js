@@ -1,11 +1,12 @@
 // ==UserScript==
 // @name         Pinkbike: Keyboard navigation for article photos
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.5
+// @version      1.1.0
 // @description  Adds i and Shift-I shortcuts that jump from photo to photo through an article, for nicer viewing in photo-heavy stories.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://www.pinkbike.com/news/*
+// @require      https://raw.githubusercontent.com/jshute96/userscripts/main/lib/keyboard-shortcuts.js
 // @grant        none
 // @run-at       document-idle
 // @noframes
@@ -41,14 +42,6 @@
   const EPSILON = 5;
 
   console.log(TAG, 'initializing');
-
-  function isTypingTarget(el) {
-    if (!el) return false;
-    const tag = el.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true;
-    if (el.isContentEditable) return true;
-    return false;
-  }
 
   // Bottom-of-article boundary: anything at or past the comments
   // section is "outside the article" — related stories, more-from-
@@ -128,19 +121,13 @@
     window.scrollTo({ top: targetY, behavior: 'smooth' });
   }
 
-  function onKeyDown(e) {
-    if (e.ctrlKey || e.metaKey || e.altKey) return;
-    if (isTypingTarget(e.target)) return;
-
-    // Match the i-key regardless of Caps Lock state, then use the
-    // Shift modifier (not e.key's case) to decide direction. Reading
-    // case directly would treat CapsLock+i as Shift-I, which would
-    // be a surprising reversal of behavior.
-    if (e.key.toLowerCase() !== 'i') return;
-    e.preventDefault();
-    jumpImage(e.shiftKey ? 'prev' : 'next');
-  }
-
-  document.addEventListener('keydown', onKeyDown);
-  console.log(TAG, 'keys: i=next-image, Shift-I=prev-image');
+  // Modifier filtering, the "is the user typing?" guard, and the
+  // Caps-Lock-safe letter matching all live in the shared library
+  // now. Declaring `i` and `shift-i` separately keeps the original
+  // behavior: the *modifier* picks the direction, so Caps Lock alone
+  // doesn't reverse it.
+  const keys = KeyboardShortcuts.create({ tag: TAG });
+  keys.register('i', 'Go to next photo', () => jumpImage('next'));
+  keys.register('shift-i', 'Go to previous photo', () => jumpImage('prev'));
+  keys.logKeys();
 })();

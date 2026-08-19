@@ -2,205 +2,118 @@
 
 ## Summary
 
-Adds keyboard navigation to Hacker News comment threads, and fills in
-the navigation links HN doesn't provide.
+This adds keyboard shortcuts for navigating comment threads on Hacker News.
 
-HN already puts `next | prev | parent | root` on each comment, but
-those are mouse-only, and `next` / `prev` step over whole subtrees, so
-there's no way to just move to the comment below the one you're
-reading. This adds the missing moves, orders all of them by increasing
-scope, and binds a key to each.
+`c` jumps to the first comment, `j` / `k` go to next / previous. Other keys are listed below.<br>
+`?` opens help showing all the keys.
+
+HN already puts `next | prev | parent | root` links on each comment,
+but those are mouse-only, and `next` / `prev` step over whole
+subtrees, with no way to move to the comment just below the one
+you're reading.
+
+Scripts adding the [same key bindings for several other sites are available here](https://github.com/jshute96/userscripts/blob/main/README.md#keyboard-comment-navigation).
 
 ### Keyboard shortcuts
 
-| Key | Moves to |
+| Key | Action |
 | --- | --- |
-| `j` / `k` | next / previous comment in display order, replies included |
-| `h` / `l` | next / previous comment at the same level, skipping the current subtree |
-| `p` | parent comment |
-| `n` | parent's next sibling — continues past the current subtree |
-| `r` | root of the current thread |
-| `m` | next root thread |
-| `c` | top of the comments list |
-
-Keyboard navigation acts on the first comment visible on screen. Keys
-are ignored while you're typing in a text box.
+| `c` | Go to the first comment |
+| `j` / `k` | Go to next / previous comment |
+| `h` / `l` | Go to next / previous sibling at the same depth, skipping the current subtree |
+| `p` | Go to parent comment |
+| `r` | Go to root comment of this thread |
+| `n` | Go to next comment at parent level |
+| `m` | Go to next comment at root level |
+| `?` | Show all shortcuts on this page, from this and any other userscript |
 
 ## Visible changes
 
-* Three new links on each comment: `down` / `up` (immediately
-  next/previous comment in display order), `parent-next` (up to
-  parent, then next sibling) and `root-next` (up to root, then next
-  top-level thread).
-* The links are reordered by increasing scope:
-  `down | up | next | prev | parent | parent-next | root | root-next`,
-  and each shows its keyboard shortcut in the label. `c` has no link —
-  it's keyboard-only, to match the scripts on other sites.
-* Clicking a link acts on that link's own comment; the keyboard acts
-  on the first comment visible on screen.
-* On a top-level comment (no `parent-next` / `root-next` shown),
-  pressing those shortcuts falls back to `next`.
+* The keyboard shortcuts above, using smooth scrolling.
+* No markup changes — the script only attaches a `keydown` listener.
+  Collapsed threads are skipped over rather than jumped into.
 
 ## Implementation
 
+The navigation itself lives in
+[`lib/keyboard-comment-nav.js`](../../lib/keyboard-comment-nav.js),
+shared with the other comment-navigation scripts; key dispatch and the
+`?` overlay come from
+[`lib/keyboard-shortcuts.js`](../../lib/keyboard-shortcuts.js). What's
+here is HN's site config.
+
 ### What HN's comment page looks like
 
-Each comment is rendered as a single `<tr class="athing comtr"
-id="<commentId>">` row. The numeric id matches HN's internal item id and
-is used in nav-link hrefs as `#<commentId>` anchors.
+Each comment is a single `<tr class="athing comtr" id="<commentId>">`.
+The numeric id is HN's internal item id.
 
 Inside the row:
 
-- A `<div class="comment">` holds the actual comment body. The first
-  visible-on-screen `div.comment` is the most natural anchor for "what
-  comment is the user looking at right now", since the header may be
-  scrolled off-screen even while the body is in view.
-- A `<span class="navs">` in the comment header holds the navigation
-  links. Its content looks roughly like:
-  ```
-   | <a href="#XXX" class="clicky" aria-hidden="true">root</a>
-   | <a href="#YYY" class="clicky" aria-hidden="true">parent</a>
-   | <a href="#ZZZ" class="clicky" aria-hidden="true">next</a>
-   <a class="togg clicky" id="<commentId>" href="javascript:void(0)">[–]</a>
-  ```
-  Important details we rely on:
-  - The link text is the bare label (`root`, `parent`, `prev`, `next`).
-  - Each navigation link has `class="clicky"` and `aria-hidden="true"`,
-    and `href` starting with `#`.
-  - The collapse toggle is also inside `.navs`, but is `class="togg
-    clicky"` with `href="javascript:void(0)"` (so the
-    `[aria-hidden="true"][href^="#"]` selector excludes it).
-  - The `togg` link's `id` attribute holds the row's commentId. We use
-    this to build a `commentId -> .navs` map so we can read a parent's
-    or root's `next` link to compute `parent-next` / `root-next`.
+* `<div class="comment">` holds the comment body. Viewport
+  intersection is tested against it rather than the row, because the
+  row also holds the metadata header and reply link and would stay
+  "intersecting" long after the text has scrolled past.
+* `<td class="ind" indent="N">` is the indent spacer in the row's
+  first cell, holding `<img src="s.gif" width="N*40">`. **This is
+  where the reply tree lives** — HN renders comments as a flat list of
+  sibling `<tr>`s with no nesting, so depth is encoded only in that
+  spacer.
 
-Which links HN renders depends on depth:
+### Deriving the tree from indentation
 
-- A top-level (root) comment: just `prev | next` (or only `next` for the
-  first one).
-- A second-level comment (whose parent is a root): `parent | next` (no
-  separate `root` link, since parent is the root).
-- A deeper comment: `root | parent | next`.
+The shared library needs one accessor, `parentOf`. A row's parent is
+the nearest preceding row at a shallower depth, which is a single
+left-to-right pass keeping a stack of the most recent row seen at each
+depth.
 
-`prev` is only shown when there is a previous sibling at the same depth.
+Resolving that per call would be O(n) inside the library's O(n)
+sibling scan, so the map is built in one pass and handed to
+`CommentNav.parentMapper`, which caches it for the duration of a
+keypress — one build per keypress, none for repeat lookups within it.
+Measured fine on an 835-comment thread.
 
-### What we assume
+`indent` is read from the attribute, falling back to the image width
+divided by 40 for older markup.
 
-The script will break if any of these change:
+### What we assume stays stable
 
 1. `tr.athing.comtr` rows enclose comments and have stable `id`s.
-2. Each row contains at most one `div.comment` (used for viewport
-   detection) and one `span.navs` (used for link replacement).
-3. Inside `.navs`, the existing nav links are the only descendants
-   matching `a.clicky[aria-hidden="true"][href^="#"]`, and their text
-   content is a single bare word from the set
-   `{root, parent, prev, next}`.
-4. The `[–]/[+]` toggle is `a.togg` and stays inside `.navs` (we keep
-   it in place when rebuilding the row).
-5. Optional `<span class="onstory">` may follow the toggle inside
-   `.navs`; preserved if present.
+2. Each row contains one `div.comment` for the body text.
+3. `td.ind` carries either an `indent` attribute or an `<img width>`
+   that is 40px per level. **If both change, every comment reads as
+   depth 0** — the thread flattens, and `h`/`n`/`m` silently collapse
+   onto `j` while `p`/`r` report they have nowhere to go. That's the
+   failure mode to look for, since it degrades quietly rather than
+   erroring.
+4. Comments are server-rendered and present at load. No
+   `MutationObserver`.
 
-### What we change
+Collapsed threads are handled by the library's `offsetParent` filter,
+which drops rows inside a `display: none` ancestor. On a large thread
+that's typically a few dozen rows.
 
-On `document-idle`:
+### Previously
 
-1. **Capture phase.** For every `.navs`, read the existing nav links
-   into a `{name -> href}` map (`captured`). This is done before any
-   mutation, so subsequent rebuilds can rely on the original content.
-2. **Compute extras.** Using the captured maps and the
-   `commentId -> .navs` lookup, compute `parent-next` (the parent's
-   `next` href) and `root-next` (the root's `next` href). For a
-   second-level comment with no separate `root`, the parent is treated
-   as the root, so both extras get the same target.
-3. **Rebuild.** For each `.navs`, clear all children, then append new
-   links in a fixed order:
-   `down | up | next | prev | parent | parent-next | root | root-next`,
-   with ` | ` separators. Items not present in the captured map (or
-   not applicable, like `parent` on a top-level comment) are skipped.
-   The `togg` (and optional `onstory`) are re-attached at the end so
-   collapse continues to work.
+Before version 1.2.0 this script also rewrote each comment's
+`span.navs` row: it added `down` / `up` / `parent-next` / `root-next`
+links HN doesn't provide, reordered them by increasing scope, and
+labeled each with its keyboard shortcut. Navigation worked by
+`.click()`ing those anchors and letting HN's own handler scroll.
 
-   Each rebuilt link has:
-   - `class="clicky"`, `aria-hidden="true"` (matches HN's smooth-scroll
-     click handler so anchor clicks still feel native).
-   - A `data-nav-name` attribute holding the canonical link name —
-     used by the keyboard handler for fast lookup, instead of parsing
-     decorated text.
-   - A label rendered as `name (x)`, where `x` is the trigger key
-     wrapped in `<u style="text-decoration: underline">`. The inline
-     style is set explicitly because HN's `a { text-decoration: none }`
-     would otherwise hide the `<u>` underline.
-
-4. **Keyboard.** A single `keydown` listener on `document` maps each
-   configured key to a logical action:
-   - `j` / `k` (`down` / `up`) — find the comment row to navigate
-     **from** (first row whose `div.comment` intersects the viewport),
-     locate it in the visible `tr.athing.comtr` list, and smooth-scroll
-     to the next/previous sibling.
-   - `c` — smooth-scroll to the first comment row (top of the
-     comments tree). Keyboard-only; no on-page link.
-   - All other keys — find the same "current" row, look up
-     `a[data-nav-name="<name>"]` inside its `.navs`, and `.click()` it.
-     Clicking lets HN's own handler do the smooth scroll. Falls back
-     to the `next` link if the requested action's link isn't on that
-     row (so `n`/`m` on a top-level comment behave like `next`).
-
-   Modifier keys (Ctrl/Meta/Alt) and typing into inputs/textareas/
-   contenteditables suppress the handler.
-
-5. **Chained presses during a smooth scroll.** With `behavior:
-   'smooth'`, the viewport hasn't caught up to the scroll target by
-   the time a chained keypress fires; a pure viewport check would
-   re-pick the same source row and the script would look stuck.
-   The script remembers the most recent target row in
-   `lastJumpTarget` and treats it as "current" until invalidated.
-   Invalidators are passive `wheel` / `touchmove` listeners on
-   `window`, and any non-nav keypress (PageUp/Down, arrows, Home/End,
-   space, …). For the anchor-click keys (`h`/`l`/`p`/`n`/`r`/`m`)
-   HN does the scroll itself, but the script still parses the
-   destination out of the link's `href="#<id>"` and pins
-   `lastJumpTarget` to that row. See the
-   `add-comment-navigation-script` skill for the general treatment.
-
-6. **Hidden / collapsed comments.** `commentRows()` filters out rows
-   inside a `display: none` ancestor with `offsetParent === null`,
-   so that `j` from a comment immediately before a collapsed thread
-   doesn't target a zero-rect hidden row (which would no-op the
-   scroll and look stuck on the next press).
-
-7. **Idempotency.** A `window.__hnNavLinksLoaded` guard prevents a
-   second run on the same page (e.g. if both the raw and pointer
-   versions of the script are installed). The script does not observe
-   the DOM for later mutations, since HN serves the comments tree
-   server-side and does not insert new ones after load.
-
-### Click vs. keyboard scoping
-
-HN's existing nav links each have an `href="#<targetId>"` baked in, so
-clicking the `next` link inside comment X always navigates to X's next
-sibling — independent of viewport state. We preserved that scoping for
-all anchor-style links (`next`, `prev`, `parent`, `root`,
-`parent-next`, `root-next`).
-
-The `down` / `up` links can't use an `href` because the target depends
-on which row the link lives in. Instead, their click handler walks up
-to `closest('tr.athing.comtr')` and uses that row as the navigation
-origin. This way clicking is always relative to the link, not the
-viewport.
+That was dropped in favor of the shared library, so HN behaves like
+every other site. It also removed a dependency on HN's link markup —
+the old approach could only reach a move HN had rendered a link for,
+and had to special-case the top-level rows where `parent-next` and
+`root-next` were absent. Deriving the tree from indentation has
+neither limitation.
 
 ### If this breaks in the future
 
-If the script stops working, check in this order:
-
-1. Did `tr.athing.comtr`, `div.comment`, or `span.navs` change name?
-   These are the structural anchors.
-2. Did the togg link's `id` attribute move elsewhere? The
-   `commentId -> .navs` map depends on it.
-3. Did the link selector `a.clicky[aria-hidden="true"][href^="#"]`
-   stop matching the existing nav links — e.g. by HN changing classes
-   or attributes? If so, `parent-next` / `root-next` will silently not
-   be added because the capture phase finds nothing.
-4. Did HN start rendering nav link labels with extra whitespace or
-   markup? The capture step compares `textContent` after stripping a
-   trailing `\s*\([^()]*\)\s*$` (our keybinding suffix); anything else
-   surrounding the label will need a similar normalization.
+1. Open DevTools, look for `[hn nav] initializing`. Missing → `@match`
+   or install issue. If `initializing` appears but the `keys:` line
+   doesn't, one of the `@require`d library files failed to load.
+2. Press `j`. If it logs `no comments found`, `tr.athing.comtr` has
+   changed.
+3. Press `p` on a reply. If it says it has nowhere to go, depth
+   detection is broken — check `td.ind` for the `indent` attribute and
+   the spacer image's width.

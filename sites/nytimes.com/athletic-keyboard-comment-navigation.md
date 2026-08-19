@@ -2,26 +2,27 @@
 
 ## Summary
 
-Adds keyboard shortcuts for moving through the comments on a story on
-The Athletic (the New York Times' sports site), so a long discussion
-can be read without scrolling by hand. As well as stepping comment by
-comment, you can jump to a reply's parent or skip the rest of a
-thread — and `c` gets you to the comments from anywhere in the
-article, loading them if the page hasn't yet.
+This adds keyboard shortcuts for navigating comment threads on The Athletic.
 
-The bindings match the comment-navigation userscripts for other sites.
+`c` opens the comments, `j` / `k` go to next / previous. Other keys are listed below.<br>
+`?` opens help showing all the keys.
+
+Scripts adding the [same key bindings for several other sites are available here](https://github.com/jshute96/userscripts/blob/main/README.md#keyboard-comment-navigation).
 
 ### Keyboard shortcuts
 
-| Key | Moves to |
+| Key | Action |
 | --- | --- |
-| `j` / `k` | next / previous comment in display order, replies included |
-| `p` | the root of the current reply's thread; does nothing on a root comment |
-| `n` | the root of the next thread |
-| `c` | the `COMMENTS` header, opening the comments first if they haven't loaded |
+| `c` | Open the comments, loading them if needed |
+| `j` / `k` | Go to next / previous comment |
+| `h` / `l` | Go to next / previous sibling at the same depth, skipping the current subtree |
+| `p` | Go to parent comment |
+| `r` | Go to root comment of this thread |
+| `n` | Go to next comment at parent level |
+| `m` | Go to next comment at root level |
+| `?` | Show all shortcuts on this page, from this and any other userscript |
 
-Keys work anywhere on the article page, and are ignored while you're
-typing in a text box.
+Keys work anywhere on the article page.
 
 ## Visible changes
 
@@ -30,8 +31,7 @@ typing in a text box.
   "Open Comments" pill in the article toolbar, so the site loads and
   scrolls there itself.
 * No other visible markup changes — the script only attaches a
-  `keydown` listener. Keys are ignored while focus is in an
-  input/textarea/contenteditable.
+  `keydown` listener.
 
 ## Implementation
 
@@ -103,7 +103,7 @@ The script breaks if any of these change:
 5. Threads stay flat (one level of replies, roots and replies as
    document-order siblings). If The Athletic introduces nested
    replies, `p` will need to walk up the reply chain instead of
-   scanning backward to the most recent non-reply, and `j`/`k` may
+   resolving to the most recent non-reply, and `j`/`k` may
    need a "skip subtree" variant (`h`/`l`).
 
 ### URL handling
@@ -118,72 +118,6 @@ article-only `@match` would miss in-app navigations (see the SPA
 notes in the repo's `CLAUDE.md`); the broad `@match` plus
 DOM-time gating avoids that problem without needing URL-change
 detection.
-
-### How we modify the page
-
-We do not modify the DOM. The script:
-
-1. Records a `window.__athleticNavLoaded` guard so a second run is
-   a no-op.
-2. Attaches a single `keydown` handler to `document`, plus passive
-   `wheel` / `touchmove` listeners on `window` used only for jump-
-   target invalidation (see "Chained presses" below).
-3. The handler ignores modifier-key combos (Ctrl/Meta/Alt) and key
-   presses while focus is inside an input/textarea/select/
-   contenteditable, so site forms (reply, search) keep working.
-
-For each keypress:
-
-* `j` / `k` — find the "current" comment, then `scrollIntoView` the
-  next / previous comment in document order. If no current is
-  found, `j` jumps to the first comment.
-* `p` — find the current; if it's a reply, walk backwards through
-  the flat comment list to the most recent non-reply and scroll to
-  it. On a root, log and no-op.
-* `n` — find the current; walk forward through the flat list to
-  the next non-reply and scroll to it. If nothing is on screen,
-  jump to the first root.
-* `c` — scroll the `Comments_CommentBanner_…` row (the
-  `COMMENTS <count>` header) into view, falling back to the
-  `#comments-section` wrapper if the banner class is missing.
-  If neither exists (comments not lazy-loaded yet), `.click()`
-  the `button[aria-label="Open Comments"]` pill in the article
-  toolbar; the site's own handler scrolls the page and triggers
-  the comments to render.
-
-All `scrollIntoView` calls use `{ behavior: 'smooth', block:
-'start' }`.
-
-### Chained presses during a smooth scroll
-
-"Current" comment selection is more than just the topmost-in-
-viewport check. With `behavior: 'smooth'`, the viewport hasn't
-caught up to the scroll target by the time a chained keypress
-fires; using the on-screen position would make every rapid `j`
-press re-target the same comment instead of advancing. So the
-script also remembers the most recent comment it jumped to
-(`lastJumpTarget`) and treats that as "current" until something
-invalidates it. The invalidators:
-
-* `wheel` and `touchmove` on the window — the user is scrolling
-  the page themselves, so the keyboard cursor should follow the
-  new viewport position.
-* Any non-nav `keydown` (PageUp/PageDown, arrows, Home/End,
-  space, etc.) — same reason: those keys move the viewport.
-
-Without this, `j j j j` only advances by one (re-targeting the
-same comment three times) and `n n n` never moves past the first
-next-root.
-
-### Logging
-
-Every action emits an `[athletic nav]` log line: which key, which
-source and destination comment (by 1-based index and root/reply
-flag), or an explanation when nothing happened (`no comments on
-page`, `already a root`, `no next thread`, etc.). Combined with
-`init` and the "keys:" summary line, this lets a future debugging
-session distinguish "selector broke" from "edge case at end of
-list".
 
 ### If this breaks in the future
 
@@ -211,3 +145,38 @@ for the general process):
    lag the actual viewport), re-check the
    `Comment_BodyContainer` class prefix — falling back to the
    wrapper rect changes the viewport-intersection answer.
+
+### How we modify the page
+
+We do not modify the DOM. The navigation itself lives in
+[`lib/keyboard-comment-nav.js`](../../lib/keyboard-comment-nav.js) —
+current-comment detection, the remembered jump target that keeps
+chained presses advancing during a smooth scroll, the hidden-comment
+filter, the scroll strategies, and all nine key bindings are shared
+with the other comment-navigation scripts and documented there. Key
+dispatch, the typing guard, and the `?` help overlay come from
+[`lib/keyboard-shortcuts.js`](../../lib/keyboard-shortcuts.js).
+
+What's left in this script is the site config:
+
+* `comments()` — `[class*="Comment_Base"]`. The Athletic uses
+  CSS-modules with hashed suffixes that rotate every deploy, so every
+  selector here is a prefix match.
+* `body()` — `[class*="Comment_BodyContainer"]`.
+* `parentOf()` — threads are one level deep *and flat in the DOM*:
+  roots and replies are siblings in document order rather than nested.
+  So a reply's parent is the nearest preceding non-reply. Tracked in
+  one left-to-right pass through `CommentNav.parentMapper` rather than
+  scanned backwards per comment, which would be O(n) inside the
+  library's O(n) sibling scan.
+* `headerOffset()` — NYT sets `scroll-padding-top` on `<html>` to
+  clear its fixed top nav; we reuse that value so a comment mostly
+  hidden behind the nav isn't treated as "current".
+* `commentsTop()` — `[class*="Comments_CommentBanner"]`, falling back
+  to `#comments-section`. The banner is preferred because
+  `#comments-section` sits above it with a sponsored puzzle tile in
+  between, which is not where `c` should land.
+* `open` — `button[aria-label="Open Comments"]`. The Athletic doesn't
+  render the comments markup until it scrolls near the viewport, so
+  when neither anchor exists we click the pill and let the site load
+  and scroll there itself.

@@ -2,31 +2,31 @@
 
 ## Summary
 
-Adds keyboard shortcuts for moving through the comments on a Pinkbike
-article, so a long discussion can be read or skimmed without reaching
-for the scroll wheel. As well as stepping comment by comment, you can
-jump to a reply's parent or skip the rest of a thread.
+This adds keyboard shortcuts for navigating comment threads on Pinkbike.
 
-The bindings match the comment-navigation userscripts for other sites.
+`c` jumps to the first comment, `j` / `k` go to next / previous. Other keys are listed below.<br>
+`?` opens help showing all the keys.
+
+Scripts adding the [same key bindings for several other sites are available here](https://github.com/jshute96/userscripts/blob/main/README.md#keyboard-comment-navigation).
 
 ### Keyboard shortcuts
 
-| Key | Moves to |
+| Key | Action |
 | --- | --- |
-| `j` / `k` | next / previous comment in display order, replies included |
-| `p` | the parent (root) of the current reply; does nothing on a root comment |
-| `n` | the root of the next thread |
-| `c` | the top of the comments section |
-
-Keys work anywhere on the article page, and are ignored while you're
-typing in a text box.
+| `c` | Open the comments |
+| `j` / `k` | Go to next / previous comment |
+| `h` / `l` | Go to next / previous sibling at the same depth, skipping the current subtree |
+| `p` | Go to parent comment |
+| `r` | Go to root comment of this thread |
+| `n` | Go to next comment at parent level |
+| `m` | Go to next comment at root level |
+| `?` | Show all shortcuts on this page, from this and any other userscript |
 
 ## Visible changes
 
 * The keyboard shortcuts above, using smooth scrolling.
 * No visible markup changes — the script only attaches a `keydown`
-  listener. Keys are ignored while focus is in an
-  input/textarea/contenteditable.
+  listener.
 
 ## Implementation
 
@@ -71,40 +71,42 @@ The script breaks if any of these change:
 3. Each `.cmcont` has a usable `id` (`cm<n>`), used only in log
    output today, but assumed for diagnostics.
 4. Threads stay flat (one level of replies). If Pinkbike ever
-   introduces nested replies, `p` (jump to parent) will need to walk
-   up the reply chain instead of jumping straight to the root, and
-   `j`/`k` may need a "skip subtree" variant.
+   introduces nested replies, only `parentOf` in the site config
+   needs to change — the shared library already derives every key
+   from it at arbitrary depth, and `r`/`m` would stop coinciding
+   with `p`/`n` on their own.
 5. The script runs at `document-idle` and the comments are
    server-rendered — present at load time. No `MutationObserver`.
 
 ### How we modify the page
 
-We do not modify the DOM. The script:
+We do not modify the DOM. The navigation itself lives in
+[`lib/keyboard-comment-nav.js`](../../lib/keyboard-comment-nav.js) —
+current-comment detection, the `lastJumpTarget` that keeps chained
+presses advancing during a smooth scroll, the hidden-comment filter,
+the drift-correcting scroll, and all nine key bindings are shared with
+the other comment-navigation scripts and documented there. Key
+dispatch and the `?` help overlay come from
+[`lib/keyboard-shortcuts.js`](../../lib/keyboard-shortcuts.js).
 
-1. Records a `window.__pbNavLoaded` guard so a second run is a no-op.
-2. Attaches a single `keydown` handler to `document`.
-3. The handler ignores modifier-key combos (Ctrl/Meta/Alt) and key
-   presses while focus is inside an input/textarea/select/
-   contenteditable, so site forms (reply, search) keep working.
+What's left here is the site config:
 
-For each keypress:
+* `comments()` — every `.cmcont`, in document order.
+* `body()` — the inner `.comtext`. Viewport intersection is tested
+  against the comment text rather than the `.cmcont` container, which
+  includes the avatar column and reply-box footer and would stay
+  barely-intersected long after we've visually scrolled into the next
+  comment.
+* `parentOf()` — a `.commentreply2` maps to the single
+  `.cmcont:not(.commentreply2)` inside the same `.ppcont`; anything
+  else is a root. This one accessor is what gives us `h`/`l`/`r`/`m`
+  as well as `p` and `n`.
+* `strategy: 'settle'` — the drift-correcting scroll, for the reason
+  below.
+* `commentsTop()` — `.news-comments-container`, falling back to
+  `.news-comments` and then `#commenttop`.
 
-* `j` / `k` — find the "current" comment (first `.cmcont` whose
-  bounding rect intersects the viewport), then `scrollIntoView` the
-  next/previous `.cmcont` in document order. If no current is found
-  (comments not on screen yet), `j` jumps to the first comment.
-* `p` — find the current; if it's a `.commentreply2`, walk up to its
-  enclosing `.ppcont` and scroll to that container's first
-  `.cmcont:not(.commentreply2)`. On a root, log and no-op.
-* `n` — find the current's enclosing `.ppcont`, walk forward to the
-  next `.ppcont` sibling, scroll to its root `.cmcont`.
-* `c` — scroll `.news-comments-container` into view (falling back
-  to `.news-comments`, then `#commenttop`).
-
-All `scrollIntoView` calls use `{ behavior: 'smooth', block: 'start'
-}`, via `scrollToTopSettled()` — see below.
-
-### Drift correction after the scroll
+### Why the drift-correcting scroll strategy
 
 `scrollIntoView` resolves its destination to a fixed scroll offset at
 call time and animates to that number. Pinkbike lazy-loads article
@@ -115,76 +117,29 @@ short of it. Measured on a normal news article, `c` from the top of
 the page landed 100–200px above the comments header, in the
 related-articles filler.
 
-`scrollToTopSettled(el)` handles this: it issues the smooth scroll,
-then polls on `requestAnimationFrame` until `scrollY` holds steady
-for a few frames, re-measures `el.getBoundingClientRect().top`, and
-re-issues the scroll if it's off by more than 4px. Up to 3
-corrections, with a 4s overall timeout; both the give-up and the
-timeout log.
-
-Two cases where "the target isn't at the top" is not drift, and
-correcting would be wrong:
-
-* **The scroll is clamped.** Every comment within one viewport height
-  of the document end — on a typical article that's the last several
-  — can't be brought to the top, because the page has already
-  scrolled as far as it goes. Measured on a 66-comment article, the
-  last comment settles 331px down at maximum scroll. `scrollIsClamped()`
-  checks `scrollY` against `scrollHeight - innerHeight` (and against
-  0 for the top edge) and stops silently; without it, every `j` into
-  the tail of a thread would burn three corrections and log a
-  failure for a jump that worked correctly.
-* **The animation hasn't started yet.** Chrome takes a frame or two
-  to begin a smooth scroll, and "scrollY hasn't moved" is true during
-  that window. `SETTLE_GRACE_MS` (250ms) keeps the first settle check
-  from firing until the animation is genuinely under way.
-
-A monotonically-increasing `correctionToken` guards it. Starting a
-new jump, or anything that calls `invalidateJumpTarget()` (user
-`wheel` / `touchmove`, a non-nav keypress), bumps the token and the
-in-flight polling loop exits on its next frame — so the correction
-never fights a user who has started scrolling themselves.
-
-### Chained presses during a smooth scroll
-
-A pure viewport-intersection test re-targets the same comment on
-chained keypresses: with `behavior: 'smooth'`, the viewport hasn't
-caught up to the previous scroll target when the next `j` fires, so
-`j j j j` would advance by one. We remember the last comment we
-scrolled to (`lastJumpTarget`) and treat it as "current" until
-something invalidates it: passive `wheel` / `touchmove` on the
-window, or any non-nav keypress (PageUp/Down, arrows, space, etc.).
-See the `add-comment-navigation-script` skill for the canonical
-treatment.
-
-### Hidden / collapsed comments
-
-`commentRows()` filters with `el.offsetParent === null` so any
-`.cmcont` inside a `display: none` ancestor (a collapsed thread, a
-hidden tab) is excluded. Without this, `j` from a comment
-immediately before a hidden one would target the hidden comment,
-the scroll would no-op, and the next press would pick it again —
-classic "stuck" behavior.
+Pinkbike is the site that motivated the `settle` strategy; the
+mechanism (settle detection, correction limits, the clamped-scroll
+bail-out) is documented in the library's doc.
 
 ### Logging
 
-Every action emits a `[pb nav]` log line: which key, which source
-and destination comment id (or "no current", "already a root", "no
-next thread", etc.). Combined with `init` and the "keys:" summary
-line, this lets a future debugging session distinguish "selector
-broke" from "edge case at end of list".
+Every action emits a `[pb nav]` line of the form
+`<key>: <action> -> <comment id>`, or
+`<key>: <action> — nowhere to go from <comment id>`. Combined with
+`initializing` and the generated `keys:` summary, that's enough to
+tell "selector broke" from "edge case at the end of the list".
 
 ### If this breaks in the future
 
 Triage in order:
 
-1. Open DevTools, look for `[pb nav] initializing`. Missing → @match
-   or install issue.
+1. Open DevTools, look for `[pb nav] initializing`. Missing → `@match`
+   or install issue. If `initializing` appears but the `keys:` line
+   doesn't, one of the `@require`d library files failed to load.
 2. Press `c`. If the comments container is missing the script logs
-   "no comments container found".
-3. Press `j`. If `[pb nav] no comments on page` fires, the
-   `.cmcont` selector has changed — re-check the comment tree under
-   `#comment_wrap`.
-4. Press `p` while on a reply. If it logs "is already a root", the
+   `c: no comments anchor found`.
+3. Press `j`. If it logs `no comments found`, the `.cmcont` selector
+   has changed — re-check the comment tree under `#comment_wrap`.
+4. Press `p` while on a reply. If it says it has nowhere to go, the
    `commentreply2` class has been renamed or moved off the inner
-   `.cmcont`.
+   `.cmcont`, so `parentOf` is returning null for replies.

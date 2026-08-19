@@ -14,10 +14,11 @@ Navigation skips over small images and ad banners.
 
 ### Keyboard shortcuts
 
-| Key | Moves to |
+| Key | Action |
 | --- | --- |
-| `i` | next photo or video in the article |
-| `Shift-I` | previous photo or video |
+| `i` | Go to next photo or video in the article |
+| `Shift-I` | Go to previous photo or video |
+| `?` | Show a list of every shortcut on the page, from this and any other userscript |
 
 ## Visible changes
 
@@ -157,6 +158,15 @@ The script breaks if any of these change:
    won't be picked up until the user presses a key after they
    appear.
 
+### Key handling
+
+Binding, modifier filtering, the "is the user typing?" guard and the
+`?` help overlay come from
+[`lib/keyboard-shortcuts.js`](../../lib/keyboard-shortcuts.js). The
+script registers `i` and `shift-i` as two separate bindings rather
+than reading the case of `e.key`, so the *modifier* decides direction
+and Caps Lock alone doesn't silently reverse it.
+
 ### Logging
 
 `[pb img]` log lines on every action: which key, which target image
@@ -169,7 +179,8 @@ to start triage.
 ### If this breaks in the future
 
 1. Open DevTools. Look for `[pb img] initializing`. Missing → @match
-   or install issue.
+   or install issue. If `initializing` appears but the `keys:` line
+   doesn't, the `@require`d library failed to load.
 2. Press `i`. If it logs "no qualifying images in `.blog-section`",
    the wrapper class has changed — re-run the probe to find the new
    article body container.

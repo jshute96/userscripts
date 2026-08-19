@@ -2,25 +2,25 @@
 
 ## Summary
 
-Adds keyboard shortcuts for moving through the comments drawer on a
-Washington Post article, so a discussion can be read without dragging
-the drawer's scrollbar — and `c` opens the drawer in the first place,
-without losing your place in the article.
+This adds keyboard shortcuts for navigating comment threads on the Washington Post.
 
-The bindings match the comment-navigation userscripts for other sites.
-Washington Post threads are flat in practice, so only the flat subset
-of those bindings is used here.
+`c` opens the comments drawer, `j` / `k` go to next / previous. Other keys are listed below.<br>
+`?` opens help showing all the keys.
+
+Scripts adding the [same key bindings for several other sites are available here](https://github.com/jshute96/userscripts/blob/main/README.md#keyboard-comment-navigation).
 
 ### Keyboard shortcuts
 
-| Key | Moves to |
+| Key | Action |
 | --- | --- |
-| `j` / `k` | next / previous comment |
-| `c` | opens the comments drawer, or jumps to the "N comments" banner at its top |
-
-`j` / `k` only act while the drawer is open; the rest of the time they
-fall through to the page and browser. All keys are ignored while
-you're typing in a text box, so the reply box still works normally.
+| `c` | Open the comments drawer |
+| `j` / `k` | Go to next / previous comment |
+| `h` / `l` | Go to next / previous sibling at the same depth, skipping the current subtree |
+| `p` | Go to parent comment |
+| `r` | Go to root comment of this thread |
+| `n` | Go to next comment at parent level |
+| `m` | Go to next comment at root level |
+| `?` | Show all shortcuts on this page, from this and any other userscript |
 
 ## Visible changes
 
@@ -89,75 +89,111 @@ Inside the shadow root:
   its height each keypress to offset jumps and viewport-intersection
   checks — see "sticky-header compensation" below.
 
-### Sticky-header compensation
+### How we modify the page
 
-Coral pins the tab strip (`StickyNav-root`) to the top of the drawer
-once it's scrolled past, occupying roughly the top 56px of the
-drawer viewport. Without compensation:
+We do not modify the DOM. The navigation itself lives in
+[`lib/keyboard-comment-nav.js`](../../lib/keyboard-comment-nav.js) —
+current-comment detection, the remembered jump target that keeps
+chained presses advancing during a smooth scroll, the hidden-comment
+filter, the scroll strategies, and all nine key bindings are shared
+with the other comment-navigation scripts and documented there. Key
+dispatch, the typing guard, and the `?` help overlay come from
+[`lib/keyboard-shortcuts.js`](../../lib/keyboard-shortcuts.js).
 
-- A plain `j` jump lands the comment with its top at drawer-top 0,
-  which is *behind* the 56px sticky bar — the first line is hidden.
-- Worse, the "current" comment detection (first body to intersect
-  the viewport) sees the just-jumped-past comment's body peeking
-  out under the sticky bar (`bottom` ≈ 30, still > 0) and keeps
-  reporting it as current. `j` then re-targets the *same* comment
-  instead of advancing, so the cursor sticks.
+What's left in this script is the site config:
 
-Both are fixed by reading the sticky header's `offsetHeight` each
-keypress and applying it as an offset:
+* `enabled()` — the presence of `#coral-shadow-root`'s shadow root.
+  The host only exists while the drawer is open, so it doubles as the
+  open gate. Everything but `c` waits for it.
+* `comments()` — `[data-testid^="comment-"]` inside the shadow root,
+  filtered to UUID-shaped ids. Other elements share that prefix
+  (sentiment buttons, `comment-reply-button`).
+* `body()` — `[class*="HTMLContent-root"]`. Scrolling still targets
+  the whole container, which keeps the ~42px avatar/username row above
+  the text from ending up behind the sticky tab bar.
+* `parentOf()` — the last card before the enclosing reply list; see
+  below.
+* `container()` + `strategy: 'raf'` — see below.
+* `headerOffset()` — Coral's sticky tab bar (Featured / Top / All /
+  Newest first), `[class*="StickyNav-root"]`, about 56px. The hash
+  rotates, so only the prefix is safe to match.
+* `commentsTop()` — `.comment-prompt`, falling back to
+  `#tabPane-COMMENTS`.
+* `open` — `[data-qa="comments-btn"]`. Clicking focuses the button,
+  and the browser's scroll-the-focused-element-into-view yanks the
+  article; the page scroll is pinned for a few frames to absorb that
+  and the layout shift from mounting the drawer's portal.
 
-- `smoothScrollTo(el, headerOffset)` subtracts `headerOffset` from
-  the computed target `scrollTop` so the comment lands just below
-  the sticky bar.
-- `findCurrentIndex(bodies, headerOffset)` requires the body's
-  `bottom` to be at least `headerOffset + 30` (an extra 30px slack
-  to ignore comments that are mostly under the bar).
-- Scrolling targets the **outer comment container** (`[data-testid=
-  "comment-<uuid>"]`), not the body — there's a ~42px header row
-  (avatar / username / time) above the body that needs to land on
-  screen too. Viewport-intersection still uses the body, so the
-  "stuck" failure mode doesn't come back via the taller container.
+### Finding a reply's parent
 
-The header height is queried by class-prefix (`[class*="StickyNav-root"]`)
-so the CSS-module hash suffix can rotate without breaking the script.
-If the class is renamed entirely, the offset silently goes to 0 and
-both bugs (clipped top line, stuck cursor) come back — that's the
-first thing to check if `j` starts misbehaving.
+Coral nests replies, but **not inside the parent's card**. The parent
+card and the reply list are siblings under a shared wrapper:
 
-The 'c' jump intentionally doesn't apply the offset: `.comment-prompt`
-sits *above* the tab strip in the document, so scrolling it to top
-naturally leaves the unstuck tab strip below it.
+```
+div#<parentUuid>.AllCommentsTabCommentContainer
+|- div#comment-<parentUuid>.CommentContainer      <- parent card
+`- div#coral-comments-replyList
+     `- div#comment-<replyUuid>.CommentContainer  <- reply card
+```
 
-### Why a single document-level keydown listener works
+So walking up from a reply looking for an ancestor card finds nothing,
+no matter how far it goes — which is why the first version of this
+config returned null for every reply, and `p`/`r` did nothing while
+`h`/`l` treated the whole thread as one flat sibling set.
 
-Keyboard events that originate inside the shadow root bubble out
-composed by default, so a normal `document.addEventListener('keydown',
-…)` receives them. The catch is that `e.target` retargets to the
-shadow host (`#coral-shadow-root`), so we can't tell from `e.target`
-alone whether the user is typing in Coral's reply box. We use
-`e.composedPath()` to walk the original event path across the shadow
-boundary and skip the handler when any element in the path is an
-input / textarea / contenteditable.
+Instead, the reply list is what identifies the parent: the last card
+*before* the list, in document order, is the comment being replied to.
+Every card between them is a sibling inside the list. That holds at any
+nesting depth, and needs no indentation measurement or username
+matching.
+
+A card with no enclosing reply list is top-level.
+
+That's derived in one left-to-right pass, keeping a stack of the reply
+lists currently open (innermost last), each paired with the card that
+owns it. A card leaves any list it isn't inside, and the first card
+seen inside a new list records its predecessor as the owner. Doing it
+as a per-comment backward scan instead would be O(n) inside the
+library's O(n) sibling scan; `CommentNav.parentMapper` caches the map
+for the duration of a keypress.
+
+**The anchor is the `coral-comments-replyList` id, matched by
+prefix** — `[id^="coral-comments-replyList"]`. Two reasons it can
+never be a `getElementById` lookup: the id carries a per-thread
+suffix, and it is reused across threads rather than being unique.
+(An exact-match selector was the first attempt here and silently
+matched nothing.)
+
+It deliberately does *not* fall back to `[class*="ReplyList"]`: Coral
+also uses `ReplyListCommentContainer` on individual replies, and
+`closest` would match that nearer element, resolving a reply's parent
+to its previous sibling — a wrong answer rather than no answer.
+
+If Coral renames the list, `parentOf` returns null for everything and
+the failure is at least visible: `p` reports it has nowhere to go from
+a comment that is plainly a reply.
 
 ### Scrolling inside the drawer
 
-The drawer (`#coralDrawerWrapper`) is the scrollable ancestor of the
-shadow content, but neither `Element.scrollIntoView({behavior:
-'smooth'})` nor `drawer.scrollTo({behavior: 'smooth'})` actually
-moves it in Chrome — both calls return silently with `scrollTop`
-unchanged. Direct assignment to `drawer.scrollTop` works fine. The
-combination that triggers the no-op appears to be `position: fixed`
-+ `overflow-y: auto` + `scrollbar-gutter: stable` on the drawer,
-which is set inline by Coral and not easy to override from a
-userscript.
+The Coral drawer is a fixed-position overflow container with
+`scrollbar-gutter: stable`, and **both `scrollIntoView` and
+`scrollTo` silently no-op on it in Chrome**. Direct assignment to
+`scrollTop` is the only thing that moves it, which is what the
+library's `raf` strategy does — hand-rolled cosine easing writing
+`scrollTop` each frame.
 
-So instead of the canonical `scrollIntoView({behavior:'smooth'})`
-this script uses a small rAF-driven cosine-easing animation that
-writes `container.scrollTop` directly each frame. `findScrollContainer`
-walks composed ancestors (crossing the shadow boundary by hopping
-from a `ShadowRoot` parent to its `.host`) until it finds the first
-element that actually scrolls.
+The container itself is found by walking composed ancestors (crossing
+the shadow boundary) until one is reached that actually scrolls.
 
+### Shadow DOM and the keyboard
+
+A document-level `keydown` listener still receives events from inside
+an open shadow root, because they're composed — but `e.target`
+retargets to the shadow host, so it can't tell whether the user is
+typing in the reply box. The library's typing guard walks
+`e.composedPath()` instead, which crosses the boundary. That's
+unconditional in the library, so it's correct here without any
+site-specific opt-in.
 ### What we assume stays stable
 
 - The Coral embed continues to mount inside an open shadow root
@@ -193,22 +229,6 @@ console while the drawer is open:
 ```
 
 The first null / zero in that record is the broken assumption.
-
-### Filter and sort changes
-
-The sticky tab strip exposes four filters (Featured / Top / My
-comments / All) and a sort dropdown (Newest first / Oldest first /
-Top). Each filter change swaps the active inner tab pane:
-`#tabPane-ALL_COMMENTS` becomes `#tabPane-TOP_COMMENTS` etc., with
-a different set of comments inside. The old pane is unmounted
-entirely (no zombie comments to worry about). Sort changes keep the
-same set but reorder them.
-
-The script handles both without any subscription to those events
-because `commentBodies()` re-runs on every keypress and "current"
-is detected by viewport intersection, not stored index. After the
-user switches filters, the next `j` walks the new list from
-whichever comment happens to be visible.
 
 ### SPA behavior
 

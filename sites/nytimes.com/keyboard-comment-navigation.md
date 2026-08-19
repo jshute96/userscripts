@@ -2,33 +2,32 @@
 
 ## Summary
 
-Adds keyboard shortcuts for moving through the comments panel on a New
-York Times article, so a long discussion can be read without dragging
-the panel's scrollbar. As well as stepping comment by comment, you can
-jump from a reply back to its parent or skip the rest of a thread —
-and `c` opens the panel in the first place.
+This adds keyboard shortcuts for navigating comment threads on the New York Times.
 
-The bindings match the comment-navigation userscripts for other sites.
+`c` opens the comments panel, `j` / `k` go to next / previous. Other keys are listed below.<br>
+`?` opens help showing all the keys.
+
+Scripts adding the [same key bindings for several other sites are available here](https://github.com/jshute96/userscripts/blob/main/README.md#keyboard-comment-navigation).
 
 ### Keyboard shortcuts
 
-| Key | Moves to |
+| Key | Action |
 | --- | --- |
-| `j` / `k` | next / previous comment in display order, replies included |
-| `p` | a reply's parent root comment; does nothing on a root comment |
-| `n` | the next root thread, skipping the current thread's remaining replies |
-| `c` | opens the comments panel, or jumps to its header if already open |
-
-`j` / `k` / `p` / `n` work only while the panel is open, and all keys
-are ignored while you're typing in a text box.
+| `c` | Open the comments panel |
+| `j` / `k` | Go to next / previous comment |
+| `h` / `l` | Go to next / previous sibling at the same depth, skipping the current subtree |
+| `p` | Go to parent comment |
+| `r` | Go to root comment of this thread |
+| `n` | Go to next comment at parent level |
+| `m` | Go to next comment at root level |
+| `?` | Show all shortcuts on this page, from this and any other userscript |
 
 ## Visible changes
 
 * The keyboard shortcuts above, scrolling smoothly within the panel's
   own scroll container.
 * No visible markup changes — the script only attaches a `keydown`
-  listener. Keys are ignored while focus is in an
-  input/textarea/contenteditable.
+  listener.
 
 ## Implementation
 
@@ -51,8 +50,9 @@ in the DOM but collapsed to zero width until opened.
   - A flat stream of top-level comments, each
     `<div data-testid="comment-container" role="article">` with an
     `id` of the form `comment-container-<numericId>`.
-* Replies are flat — exactly one level. Pressing the "Replies N"
-  button on a top-level comment expands an inline reply list:
+* Replies nest. Pressing the "Replies N" button on a comment expands
+  an inline reply list, and a reply can itself have replies —
+  observed at least three levels deep on an opinion piece:
   - The expanded list sits inside the parent
     `comment-container`, inside
     `<div data-testid="reply-list-threading">`.
@@ -90,101 +90,15 @@ The script breaks if any of these change:
    `[data-testid="comment-container"]` element (so
    `reply.closest('[data-testid="comment-container"]')` returns
    the parent root).
-4. Threads stay flat — one level of replies. If NYT adds nested
-   replies, `p` will need to walk up the reply chain instead of
-   jumping straight to the root, and `n` (which scans top-level
-   roots) will need rework.
+4. A reply's container is a DOM descendant of its parent's container,
+   so the nearest enclosing comment is the immediate parent. Depth
+   itself doesn't matter — the shared library derives every key from
+   `parentOf` at any depth. What would break it is NYT flattening the
+   markup and expressing depth only visually (indentation, a left
+   border); then `p` would resolve every reply to the thread root and
+   `r` would silently become a synonym for `p`.
 5. The panel header is the panel's first `<header>`, used as the
    anchor for `c`.
-
-### How we modify the page
-
-We do not modify the DOM. The script:
-
-1. Records a `window.__nytCNavLoaded` guard so a duplicate run is a
-   no-op.
-2. Attaches a single `keydown` handler to `document`.
-3. The handler ignores modifier-key combos (Ctrl/Meta/Alt) and key
-   presses while focus is inside an
-   input/textarea/select/contenteditable. `c` is always allowed
-   through — it opens the panel when closed. `j` / `k` / `p` /
-   `n` only act when the panel is open (the panel element is
-   removed from the DOM while closed, so `panel()` returning null
-   is the gate). The `@match` covers all of `nytimes.com/*`, so
-   when the user is on the front page or a non-article page the
-   `j`/`k`/`p`/`n` keys are silently ignored; `c` will also no-op
-   because the "Read N comments" button doesn't exist there.
-
-For each keypress:
-
-* `j` / `k` — find the "current" comment (see below), then
-  `scrollIntoView` the next/previous container in document order
-  across the combined list of top-level and reply containers. If
-  no current is found (panel scrolled above all comments), `j`
-  jumps to the first comment.
-* `p` — find the current. If it's a reply, walk up to
-  `closest('[data-testid="comment-container"]')` (the parent root)
-  and scroll to it. On a root, log and no-op.
-* `n` — find the current, derive its enclosing root (itself if a
-  top-level, parent root if a reply), find the next top-level
-  container in document order, scroll to it.
-* `c` — if the panel is closed, click the "Read N comments"
-  button (`#comment-button-header`) to open it; otherwise scroll
-  the panel's `<header>` into view.
-
-All scrolls go through `smoothScrollTo`, which manually computes
-the target scrollTop on the panel's scroll container and uses
-`scrollTo({ behavior: 'smooth' })`. We can't use
-`scrollIntoView({ block: 'start' })` because the panel has a
-`position: sticky` header (close button + search box + tabs,
-~73 px tall) that overlays the top of the scroll viewport. A
-`block: 'start'` alignment lands the target at the panel top —
-behind the header — so the comment's first line ends up cut off.
-Instead we compute `target = scroller.scrollTop + (elemTop -
-scrollerTop) - headerOffset` so the element sits just below the
-sticky header.
-
-`headerOffset()` walks the panel for any descendant with
-`position: sticky` whose top is at or above the panel's top and
-takes the bottom-most match. This is dynamic because the sticky
-header's exact class is a hashed CSS-module name (currently
-`css-pzragr`) that we don't want to hardcode.
-
-Smooth scrolling is animated by the browser and only progresses
-while the document is visible — fine for end users, but if you
-test via CDP on a backgrounded tab you'll see the script's logs
-without any actual scroll motion. Force `Page.bringToFront`
-before evaluating scroll tests.
-
-### Finding the "current" comment
-
-The intuitive rule — "the first comment whose body intersects the
-viewport" — is too lax in NYT's layout. When a reply has been
-scrolled to the top of the panel, the parent's
-`<p id="comment-content-N">` body is still slightly above with a
-small sliver (~25–30 px) overlapping the visible area, because
-the parent's `comment-container` wraps the reply list. That
-sliver makes a pure-intersect test latch onto the parent, so `p`
-would log "already a root" instead of jumping to the parent.
-
-We require at least `CURRENT_MIN_VISIBLE = 30` pixels of the
-body's bottom to lie below the *header bottom* (panel top +
-`headerOffset()`) before considering it current. That excludes
-both a barely-visible parent body and any comment hidden behind
-the sticky header, and lets the fully-visible reply body take
-over.
-
-Comparisons use the panel's `getBoundingClientRect`, not
-`window.innerHeight`, because the panel only occupies a portion
-of the screen width and has its own scroll container.
-
-### Logging
-
-Every action emits a `[nyt cnav]` log line: which key, which
-source and destination comment id (or "no current", "already a
-root", "no next root", etc.). Combined with the `init` and
-`keys:` summary lines, this lets a future debugging session
-distinguish "selector broke" from "edge case at end of list".
 
 ### If this breaks in the future
 
@@ -206,3 +120,69 @@ Triage in order:
    to confirm rects look sane. If the panel has moved (e.g.
    layout shift to a bottom drawer on mobile), the panel rect
    intersection test will need to follow.
+
+### How we modify the page
+
+We do not modify the DOM. The navigation itself lives in
+[`lib/keyboard-comment-nav.js`](../../lib/keyboard-comment-nav.js) —
+current-comment detection, the remembered jump target that keeps
+chained presses advancing during a smooth scroll, the hidden-comment
+filter, the scroll strategies, and all nine key bindings are shared
+with the other comment-navigation scripts and documented there. Key
+dispatch, the typing guard, and the `?` help overlay come from
+[`lib/keyboard-shortcuts.js`](../../lib/keyboard-shortcuts.js).
+
+What's left in this script is the site config:
+
+* `enabled()` — `panelOpen()`. The panel is a fixed side drawer that
+  stays in the DOM when collapsed, with zero width and height; that's
+  the open test. Everything but `c` waits for it.
+* `comments()` — `comment-container` and `reply-comment-container`
+  testids within the panel.
+* `body()` — the `<p id="comment-content-N">` holding the text, so a
+  comment stops being "current" once only its header/avatar/footer is
+  on screen.
+* `parentOf()` — the nearest enclosing comment container of *either*
+  kind (`comment-container` or `reply-comment-container`). Replies sit
+  inside their parent's reply-list-threading div, itself inside the
+  parent's container, so the nearest enclosing comment is the
+  immediate parent at any depth. See below.
+* `container()` + `strategy: 'container'` — the panel scrolls in its
+  own `overflow-y: scroll` descendant, found by computed style since
+  the class is a CSS-module hash. Both the scroll and the
+  current-comment test work against that element rather than the
+  window.
+* `headerOffset()` — see below.
+* `commentsTop()` — the panel's `<header>`. **Returns null while the
+  panel is closed**, since the panel element still exists at zero size
+  and returning an anchor from it would make `c` scroll to a hidden
+  drawer instead of opening it.
+* `open` — `#comment-button-header`. An article has several copies of
+  the "Read N comments" button; any toggles the same panel, and the
+  header one is always present when the article has comments.
+
+### Threads go deeper than two levels
+
+Before version 1.1.0 this script resolved a reply's parent with
+`el.closest('[data-testid="comment-container"]')` — the nearest
+**top-level** container, which is the thread root by definition. On a
+two-level thread the root *is* the parent, so it looked correct.
+
+NYT threads go at least three deep (a reader replies to a reply). At
+that depth `p` from the third-level comment jumped straight past its
+actual parent to the root. `parentOf` now looks for the nearest
+enclosing comment of either kind, which is the immediate parent at any
+depth, and `r` correspondingly stops being a synonym for `p`.
+
+### Sticky-header offset
+
+The panel has a `position: sticky` header — close button, search box,
+tab strip, about 73px — overlaying the top of its scroll viewport.
+Aligning to the panel top leaves the target's first line behind it.
+
+The element is another CSS-module hash, so instead of a selector we
+measure whatever is sticky and pinned at the top of the panel. That
+walks every node in the panel, and the library asks for the offset
+more than once per keypress, so the result is cached for 100ms — long
+enough to cover one keypress, short enough that a resize or a
+collapsing header is picked up immediately.

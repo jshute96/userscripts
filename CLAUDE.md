@@ -374,9 +374,27 @@ if it's missing; it makes the next break diagnose itself.
   `.click()` may not toggle the menu — keyboard activation
   `focus()` + `Enter` works there as a fallback when needed.)
 
-* `@require` for shared helpers within a site: drop a plain `.js`
-  file (no UserScript header) next to the scripts that need it and
-  reference it from each script with a bare relative path, e.g.
+* `@require` for helpers shared **across sites**: put a plain `.js`
+  file (no UserScript header) in `lib/`, alongside `sites/`, with a
+  sibling `.md` doc. Reference it by its full
+  `https://raw.githubusercontent.com/.../main/lib/<name>.js` URL —
+  SourceMonkey maps that back to the local file when the script is
+  installed from a local directory, matching on the common parent
+  path, so one line covers both install modes. `lib/` files are *not*
+  listed in `script_manifest.json` (it holds userscripts only) and are
+  invisible to `scripts/update_readme.py`.
+  - Multiple `@require`s run in order, in the userscript's own
+    sandbox, so a library may call one required earlier.
+  - **Greasy Fork won't accept a GitHub `@require`** — it wants
+    libraries published on Greasy Fork or an allowlisted CDN. Any
+    script using `lib/` can't be published as-is. Unsolved.
+  - Existing libraries: `lib/keyboard-shortcuts.js` (key registration
+    + a cross-script `?` help overlay) and `lib/keyboard-comment-nav.js`
+    (the comment-navigation behavior for all six sites).
+
+* `@require` for shared helpers within a single site: drop a plain
+  `.js` file (no UserScript header) next to the scripts that need it
+  and reference it with a bare relative path, e.g.
   `// @require installed-list.js`. SourceMonkey resolves it relative
   to the userscript's source URL, so the same line works for a
   github-raw install (sibling file in the same directory) and an
@@ -391,11 +409,31 @@ if it's missing; it makes the next break diagnose itself.
     `@require` lines verbatim and adds its own `file://` `@require`
     for the body, so a script with a shared-helper `@require` still
     installs cleanly as a local-file pointer.
-  - The Playwright fixture (`loadUserscript`) strips the metadata
-    block and does *not* fetch `@require`'d files. Tests that depend
-    on the helper need to inject it as a separate
-    `page.addInitScript` (or have the fixture extended) — none of
-    our specs do this yet.
+  - The Playwright fixture (`loadUserscript`) resolves `@require`
+    itself: bare relative paths against the script's directory, and
+    github-raw URLs by walking shorter suffixes of the URL path until
+    one exists under the repo root. Sources are concatenated ahead of
+    the body inside one wrapper, reproducing the manager's rule that
+    required code shares scope with the script. An unresolvable
+    `@require` throws rather than being skipped. The fixture also
+    synthesizes `GM_info` from the real metadata block.
+
+* **Cross-userscript collaboration goes through the DOM.** Each
+  script is sandboxed, so a `@require`d library runs once per script
+  with its own private state — two scripts on a page cannot see each
+  other's variables. What they share is the document. The pattern
+  that works: a hidden host element created idempotently by whoever
+  loads first, one child per script keyed by `GM_info.script.name`,
+  carrying JSON metadata. Only serializable data crosses; live
+  closures (predicates, handlers) stay in their own sandbox, so
+  design the feature to need only data from the other scripts.
+  `GM_info` is populated even under `@grant none`, so the script's
+  own name is available without changing sandbox mode.
+  - **Hang the shared host off `document.documentElement`, not
+    `document.body`.** Scripts register once at load and stay
+    resident across SPA navigation; if the site ever replaced its
+    `<body>`, the host would go with it and nothing would rebuild
+    it, because the other sandboxes finished registering long ago.
 
 ## Testing
 

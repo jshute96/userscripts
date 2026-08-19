@@ -1,229 +1,261 @@
 ---
 name: add-comment-navigation-script
-description: Write a userscript that adds keyboard navigation to the comments section of a forum or news site. Use when the user asks to add comment navigation to a site, matching the behavior of other scripts in this repo. Covers the canonical key bindings and behavior.
+description: Write a userscript that adds keyboard navigation to the comments section of a forum or news site. Use when the user asks to add comment navigation to a site, matching the behavior of other scripts in this repo. Covers the shared library, the site config it needs, and how to work out a site's reply tree.
 ---
 
 ## When to use
 
-The user has comment-navigation userscripts on a few sites (HN, Pinkbike) and
-wants the same on another site. The keys and behavior should match what they
-already have, so they don't have to learn a different set per site.
+The user has comment-navigation userscripts on several sites and wants
+the same on another one. The keys and behavior must match what they
+already have, so there's one set of keys to learn rather than one per
+site.
 
-Existing references in the repo (read whichever is closest in structure to the
-new site before starting):
-- `sites/news.ycombinator.com/keyboard-comment-navigation.user.js` — nested
-  threads, server-rendered, full key set, rebuilds existing nav links.
-- `sites/pinkbike.com/keyboard-comment-navigation.user.js` — flat threads,
-  server-rendered, minimal key set.
-- `sites/nytimes.com/keyboard-comment-navigation.user.js` — flat threads in a
-  fixed side-panel drawer with its own scroll container and a sticky header
-  inside.
-- `sites/nytimes.com/athletic-keyboard-comment-navigation.user.js` — flat
-  threads, CSS-module hashed classnames (matched by prefix).
-- `sites/reddit.com/keyboard-comment-navigation.user.js` — nested
-  `<shreddit-comment>` custom-element tree, SPA, overrides reddit's own
-  `j`/`k` via capture-phase + `preventDefault`.
-- `sites/washingtonpost.com/keyboard-comment-navigation.user.js` — Coral
-  comments in a portal-rendered drawer inside an open shadow root; `c` opens
-  the drawer when it's closed.
+**The behavior lives in a shared library — you are writing a config,
+not a script.** A new site is typically 40–90 lines, almost all of it
+selectors.
 
-## Desired behavior
+* [`lib/keyboard-comment-nav.js`](../../../lib/keyboard-comment-nav.js)
+  — all nine bindings and everything behind them.
+* [`lib/keyboard-shortcuts.js`](../../../lib/keyboard-shortcuts.js) —
+  key dispatch, the typing guard, and the `?` help overlay.
 
-Bind a `keydown` listener on `document`. Skip the handler when:
-- Any of Ctrl / Meta / Alt is held.
-- Focus is inside an `input`, `textarea`, `select`, or `contenteditable`
-  element (so site forms — reply box, search — still work).
+Read both docs (`.md` beside each) before starting. Existing configs,
+shortest first, each showing a different shape:
 
-The "current" comment for keyboard actions is **the first comment whose body
-intersects the viewport**, not whichever has focus. Pick the most natural body
-element for the site (e.g. the actual comment text container) for viewport
-testing, not the outer wrapper — the wrapper's header may be scrolled off
-while the body is still visible.
+| Site | Shape it demonstrates |
+| --- | --- |
+| `sites/pinkbike.com/` | One level of replies, nested in a thread wrapper; the `settle` scroll strategy |
+| `sites/reddit.com/` | True DOM nesting; capture phase to beat the site's own `j`/`k` |
+| `sites/news.ycombinator.com/` | Flat DOM with depth encoded in an indent attribute |
+| `sites/nytimes.com/athletic-*` | Flat DOM, one level, CSS-module class prefixes |
+| `sites/nytimes.com/keyboard-*` | Panel with its own scroll container and sticky header |
+| `sites/washingtonpost.com/` | Shadow DOM, `raf` scroll strategy, parent found via reply-list boundary |
 
-All scrolling uses `scrollIntoView({ behavior: 'smooth', block: 'start' })`.
+## The keys
 
-### Canonical keys
+Registration order is the order shown on the `?` help screen, running
+outward: get to the comments, move within, then up, then past.
 
-| Key | Action | Notes |
-|---|---|---|
-| `j` | next comment in display order (replies counted) | Walk the flat list of comments in the order they appear on screen. |
-| `k` | previous comment in display order | |
-| `h` | next sibling at the same depth (skip subtree) | Only meaningful on nested threads. On flat sites, omit. |
-| `l` | previous sibling at the same depth (skip subtree) | Same as above. |
-| `p` | parent of the current comment | No-op (with a log line) if already at a root. |
-| `n` | parent's next sibling (i.e. continue past current subtree) | On a top-level comment, fall back to "next root thread". |
-| `r` | root of the current thread | No-op on a root. |
-| `m` | next root thread | Skips the rest of the current thread entirely. |
-| `c` | top of the comments section | See "`c` when comments aren't loaded" below. |
+| Key | Action |
+| --- | --- |
+| `c` | Jump to the comments |
+| `j` / `k` | Next / previous comment |
+| `h` / `l` | Next / previous comment at this level |
+| `p` | Parent comment |
+| `r` | Root comment of this thread |
+| `n` | Skip past this reply thread |
+| `m` | Next thread |
 
-If the site's threads are flat (one level of replies, like Pinkbike), only
-`j` / `k` / `p` / `n` / `c` apply — drop `h`, `l`, `r`, `m`.
+**Bind all nine on every site.** Do not drop keys because a site's
+threads are shallow. The library derives everything from `parentOf`,
+so on a one-level site `r` collapses onto `p` and `n` onto `m`, and on
+a flat site `h`/`n`/`m` all become `j`. That duplication is the point.
 
-### `c` when comments aren't loaded
+## What the library already does — don't reimplement
 
-Some sites (e.g. Washington Post) don't render comments inline — there's a
-Comments button that opens a separate pane / drawer on click. For those:
+Copying any of this into a site config is a bug, not thoroughness:
 
-- If the comments pane isn't open yet, `c` should locate that button and click
-  it. (Don't scroll the page to the button unless necessary.)
-- If the pane is already open, `c` scrolls to the top of the comments
-  ("N comments" header / banner inside the pane), same as normal.
-- The other keys (`j`/`k`/etc.) should silently do nothing while the pane is
-  closed.
+* Skipping modifiers, and skipping while the user types (including
+  inside an open shadow root, via `composedPath`).
+* Caps-Lock-safe letter matching.
+* Re-querying the comment list on **every** keypress, so filter tabs,
+  sort changes, lazy "show replies", and SPA navigation all just work.
+* Filtering comments inside a `display: none` ancestor
+  (`offsetParent === null`), which otherwise makes `j` look stuck.
+* `lastJumpTarget`, so chained presses advance instead of stalling
+  while a smooth scroll is still animating, plus its invalidation on
+  wheel / touchmove / any unbound key.
+* Requiring 30px of a comment's body to be visible below the header
+  before it counts as "current".
+* The `?` overlay, and swallowing Esc so the site doesn't also act on
+  it.
 
-Use the presence of a stable marker (the drawer wrapper, the shadow host,
-etc.) as the "is the pane open" check — don't try to track open/close events.
+## Writing the config
 
-## Common gotchas
+```js
+CommentNav.create({
+  tag: '[site nav]',
+  comments: () => [...document.querySelectorAll(SEL.comment)],
+  body: el => el.querySelector(SEL.bodyText) || el,
+  parentOf: el => …,
+  id: el => el.id,
+  commentsTop: () => document.querySelector(SEL.header),
+});
+```
 
-Things that have bitten us on at least one site each — verify each one
-manually after the first pass.
+Full field list is in `lib/keyboard-comment-nav.md`. The two that
+always need thought:
 
-### Scroll target sits behind a sticky/fixed header
+**`body`** — the element used for viewport intersection. Pick the
+comment's *prose*, not its container. A container wraps the header,
+avatar, reply bar, and often the whole reply subtree, so it stays
+intersecting the viewport long after the user has visually scrolled
+past — the single most common cause of "`j` is stuck".
 
-Many sites have a sticky banner (the site's top nav, or a sticky header
-*inside* the comments panel: search box, tab strip, "N comments" row). A
-plain `scrollIntoView({ block: 'start' })` puts the target at viewport-top,
-which is *behind* that header — the first line of the comment is hidden.
+**`parentOf`** — see below. It is the only thing that tells the
+library about the site's tree.
 
-Verify by pressing `j` repeatedly and watching whether each landing comment's
-first line is fully visible. If it's clipped, offset by the header height.
-Two ways:
+## Working out `parentOf` — probe first, don't guess
 
-- Inject a stylesheet that puts `scroll-margin-top: <header height>` on every
-  element you scroll to. Cheapest fix when the header height is a CSS
-  variable (Reddit exposes `--shreddit-header-height`).
-- Manually compute target scrollTop on the scroll container, subtracting the
-  header offset. Necessary when the panel has its own scroll container or
-  when the header is `position: sticky` inside the panel (NYT). Find the
-  sticky header dynamically (walk descendants for one whose computed
-  `position` is `sticky` or `fixed` and which sits at the top of the panel)
-  rather than hardcoding a class — the class is usually a CSS-module hash.
+This is where every site has surprised us, and where a wrong guess
+fails *silently*: the keys still work, they just quietly behave as if
+the thread were flatter than it is.
 
-### `j` / `k` get stuck on the same comment
+**Do not write `parentOf` from a screenshot.** Visual indentation and
+"Replying to X" text tell you a hierarchy exists; they tell you
+nothing about how it's expressed in the DOM. Run a probe on a thread
+that actually has replies, and read the real structure.
 
-Symptom: pressing `j` once works; pressing it again finds the *same* comment
-and doesn't progress. Three causes, all worth checking on every new site:
+```js
+(() => {
+  const root = document;                  // or the shadow root / panel
+  const SEL = '<your comment selector>';
+  const cards = [...root.querySelectorAll(SEL)];
+  const reply = cards.find(c => c.getBoundingClientRect().left
+    > cards[0].getBoundingClientRect().left);   // first indented one
+  if (!reply) return `no indented card among ${cards.length}`;
 
-1. **Viewport detection is anchored on the wrong element.** If the comment
-   wrapper element encloses the whole subtree (body + nested replies + reply
-   bar), it stays "intersecting the viewport" long after the user has
-   visually scrolled into the next comment, because its bottom is far down
-   the tree. **Anchor viewport intersection on the comment's body text
-   element**, not the outer wrapper — pick a child that holds just the
-   prose. On sites with CSS-modules this is usually a `[class*="Body"]` or
-   similar.
-2. **The strip behind the sticky header counts as "intersecting".** A
-   comment that's just been scrolled past has `top < 0` but `bottom >
-   header_height > 0`, so a naïve `rect.bottom > 0 && rect.top <
-   viewport.height` check still picks it up. Require the body to be
-   meaningfully below the header bottom (e.g. 30+ px of the bottom of the
-   body's rect lies below `panel_top + header_offset`).
-3. **Smooth scrolling lags the keypress.** With
-   `behavior: 'smooth'`, the viewport hasn't caught up to the previous
-   scroll target by the time the next keypress fires. A pure viewport
-   check re-picks the same source comment, recomputes the same target,
-   and re-issues a `scrollIntoView` to the same place — visually it
-   looks like the script is doing nothing. Fix: remember the last
-   comment the script scrolled to (`lastJumpTarget`) and treat it as
-   "current" on the next keypress. Invalidate it on any sign the user
-   moved the viewport themselves: passive `wheel` + `touchmove` on
-   `window`, and any non-nav `keydown` (PageUp/PageDown, arrows, Home/
-   End, space). The Athletic script is the canonical implementation;
-   without this, `j j j j` advances by one and `n n n` never moves
-   past the first next-root.
+  const desc = el => el.tagName.toLowerCase()
+    + (el.id ? '#' + el.id : '')                       // NEVER truncate ids
+    + (el.getAttribute('class') || '').split(/\s+/).filter(Boolean)
+        .map(c => '.' + c.replace(/-[A-Za-z0-9_-]{5,}$/, '-<hash>')).join('')
+    + (el.matches(SEL) ? '   <== COMMENT' : '');
 
-Test by pressing `j` 5–10 times in a row and confirming each press advances
-one comment.
+  const chain = [];
+  for (let el = reply; el && el !== root; el = el.parentElement) chain.push(desc(el));
+  return chain.map((l, i) => '  '.repeat(i) + l).join('\n');
+})()
+```
 
-### CSS-module classnames with rotating hash suffixes
+**Print ids in full.** A truncated id reads as a complete one and
+sends you to an exact-match selector that matches nothing. If a
+printed string ends exactly at your slice width, assume it's cut off.
 
-Sites built on CSS-modules (NYT, The Athletic, WaPo Coral, etc.) emit
-classes like `Comment_Base__JMxYy` where the suffix changes every deploy.
-**Never hardcode the full class.** Use `[class*="Comment_Base"]` /
-`[class*="HTMLContent-root"]` substring selectors and document the prefix
-in the script's `.md` doc.
+Four shapes seen so far, and what each needs:
 
-### Custom scroll containers, drawers, shadow DOM
+1. **True nesting** — the parent's container is an ancestor of the
+   reply. `el.parentElement.closest(COMMENT_SEL)`. (Reddit.)
 
-If comments live in a side panel or modal drawer:
+2. **Nested, but the parent card is not an ancestor.** The parent card
+   and the reply list are siblings under a shared wrapper:
+   ```
+   div#<parentId>.Wrapper
+   |- div#comment-<parentId>     <- parent card
+   `- div#replyList
+        `- div#comment-<replyId> <- reply card
+   ```
+   Walking up finds no card, ever. Instead find the enclosing reply
+   list, then take **the last comment before that list in document
+   order** — everything between is a sibling inside the list. Works at
+   any depth. (WaPo.)
 
-- The scrollable element isn't `window`; viewport rects must be compared to
-  the panel's `getBoundingClientRect()`, not `window.innerHeight`.
-- `scrollIntoView({ behavior: 'smooth' })` sometimes silently no-ops on
-  fixed-position drawers with `scrollbar-gutter: stable` (observed in WaPo).
-  Fallback: small rAF easing that writes `container.scrollTop` directly.
-- Shadow DOM: a normal `document.addEventListener('keydown', …)` still
-  receives composed events from inside an open shadow root, but `e.target`
-  retargets to the shadow host. Use `e.composedPath()` to walk the original
-  path for input/contenteditable focus detection.
+3. **Flat DOM, depth in an attribute.** Build a parent map in one pass
+   with a stack of the most recent comment at each depth. (HN, via
+   `td.ind[indent]`.)
 
-### Site already binds `j` / `k`
+4. **Flat DOM, one level, replies marked by class.** A reply's parent
+   is the nearest preceding non-reply. (The Athletic.)
 
-Reddit, GitHub, Gmail, etc. bind their own `j`/`k`. To beat them: register
-the listener in **capture phase**, and on each handled key call
-`preventDefault()` + `stopImmediatePropagation()`. Don't suppress unrelated
-keys — only the ones the script actually handled.
+**If resolving one parent means scanning the comment list, build the
+whole map in one pass and wrap it in `CommentNav.parentMapper`.** The
+library calls `parentOf` once per comment (`siblingsOf`, `rootsOf`), so
+a scanning `parentOf` is quadratic. `parentMapper` caches your map for
+the duration of a keypress, keyed on the array the library passes in.
+Shapes 2, 3 and 4 above all need it; shape 1 (`closest`) doesn't.
 
-### Hidden / collapsed comments are still in the DOM
+### The two-level trap
 
-A `querySelectorAll` for comment containers will happily return
-comments that are inside a collapsed "Show more replies" section,
-a hidden tab pane, or any other ancestor with `display: none`. They
-have zero-area bounding rects, so:
+Both NYT and WaPo shipped broken in this exact way, differently.
 
-- Their body never intersects the viewport → they never qualify as
-  "current".
-- But `j` from a real comment immediately *before* them in DOM order
-  picks them as the next target. The scroll then resolves to a
-  degenerate position (no visible change), and the next press picks
-  them again — `j` looks stuck in a short cycle of scroll positions.
+A site whose threads *look* one level deep tempts you into "a reply's
+parent is the thread root" — `closest(TOP_LEVEL_SEL)`, or a backward
+scan to the nearest non-reply. At two levels the root *is* the parent,
+so it tests clean. On a three-level thread `p` jumps straight past the
+actual parent to the root, and `r` becomes indistinguishable from `p`.
 
-Filter them out at the source — `commentEl.offsetParent === null`
-catches any `display: none` ancestor without having to know which
-wrapper the site uses for collapsed state (Coral uses
-`ReplyListCommentContainer-hiddenReplies`, others differ). This is
-distinct from the "current detection" check, which already ignores
-zero-rect bodies; the symptom only shows up in the "next target"
-selection.
+**Write `parentOf` to find the immediate parent at arbitrary depth
+even if you only see two levels.** It costs nothing and the failure
+mode is otherwise invisible until someone notices `p` overshooting.
+Where the site genuinely cannot express more depth, say so explicitly
+in the doc's stability assumptions.
 
-### The comment list can change under you — never cache it
+Verify by pressing `p` on a *third*-level reply if you can find one.
 
-Re-query the comment list inside every keypress handler instead of
-caching it at init or first use. The visible set of comments can change
-at any moment from any of these:
+## Site investigation
 
-- "Load more" / "Show replies" lazy expansion.
-- SPA navigation between articles (comments are torn down and replaced).
-- Comments mounting on demand into a shadow root or portal (Coral, NYT).
-- **Filter tabs** (Featured / Top / All / My comments) that swap which
-  comments are in the DOM. The user can switch filters between any two
-  keypresses; a script that cached the list at init will step through
-  ghosts.
-- **Sort changes** (Newest first / Oldest first / Top) that keep the
-  same set of comments but reorder them. The user's current comment is
-  now at a different index, and `j` should advance to its new neighbour,
-  not the old one.
-- Real-time new comments arriving from other users.
+Snapshot every state you'll depend on before writing anything —
+closed, each menu open, hover/focus. Recurring surprises:
 
-Re-querying each press is cheap (a single `querySelectorAll` in the
-shadow root / panel) and handles all of these without subscribing to
-filter / sort / pagination events. Combined with viewport-intersection
-"current" detection (rather than a stored index), the script stays
-correct across every kind of list mutation.
+* CSS-module class names carry build hashes that rotate every deploy.
+  **Never hardcode the full class**; use `[class*="Comment_Base"]`
+  prefixes and record the prefix in the doc.
+* An id may be reused across elements rather than unique, and may
+  carry a per-instance suffix. Match with `[id^="prefix"]`, not
+  `getElementById`.
+* Capitalization of visible text varies across surfaces; match
+  case-insensitively.
+* Attributes like `aria-controls` often exist only while a popup is
+  open.
 
-### `c` lands on filler ads / related articles
+### Selector preference
 
-Sometimes the most obvious anchor (`#commenttop` on Pinkbike) sits above
-injected widgets (ads, "Online Deals", "More from this author") that occupy
-viewport space. The user wants to land *at the first row of actual
-comments*, not at the start of the filler. Prefer an anchor that's the
-comments-section root or the "N comments" header itself.
+1. Stable ids / `data-*` the site authors put there.
+2. Semantic CSS-module class **prefixes** and meaningful
+   `aria-label` / `title` strings.
+3. Role/tag selectors disambiguated by text content.
+4. Visual identifiers — SVG path geometry, pixel positions. Last
+   resort. A 460-character minified `<path d="…">` is a code smell;
+   walk up the tree for a semantic container instead.
 
-## Script name
+## Remaining site-specific concerns
 
-Use `keyboard-comment-navigation.user.js` as the script name.
+**Sticky headers.** If anything overlays the top of the scroll area,
+supply `headerOffset()`. Prefer a value the site declares over
+measuring — but check *where* it's declared: Reddit sets
+`--shreddit-header-height` on `<shreddit-app>`, not `:root`, so
+reading it off the document root silently yields `""` and falls
+through to a hardcoded default. If you must measure by walking the
+DOM, cache the result briefly (NYT caches 100ms); the library asks
+more than once per keypress.
 
-Its `script_manifest.json` entry gets `"category": "keyboard-comments"`,
-so `scripts/update_readme.py` files it under the README's "Keyboard
-comment navigation" table rather than Miscellaneous.
+**Custom scroll containers.** Supply `container()` and
+`strategy: 'container'`. Viewport tests then use the panel's rect
+rather than `window.innerHeight`, automatically. Returning null is
+safe — the library logs and falls back to a window scroll.
+
+**Scroll that silently no-ops.** On some fixed-position drawers both
+`scrollIntoView` and `scrollTo` do nothing (WaPo's Coral, with
+`scrollbar-gutter: stable`). Use `strategy: 'raf'`, which writes
+`scrollTop` directly.
+
+**Pages that grow while you scroll.** Lazy images and injected ad
+slots above the target push it down mid-animation, so the jump lands
+short. Use `strategy: 'settle'`.
+
+**The site already binds `j`/`k`.** Set `capture: true`.
+
+**Comments not rendered until a click.** Supply
+`open: { canOpen(), click() }`. Make `commentsTop()` return null while
+they're closed — otherwise `c` scrolls to a hidden panel instead of
+opening it. Everything but `c` should be gated by `enabled()`.
+
+**SPA sites.** Broaden `@match` to the site root and gate with
+`enabled()` reading `location.pathname`. The gate is evaluated per
+keypress, so no `urlchange` listener is needed.
+
+## Naming, listing, testing
+
+* Script name: `keyboard-comment-navigation.user.js`, with
+  `"category": "keyboard-comments"` in `script_manifest.json`. Run
+  `scripts/update_readme.py` after.
+* `@require` both library files, keyboard-shortcuts first, using the
+  full `raw.githubusercontent.com` URL. SourceMonkey maps it to the
+  local file for a local install. **Greasy Fork will not accept a
+  GitHub `@require`** — publishing needs the libraries hosted
+  somewhere it allows, which is unsolved.
+* The Playwright fixture resolves `@require` and synthesizes `GM_info`
+  from the metadata block. Loading two scripts into one page gives
+  each its own library copy with the DOM registry shared, which is how
+  the cross-script `?` overlay is tested.
+* Log lines are `<tag> <key>: <action> -> <target>`, generated by the
+  library — specs assert on that shape.

@@ -30,11 +30,96 @@ const REPO_ROOT = path.resolve(__dirname, '..');
 // browser. Override via PLAYWRIGHT_CDP if needed.
 const CDP_ENDPOINT = process.env.PLAYWRIGHT_CDP || 'http://127.0.0.1:9233';
 
+const METADATA_RE = /\/\/ ==UserScript==[\s\S]*?\/\/ ==\/UserScript==\s*/;
+
 function readUserscriptBody(scriptPath) {
   const src = fs.readFileSync(scriptPath, 'utf8');
   // Strip the metadata block; Tampermonkey directives are no-ops in
   // raw browser context. Whatever follows is the IIFE we want to run.
-  return src.replace(/\/\/ ==UserScript==[\s\S]*?\/\/ ==\/UserScript==\s*/, '');
+  return src.replace(METADATA_RE, '');
+}
+
+function readMetadataBlock(scriptPath) {
+  const src = fs.readFileSync(scriptPath, 'utf8');
+  const m = src.match(METADATA_RE);
+  return m ? m[0] : '';
+}
+
+function readMetadataValues(scriptPath, key) {
+  const re = new RegExp(`^//\\s*@${key}\\s+(.+?)\\s*$`, 'gm');
+  const out = [];
+  let m;
+  while ((m = re.exec(readMetadataBlock(scriptPath))) !== null) out.push(m[1]);
+  return out;
+}
+
+// Resolve one @require value to a file in this repo.
+//
+// Two forms are used here:
+//   * a bare relative path  -> sibling of the requiring script
+//     (`// @require installed-list.js`)
+//   * a raw.githubusercontent URL pointing back into this repo
+//     (`// @require https://raw.githubusercontent.com/.../lib/x.js`)
+//
+// For the URL form we don't try to parse out where the repo root sits
+// in the URL — we just walk progressively shorter suffixes of the URL
+// path until one exists under REPO_ROOT. That's the same
+// common-parent mapping SourceMonkey does when the script is
+// installed locally, but decided by an existence check rather than by
+// guessing the branch/ref layout.
+function resolveRequire(value, scriptDir) {
+  if (!/^https?:\/\//.test(value)) {
+    const local = path.resolve(scriptDir, value);
+    if (fs.existsSync(local)) return local;
+    throw new Error(`@require "${value}" not found at ${local}`);
+  }
+
+  const segments = new URL(value).pathname.split('/').filter(Boolean);
+  for (let i = 0; i < segments.length; i++) {
+    const candidate = path.join(REPO_ROOT, ...segments.slice(i));
+    if (fs.existsSync(candidate)) return candidate;
+  }
+
+  // Deliberately fatal rather than skipped. A silently-dropped
+  // @require shows up much later as "element not found" in an
+  // unrelated assertion, which is exactly the kind of failure that
+  // points nowhere near its cause.
+  throw new Error(
+    `@require "${value}" does not resolve to a file in this repo.\n` +
+    `There is no userscript manager in these tests, so external ` +
+    `libraries can't be fetched — vendor it under lib/ or stub it.`
+  );
+}
+
+// A real manager runs @require'd code in the userscript's own sandbox
+// immediately *before* the body, so the helper's top-level functions
+// and consts are in scope for the script. Concatenating the sources
+// ahead of the body inside a single wrapper reproduces that; injecting
+// them as separate addInitScript calls would not (they'd land in
+// global scope instead, and helper `const`s would behave differently).
+function readUserscriptWithRequires(scriptPath) {
+  const scriptDir = path.dirname(scriptPath);
+  const sources = readMetadataValues(scriptPath, 'require').map(value => {
+    const resolved = resolveRequire(value, scriptDir);
+    return `/* @require ${value} */\n` +
+      fs.readFileSync(resolved, 'utf8').replace(METADATA_RE, '');
+  });
+  sources.push(readUserscriptBody(scriptPath));
+  return sources.join('\n;\n');
+}
+
+// The one piece of manager state the library layer reads. It's
+// derived from the script's real metadata block rather than invented,
+// so it's a faithful value rather than a behavioral stub — scripts
+// shouldn't have to carry a fallback for a global that a real manager
+// always defines.
+function gmInfoShim(scriptPath) {
+  const name = readMetadataValues(scriptPath, 'name')[0] || '';
+  const version = readMetadataValues(scriptPath, 'version')[0] || '';
+  return `var GM_info = ${JSON.stringify({
+    script: { name, version },
+    scriptHandler: 'playwright-fixture',
+  })};`;
 }
 
 // Mirror the @run-at document-idle behavior. addInitScript runs at
@@ -120,8 +205,8 @@ const test = base.test.extend({
       const abs = path.isAbsolute(scriptPath)
         ? scriptPath
         : path.join(REPO_ROOT, scriptPath);
-      const wrapped = wrapForDocumentIdle(readUserscriptBody(abs));
-      await page.addInitScript({ content: wrapped });
+      const body = gmInfoShim(abs) + '\n' + readUserscriptWithRequires(abs);
+      await page.addInitScript({ content: wrapForDocumentIdle(body) });
     });
   },
 });
@@ -131,4 +216,8 @@ module.exports = {
   expect: base.expect,
   REPO_ROOT,
   CDP_ENDPOINT,
+  // Exported for the fixture's own tests and for specs that need to
+  // build the injected source themselves.
+  resolveRequire,
+  readUserscriptWithRequires,
 };

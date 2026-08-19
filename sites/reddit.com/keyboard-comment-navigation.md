@@ -2,30 +2,28 @@
 
 ## Summary
 
-Adds keyboard shortcuts for moving through the comments on a reddit
-post, following the shape of the thread — not just the next comment,
-but the parent, the next sibling at the same depth, and the next
-top-level thread, so a long discussion can be skimmed or read in
-depth without the mouse.
+This adds keyboard shortcuts for navigating comment threads on Reddit.
+
+`c` jumps to the first comment, `j` / `k` go to next / previous. Other keys are listed below.<br>
+`?` opens help showing all the keys.
 
 Reddit's own `j` / `k` move linearly through everything and don't let
-you skip a subtree; this script takes those keys over. The bindings
-match the comment-navigation userscripts for other sites.
+you skip a subtree; this script takes those keys over.
+
+Scripts adding the [same key bindings for several other sites are available here](https://github.com/jshute96/userscripts/blob/main/README.md#keyboard-comment-navigation).
 
 ### Keyboard shortcuts
 
-| Key | Moves to |
+| Key | Action |
 | --- | --- |
-| `j` / `k` | next / previous comment in display order, replies included |
-| `h` / `l` | next / previous sibling at the same depth, skipping the current subtree |
-| `p` | parent of the current comment |
-| `n` | parent's next sibling — continues past the current subtree |
-| `r` | root of the current thread |
-| `m` | next root thread |
-| `c` | top of the comments section (the sort dropdown / "N Comments" row) |
-
-The "current" comment is the first one visible on screen, not whichever
-has focus. Keys are ignored while you're typing in a text box.
+| `c` | Open the comments |
+| `j` / `k` | Go to next / previous comment |
+| `h` / `l` | Go to next / previous sibling at the same depth, skipping the current subtree |
+| `p` | Go to parent comment |
+| `r` | Go to root comment of this thread |
+| `n` | Go to next comment at parent level |
+| `m` | Go to next comment at root level |
+| `?` | Show all shortcuts on this page, from this and any other userscript |
 
 ## Visible changes
 
@@ -83,28 +81,46 @@ its direct `<shreddit-comment>` children are the root threads. The
 * `shreddit-comment-tree`, `shreddit-comments-sort-dropdown`, and
   `shreddit-comment-tree-stats` exist at the top of the comments section.
 
-### How the script works
+### How we modify the page
 
-* Single capture-phase `keydown` listener on `document`. Capture phase plus
-  `preventDefault()` + `stopImmediatePropagation()` is how we beat reddit's
-  built-in `j`/`k` handler to the event.
-* On init, injects a `<style id="reddit-nav-scroll-margin">` that applies
-  `scroll-margin-top: calc(var(--shreddit-header-height) + 8px)` to every
-  element we ever scroll to (`shreddit-comment`,
-  `shreddit-comments-sort-dropdown`, `shreddit-comment-tree-stats`,
-  `shreddit-comment-tree`). Reddit only sets the inline scroll-margin on
-  depth-0 comments, so without this nested replies and the comments header
-  land with their first line tucked behind reddit's sticky top banner.
-* Reddit is an SPA, so `@match` is `https://www.reddit.com/*` and the
-  handler self-gates on `location.pathname` containing `/comments/`.
-  Outside a post page, all keys pass through to reddit's own handling
-  untouched.
-* No DOM mutation — we only scroll. Queries are run fresh on every
-  keypress, so SPA navigation between posts works without rebinding.
+We do not modify the DOM. The navigation itself lives in
+[`lib/keyboard-comment-nav.js`](../../lib/keyboard-comment-nav.js) —
+current-comment detection, the remembered jump target that keeps
+chained presses advancing during a smooth scroll, the hidden-comment
+filter, the scroll strategies, and all nine key bindings are shared
+with the other comment-navigation scripts and documented there. Key
+dispatch, the typing guard, and the `?` help overlay come from
+[`lib/keyboard-shortcuts.js`](../../lib/keyboard-shortcuts.js).
 
-### Notes
+What's left in this script is the site config:
 
-* The handler intentionally does nothing on feed pages (`/`, `/r/<sub>`,
-  search results) — reddit's own `j`/`k` for cycling posts there is fine.
-* The script is `@noframes` since reddit's comment tree only ever lives in
-  the top frame.
+* `capture: true` — reddit binds its own `j`/`k`. Capture phase plus
+  `stopImmediatePropagation` on handled keys is what beats it, and
+  only handled keys are suppressed.
+* `enabled()` — `/\/comments\//` on the pathname. `@match` covers the
+  whole site so the script survives SPA navigation into a thread; this
+  gate decides whether to act.
+* `comments()` — every `shreddit-comment`.
+* `body()` — the `<thingid>-comment-rtjson-content` div. The
+  `shreddit-comment` element wraps its entire subtree and would stay
+  intersecting the viewport long after its text scrolled past.
+* `parentOf()` — `parentElement.closest('shreddit-comment')`. Nested
+  comments live in their parent's light DOM (slotted into shadow DOM
+  only for rendering), so the light-DOM ancestor chain is the tree.
+* `headerOffset()` — see below.
+* `commentsTop()` — the sort dropdown, falling back to the tree-stats
+  element and then the tree itself.
+
+### Sticky-header offset
+
+Reddit's top banner is sticky, and reddit sets `scroll-margin-top` on
+depth-0 comments itself but not on nested replies or the comments
+header — so we compute the offset for every scroll instead.
+
+Reddit declares the height as `--shreddit-header-height`, **but on
+`<shreddit-app>`, not the document root.** Reading it off `:root`
+returns the empty string and falls silently through to the default.
+Both are checked. Measured against the live `<reddit-header-large>`
+the declared 56px is accurate to a pixel; 8px is added for breathing
+room, and a landing comment's body settles around y=100 (the ~36px
+avatar/username row sits above the body).
