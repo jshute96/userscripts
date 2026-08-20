@@ -40,18 +40,27 @@ page the script *already* targets, the user just reloads the page.
 ## Manifest files (`script_manifest.json`)
 
 * SourceMonkey uses `script_manifest.json` files as an alternative way to find and load userscripts.
-* **Write it as a flat array of objects, one per script, each with a
-  `path` relative to the manifest's own location:**
+* **Write it as an object with a `scripts` array, one entry per script,
+  each with a `path` relative to the manifest's own location:**
 
   ```json
-  [
-    { "path": "sub/one.user.js" },
-    { "path": "sub/two.user.js", "greasyfork": { "id": 590960 } }
-  ]
+  {
+    "scripts": [
+      { "path": "sub/one.user.js" },
+      { "path": "sub/two.user.js", "greasyfork": { "id": 590960 } }
+    ]
+  }
   ```
+
+  A bare array (just the `scripts` value, with no wrapper) also works,
+  and is what older manifests look like.
 
   SourceMonkey ignores every field but `path`. We use other fields for
   additional script metadata, including `greasyfork` which we use to
   record metadata if we publish scripts later.
+* Sibling keys beside `scripts` are ours, not SourceMonkey's. This repo
+  keeps a `libraries` list there for the shared `@require` helpers under
+  `lib/` — SourceMonkey doesn't load those (they aren't userscripts),
+  we just track them and where they're published.
 * If `script_manifest.json` exists, update it after adding a new userscript,
   following its current format.

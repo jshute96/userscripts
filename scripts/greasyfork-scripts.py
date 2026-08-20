@@ -6,14 +6,21 @@ publish to. What's published there is read from our user page's JSON twin
 (https://api.greasyfork.org/en/users/<id>-<slug>.json), which needs no
 login and gives each script's id, name, version and URL.
 
+The user page lists only userscripts. The shared `@require` libraries
+in `lib/` are published as scripts too, but Greasy Fork keeps them off
+that list, so each one is looked up by id at
+https://api.greasyfork.org/en/scripts/<id>.json instead — which means a
+library's id has to be written into the manifest by hand.
+
 Subcommands:
   list      Print the published scripts (`--json` for the raw entries).
   match     Print how they pair with the local `.user.js` files, and
             what's on only one side. Pairs by the id in
             `script_manifest.json`, falling back to the `@name` header.
-  link      Match, then record each pair's id and URL in the manifest —
-            the only thing here that writes anything (`--dry-run` to
-            preview).
+            Also checks each library's recorded URLs against Greasy Fork.
+  link      Match, then record each pair's id and URL in the manifest,
+            and refresh each library's URLs — the only thing here that
+            writes anything (`--dry-run` to preview).
   raw-url   Print the raw.githubusercontent.com URL for a local script,
             which is what Greasy Fork's import form fetches. Assembled,
             not looked up: an unpushed file gets a URL that 404s.
@@ -60,41 +67,55 @@ class Manifest:
   everything else exactly as we found it — anything we don't recognize
   is something SourceMonkey or a future us put there on purpose.
 
-  `entries` is the scripts as a uniform list of objects, whatever the
-  file spelled them as, and editing one edits what `save()` writes.
-  What survives a save: the `{"scripts": [...]}` wrapper if the file
-  used one, along with any keys beside it; fields on an entry that we
-  don't know about; and an entry written as a bare path string, which
-  stays a string unless we added a field to it.
+  `entries` is the scripts and `libraries` the `lib/` helpers, each a
+  uniform list of objects whatever the file spelled them as, and editing
+  one edits what `save()` writes. What survives a save: the
+  `{"scripts": [...]}` wrapper if the file used one, along with any keys
+  beside it; fields on an entry that we don't know about; and an entry
+  written as a bare path string, which stays a string unless we added a
+  field to it.
   """
 
   def __init__(self, path: Path):
     self.path = path
     self.data = json.loads(path.read_text(encoding="utf-8"))
-    raw = self.data.get("scripts") if isinstance(self.data, dict) else self.data
-    if not isinstance(raw, list):
-      raise SystemExit(f"error: {path} is not a script list or a {{'scripts': [...]}} object")
-    self.entries = []
+    if isinstance(self.data, dict):
+      raw_scripts, raw_libraries = self.data.get("scripts"), self.data.get("libraries", [])
+    else:
+      raw_scripts, raw_libraries = self.data, []
+    if not isinstance(raw_scripts, list) or not isinstance(raw_libraries, list):
+      raise SystemExit(f"error: {path} is not a script list or a "
+                       f"{{'scripts': [...], 'libraries': [...]}} object")
     self._were_strings = set()
+    self.entries = self._parse(raw_scripts, "scripts")
+    self.libraries = self._parse(raw_libraries, "libraries")
+
+  def _parse(self, raw: list, which: str) -> list:
+    parsed = []
     for index, entry in enumerate(raw):
       if isinstance(entry, str):
-        self.entries.append({"path": entry})
-        self._were_strings.add(index)
+        parsed.append({"path": entry})
+        self._were_strings.add((which, index))
       elif isinstance(entry, dict) and isinstance(entry.get("path"), str):
-        self.entries.append(entry)
+        parsed.append(entry)
       else:
-        raise SystemExit(f"error: {path} has an entry that is neither a path "
-                         f"nor an object with a 'path': {entry!r}")
+        raise SystemExit(f"error: {self.path} has a {which} entry that is neither "
+                         f"a path nor an object with a 'path': {entry!r}")
+    return parsed
+
+  def _written(self, parsed: list, which: str) -> list:
+    return [entry["path"]
+            if (which, index) in self._were_strings and list(entry) == ["path"] else entry
+            for index, entry in enumerate(parsed)]
 
   def save(self) -> None:
-    written = [entry["path"]
-               if index in self._were_strings and list(entry) == ["path"] else entry
-               for index, entry in enumerate(self.entries)]
     if isinstance(self.data, dict):
-      self.data["scripts"] = written
+      self.data["scripts"] = self._written(self.entries, "scripts")
+      if self.libraries or "libraries" in self.data:
+        self.data["libraries"] = self._written(self.libraries, "libraries")
       output = self.data
     else:
-      output = written
+      output = self._written(self.entries, "scripts")
     self.path.write_text(json.dumps(output, indent=2) + "\n", encoding="utf-8")
 
 
@@ -109,16 +130,8 @@ def header_field(path: Path, pattern: re.Pattern) -> str:
   return match.group(1) if match else ""
 
 
-def local_scripts(entries: list, only: list) -> list:
-  """(manifest entry, @name, @version) for the scripts we care about.
-
-  Paths named on the command line that aren't in the manifest still get
-  an entry, so `raw-url` and `match` work on a script before it's
-  listed.
-  """
-  if only:
-    by_path = {entry["path"]: entry for entry in entries}
-    entries = [by_path.get(relative_path(p), {"path": relative_path(p)}) for p in only]
+def local_scripts(entries: list) -> list:
+  """(manifest entry, @name, @version) for each script entry."""
   found = []
   for entry in entries:
     full = REPO_ROOT / entry["path"]
@@ -132,6 +145,22 @@ def relative_path(given: str) -> str:
   """A command-line path as the manifest spells it: relative to the repo."""
   path = Path(given)
   return str(path.resolve().relative_to(REPO_ROOT)) if path.is_absolute() else str(path)
+
+
+def selected(manifest: "Manifest", only: list) -> tuple:
+  """The (scripts, libraries) to act on: everything, or just what's named.
+
+  A named path that isn't in the manifest is still taken as a script, so
+  `match` works on one before it's listed — but a path listed under
+  `libraries` is only ever a library, never both.
+  """
+  if not only:
+    return manifest.entries, manifest.libraries
+  wanted = [relative_path(path) for path in only]
+  by_path = {entry["path"]: entry for entry in manifest.entries}
+  libraries = {entry["path"]: entry for entry in manifest.libraries}
+  return ([by_path.get(path, {"path": path}) for path in wanted if path not in libraries],
+          [libraries[path] for path in wanted if path in libraries])
 
 
 def raw_url(source: str, branch: str) -> str:
@@ -162,16 +191,53 @@ def raw_url(source: str, branch: str) -> str:
 
 # ---------- Greasy Fork ----------
 
-def published(api_base: str, user: str) -> list:
-  """Every script on the user's Greasy Fork page, newest id last."""
-  url = f"{api_base.rstrip('/')}/en/users/{user}.json"
+def fetch_json(url: str, missing_ok: bool = False):
+  """The JSON at a Greasy Fork API URL, or None for a 404 if allowed."""
   request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
   try:
     with urllib.request.urlopen(request, timeout=30) as response:
-      data = json.load(response)
+      return json.load(response)
+  except urllib.error.HTTPError as error:
+    if missing_ok and error.code == 404:
+      return None
+    raise SystemExit(f"error: could not read {url}: {error}")
   except (urllib.error.URLError, ValueError) as error:
     raise SystemExit(f"error: could not read {url}: {error}")
+
+
+def published(api_base: str, user: str) -> list:
+  """Every script on the user's Greasy Fork page, newest id last."""
+  data = fetch_json(f"{api_base.rstrip('/')}/en/users/{user}.json")
   return [s for s in data.get("scripts", []) if not s.get("deleted")]
+
+
+def published_one(api_base: str, script_id) -> dict:
+  """One published script, by id, from its own JSON page — or None.
+
+  This is how libraries are looked up: they're published as scripts, but
+  Greasy Fork leaves them off the user page's `scripts` list, so nothing
+  can discover them and their ids are recorded by hand. `code_url` in
+  what comes back is the URL of the newest *version*, which is what a
+  script's `@require` line has to name — Greasy Fork mints a new one per
+  version, and a `@require` pointing at an old one stays on that old
+  code until the script is edited.
+  """
+  return fetch_json(f"{api_base.rstrip('/')}/en/scripts/{script_id}.json", missing_ok=True)
+
+
+def library_record(remote: dict) -> dict:
+  """What we keep in a library's manifest entry, from its API entry."""
+  return {"id": remote["id"], "url": remote["url"],
+          "latest_version_url": remote["code_url"]}
+
+
+def match_libraries(api_base: str, libraries: list) -> list:
+  """(entry, published entry or None) for each library, by recorded id."""
+  paired = []
+  for entry in libraries:
+    recorded = entry.get("greasyfork", {}).get("id")
+    paired.append((entry, published_one(api_base, recorded) if recorded is not None else None))
+  return paired
 
 
 def match_up(locals_: list, remotes: list) -> tuple:
@@ -223,8 +289,10 @@ def cmd_list(args) -> None:
 
 def cmd_match(args) -> None:
   manifest = Manifest(args.manifest)
+  scripts, library_entries = selected(manifest, args.paths)
   pairs, unpublished, orphans = match_up(
-      local_scripts(manifest.entries, args.paths), published(args.api_base, args.user))
+      local_scripts(scripts), published(args.api_base, args.user))
+  libraries = match_libraries(args.api_base, library_entries)
 
   print(f"published and matched ({len(pairs)}):")
   for entry, name, version, remote in pairs:
@@ -246,14 +314,33 @@ def cmd_match(args) -> None:
     print(f"\npublished but no local match ({len(orphans)}):")
     for remote in orphans:
       print(f"    {remote['id']}  {remote['name']}")
-  if any(v != r["version"] for _, _, v, r in pairs):
-    print("\n('*' marks a local @version that differs from the posted one.)")
+  stale = [(entry, remote) for entry, remote in libraries
+           if remote and entry.get("greasyfork") != library_record(remote)]
+  if libraries:
+    posted = [(entry, remote) for entry, remote in libraries if remote]
+    print(f"\nlibraries published and matched ({len(posted)}):")
+    for entry, remote in posted:
+      mark = "* " if (entry, remote) in stale else "  "
+      note = "   [manifest URLs out of date; run link]" if (entry, remote) in stale else ""
+      print(f"  {mark}{remote['id']}  posted v{remote['version']}  {entry['path']}{note}")
+    missing = [(entry, recorded) for entry, remote in libraries if not remote
+               for recorded in [entry.get("greasyfork", {}).get("id")]]
+    if missing:
+      print(f"\nlibraries with no published copy ({len(missing)}):")
+      for entry, recorded in missing:
+        # A recorded id that fetches nothing means the library was
+        # deleted on Greasy Fork, or the hand-typed id is wrong.
+        note = f"   [id {recorded} not found on Greasy Fork!]" if recorded is not None else ""
+        print(f"    {entry['path']}{note}")
+  if any(v != r["version"] for _, _, v, r in pairs) or stale:
+    print("\n('*' marks a local @version that differs from the posted one, or a "
+          "library whose recorded URLs differ from what Greasy Fork reports.)")
 
 
 def cmd_link(args) -> None:
   manifest = Manifest(args.manifest)
-  pairs, _, _ = match_up(local_scripts(manifest.entries, args.paths),
-                         published(args.api_base, args.user))
+  scripts, library_entries = selected(manifest, args.paths)
+  pairs, _, _ = match_up(local_scripts(scripts), published(args.api_base, args.user))
   changed = []
   for entry, _, _, remote in pairs:
     if entry not in manifest.entries:
@@ -263,6 +350,13 @@ def cmd_link(args) -> None:
     recorded = {"id": remote["id"], "url": remote["url"]}
     if entry.get("greasyfork") != recorded:
       entry["greasyfork"] = recorded
+      changed.append(f"{remote['id']}  {entry['path']}")
+  # Libraries are matched only by the id already in the manifest, so
+  # this refreshes their URLs — above all `latest_version_url`, which
+  # changes every time a new version is posted — and never adds one.
+  for entry, remote in match_libraries(args.api_base, library_entries):
+    if remote and entry.get("greasyfork") != library_record(remote):
+      entry["greasyfork"] = library_record(remote)
       changed.append(f"{remote['id']}  {entry['path']}")
   if not changed:
     print("manifest already up to date")

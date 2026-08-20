@@ -1,8 +1,7 @@
 # keyboard-comment-nav.js
 
 A shared `@require` helper implementing this repo's comment-thread
-keyboard navigation. Not a userscript itself — no metadata block, not
-listed in `script_manifest.json`.
+keyboard navigation.
 
 ```js
 // @require https://raw.githubusercontent.com/jshute96/userscripts/main/lib/keyboard-shortcuts.js

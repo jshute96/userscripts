@@ -101,8 +101,18 @@ maybe HTML), follow this flow:
 ### Keeping the script list current
 
 **`script_manifest.json`** — the list SourceMonkey loads, and our
-source of truth for which scripts exist. Edit it by hand. One entry
-per script, in site order, each an object with:
+source of truth for which scripts exist. Edit it by hand. It is an
+object with two lists:
+
+```json
+{
+  "scripts": [ ... ],
+  "libraries": [ ... ]
+}
+```
+
+`scripts` has one entry per userscript, in site order, each an object
+with:
 
 * `path` — the relative path from the repo root. Required.
 * `category` — which README table the script belongs in. Omit it for
@@ -112,18 +122,49 @@ per script, in site order, each an object with:
 
 SourceMonkey reads `path` and ignores the other fields.
 
-**`README.md`, under "My userscripts"** — generated. Run
-`scripts/update_readme.py` after adding, removing, or when its
-`@name` or `@description` changes. `--check` just reports whether 
-the file is stale, without writing.
+`libraries` has one entry per shared `@require` helper in `lib/` —
+those aren't userscripts and SourceMonkey doesn't load them directly, so we list
+them only to track what exists and where each is published:
 
-Each table sits under a placeholder comment naming its category.
+```json
+{
+  "path": "lib/keyboard-shortcuts.js",
+  "greasyfork": {
+    "id": 592123,
+    "url": "https://greasyfork.org/scripts/592123-keyboard-shortcuts",
+    "latest_version_url": "https://update.greasyfork.org/scripts/592123/1907419/keyboard-shortcuts.js"
+  }
+}
+```
+
+`latest_version_url` is the extra field libraries carry. Greasy Fork
+gives a library one id and one landing page (`url`), but mints a *new*
+URL for every version posted, and a `@require` has to name one exact
+version. Scripts loading `@require` libraries from Greasy Fork point at
+a specific version and don't get updates without updating the `@require`.
+
+`scripts/greasyfork-scripts.py match` reports whether each recorded
+`latest_version_url` is still the newest, and `link` refreshes it. It
+can't *discover* a library's id, though — Greasy Fork keeps libraries
+off the user page's script list, so a library's id is looked up by hand
+once (its page's JSON twin is
+`https://api.greasyfork.org/en/scripts/<id>-<slug>.json`) and written
+into the manifest; everything else is synced from there.
+
+**`README.md`, under "My userscripts"** — generated. Run
+`scripts/update_readme.py` after adding or removing a script or
+library, or when a script's `@name` or `@description` changes.
+`--check` just reports whether the file is stale, without writing.
+
+Each script table sits under a placeholder comment naming its category,
+with the libraries under its own:
 
 ```markdown
 <!-- update_readme.py category=keyboard-comments -->
+<!-- update_readme.py libraries -->
 ```
 
-The script rewrites the table under that placeholder.
+The script rewrites the table under each placeholder.
 
 ### Script categories
 
@@ -380,14 +421,23 @@ if it's missing; it makes the next break diagnose itself.
   `https://raw.githubusercontent.com/.../main/lib/<name>.js` URL —
   SourceMonkey maps that back to the local file when the script is
   installed from a local directory, matching on the common parent
-  path, so one line covers both install modes. `lib/` files are *not*
-  listed in `script_manifest.json` (it holds userscripts only) and are
-  invisible to `scripts/update_readme.py`.
+  path, so one line covers both install modes. `lib/` files go in the
+  manifest's `libraries` list, not `scripts`, and get their own README table.
   - Multiple `@require`s run in order, in the userscript's own
     sandbox, so a library may call one required earlier.
   - **Greasy Fork won't accept a GitHub `@require`** — it wants
-    libraries published on Greasy Fork or an allowlisted CDN. Any
-    script using `lib/` can't be published as-is. Unsolved.
+    libraries published on Greasy Fork or an allowlisted CDN. Our
+    `lib/` files are now published there (see `libraries` in
+    `script_manifest.json`), but the scripts still `@require` the
+    GitHub raw URLs, so **a script using `lib/` can't be published
+    as-is** — and in particular can't use Greasy Fork's import-from-
+    GitHub auto-update, since the copy it fetches is the one with the
+    GitHub `@require`s. Publishing one means posting a copy whose
+    `@require` lines point at the libraries' `latest_version_url`s.
+    Not automated.
+  - Publishing a library itself is manual too: the new/update forms are
+    the same URLs as for scripts, but you pick `library` and the fields
+    differ. There's no import-from-GitHub for libraries at all.
   - Existing libraries: `lib/keyboard-shortcuts.js` (key registration
     + a cross-script `?` help overlay) and `lib/keyboard-comment-nav.js`
     (the comment-navigation behavior for all six sites).

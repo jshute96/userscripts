@@ -50,21 +50,50 @@ SourceMonkey ignores every other field — which is where the Greasy
 Fork id and URL go, on the same entry as the script they belong to:
 
 ```json
-[
-  { "path": "sites/feedly.com/scroll-index-to-top.user.js" },
-  {
-    "path": "sites/strava.com/fix-climb-slider.user.js",
-    "greasyfork": {
-      "id": 590960,
-      "url": "https://greasyfork.org/scripts/590960-strava-fix-the-broken-climb-filter-on-segment-search"
+{
+  "scripts": [
+    { "path": "sites/feedly.com/scroll-index-to-top.user.js" },
+    {
+      "path": "sites/strava.com/fix-climb-slider.user.js",
+      "greasyfork": {
+        "id": 590960,
+        "url": "https://greasyfork.org/scripts/590960-strava-fix-the-broken-climb-filter-on-segment-search"
+      }
     }
-  }
-]
+  ],
+  "libraries": [
+    {
+      "path": "lib/keyboard-shortcuts.js",
+      "greasyfork": {
+        "id": 592123,
+        "url": "https://greasyfork.org/scripts/592123-keyboard-shortcuts",
+        "latest_version_url": "https://update.greasyfork.org/scripts/592123/1907419/keyboard-shortcuts.js"
+      }
+    }
+  ]
+}
 ```
 
 A script with no `greasyfork` field hasn't been published. Don't add
 the field by hand; `link` writes it from what Greasy Fork reports (see
 below), and a hand-typed id that's wrong is worse than a missing one.
+
+### Libraries are the exception
+
+The `libraries` list holds the shared `@require` helpers in `lib/`.
+They're published as Greasy Fork scripts too, but Greasy Fork keeps
+them off the user page's script list, so **nothing can discover a
+library's id** — `list` won't show it and `match` can't find it. Write
+the id in by hand, once, after publishing: the library's page has a
+JSON twin at
+`https://api.greasyfork.org/en/scripts/<id>-<slug>.json`. From then on
+`match` and `link` work from that id like any other entry.
+
+Libraries carry one extra field, `latest_version_url`. Greasy Fork
+mints a new version URL every time a version is posted, and a
+`@require` has to name one exact version — so this is the URL a script
+would point at, and it goes stale as soon as a new version is posted.
+`match` flags that; `link` refreshes it.
 
 ## Actions
 
@@ -81,8 +110,29 @@ differs from the posted one (i.e. we have changes that were never
 posted). It also lists local scripts that were never published, and
 published scripts with no local match.
 
+It finishes with the libraries, matched by their recorded id alone,
+marking with `*` any whose stored URLs no longer match what Greasy Fork
+reports — almost always a new version posted since the last `link`.
+
 Renaming a script's `@name` breaks the match. Re-run `link` after a
 rename; the ID in the manifest is what keeps it straight.
+
+### Publishing a library
+
+Not automated, and not covered by anything below. The new-script and
+new-version forms are the same URLs as for a script, but you choose
+`library` on them and the fields differ. There's no import-from-GitHub
+option for libraries at all, so each version is posted by hand.
+
+Then hand-record the id in the manifest's `libraries` list (see above)
+and run `link` to fill in the rest.
+
+**A script that `@require`s a `lib/` file can't be published as-is.**
+Our scripts point their `@require` lines at `raw.githubusercontent.com`,
+which Greasy Fork rejects, and that includes the copy an import-from-
+GitHub would fetch — so auto-update is unavailable for these scripts
+until their `@require`s name the libraries' `latest_version_url`s
+instead. Doing that by hand is the only route today.
 
 ### Publish by importing from GitHub (preferred)
 

@@ -1,8 +1,7 @@
 # keyboard-shortcuts.js
 
 A shared `@require` helper for userscripts that bind keyboard
-shortcuts. Not a userscript itself — it has no metadata block and
-isn't listed in `script_manifest.json`.
+shortcuts.
 
 ```js
 // @require https://raw.githubusercontent.com/jshute96/userscripts/main/lib/keyboard-shortcuts.js

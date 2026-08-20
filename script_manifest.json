@@ -1,174 +1,198 @@
-[
-  {
-    "path": "sites/calendar.google.com/highlight-local-rooms.user.js",
-    "greasyfork": {
-      "id": 591535,
-      "url": "https://greasyfork.org/scripts/591535-google-calendar-highlight-matching-meeting-rooms"
+{
+  "scripts": [
+    {
+      "path": "sites/calendar.google.com/highlight-local-rooms.user.js",
+      "greasyfork": {
+        "id": 591535,
+        "url": "https://greasyfork.org/scripts/591535-google-calendar-highlight-matching-meeting-rooms"
+      }
+    },
+    {
+      "path": "sites/cnrfc.noaa.gov/precip-default-view.user.js"
+    },
+    {
+      "path": "sites/connect.garmin.com/activity-tcx-download.user.js"
+    },
+    {
+      "path": "sites/connect.garmin.com/mtb-jumps-map-link.user.js",
+      "greasyfork": {
+        "id": 591536,
+        "url": "https://greasyfork.org/scripts/591536-garmin-connect-improve-ui-in-mtb-dynamics-jumps-view"
+      }
+    },
+    {
+      "path": "sites/connect.garmin.com/upload-to-strava.user.js"
+    },
+    {
+      "path": "sites/example.com/bold-on-hover.user.js",
+      "category": "examples"
+    },
+    {
+      "path": "sites/example.com/config-value.user.js",
+      "category": "examples"
+    },
+    {
+      "path": "sites/example.com/error-button.user.js",
+      "category": "examples"
+    },
+    {
+      "path": "sites/example.com/error-on-load.user.js",
+      "category": "examples"
+    },
+    {
+      "path": "sites/example.com/show-gm-info.user.js",
+      "category": "examples"
+    },
+    {
+      "path": "sites/example.com/updated-script.user.js",
+      "category": "examples"
+    },
+    {
+      "path": "sites/feedly.com/scroll-index-to-top.user.js",
+      "greasyfork": {
+        "id": 591537,
+        "url": "https://greasyfork.org/scripts/591537-feedly-scroll-index-page-to-top"
+      }
+    },
+    {
+      "path": "sites/feedly.com/sort-filter-presets.user.js",
+      "greasyfork": {
+        "id": 591538,
+        "url": "https://greasyfork.org/scripts/591538-feedly-add-oldest-newest-buttons-for-single-click-order-toggle"
+      }
+    },
+    {
+      "path": "sites/greasyfork.org/prefill-forms-from-hash.user.js"
+    },
+    {
+      "path": "sites/members.onepeloton.com/classes-default-filters.user.js",
+      "greasyfork": {
+        "id": 591539,
+        "url": "https://greasyfork.org/scripts/591539-peloton-default-filters-on-class-lists"
+      }
+    },
+    {
+      "path": "sites/members.onepeloton.com/fix-bad-video-overlay.user.js",
+      "greasyfork": {
+        "id": 590890,
+        "url": "https://greasyfork.org/scripts/590890-peloton-player-fix-bad-video-overlay-on-tall-screens"
+      }
+    },
+    {
+      "path": "sites/members.onepeloton.com/keep-now-playing.user.js",
+      "greasyfork": {
+        "id": 590887,
+        "url": "https://greasyfork.org/scripts/590887-peloton-player-keep-the-now-playing-song-visible"
+      }
+    },
+    {
+      "path": "sites/news.ycombinator.com/keyboard-comment-navigation.user.js",
+      "category": "keyboard-comments",
+      "greasyfork": {
+        "id": 592127,
+        "url": "https://greasyfork.org/scripts/592127-hacker-news-keyboard-comment-navigation"
+      }
+    },
+    {
+      "path": "sites/nytimes.com/athletic-keyboard-comment-navigation.user.js",
+      "category": "keyboard-comments"
+    },
+    {
+      "path": "sites/nytimes.com/keyboard-comment-navigation.user.js",
+      "category": "keyboard-comments"
+    },
+    {
+      "path": "sites/nytimes.com/spelling-bee.user.js",
+      "greasyfork": {
+        "id": 591403,
+        "url": "https://greasyfork.org/scripts/591403-nytimes-spelling-bee-word-definitions-and-other-tweaks"
+      }
+    },
+    {
+      "path": "sites/pinkbike.com/article-image-navigation.user.js",
+      "greasyfork": {
+        "id": 591540,
+        "url": "https://greasyfork.org/scripts/591540-pinkbike-keyboard-navigation-for-article-photos"
+      }
+    },
+    {
+      "path": "sites/pinkbike.com/close-sticky-footer-ad.user.js",
+      "greasyfork": {
+        "id": 591541,
+        "url": "https://greasyfork.org/scripts/591541-pinkbike-auto-close-the-floating-footer-ads"
+      }
+    },
+    {
+      "path": "sites/pinkbike.com/keyboard-comment-navigation.user.js",
+      "category": "keyboard-comments",
+      "greasyfork": {
+        "id": 591542,
+        "url": "https://greasyfork.org/scripts/591542-pinkbike-keyboard-comment-navigation"
+      }
+    },
+    {
+      "path": "sites/reddit.com/keyboard-comment-navigation.user.js",
+      "category": "keyboard-comments"
+    },
+    {
+      "path": "sites/strava.com/fix-climb-slider.user.js",
+      "greasyfork": {
+        "id": 590960,
+        "url": "https://greasyfork.org/scripts/590960-strava-fix-the-broken-climb-filter-on-segment-search"
+      }
+    },
+    {
+      "path": "sites/strava.com/segment-search-location-filter.user.js",
+      "greasyfork": {
+        "id": 590976,
+        "url": "https://greasyfork.org/scripts/590976-strava-segment-search-location-filter-and-unpaged-view"
+      }
+    },
+    {
+      "path": "sites/strava.com/show-elevation-loss.user.js",
+      "greasyfork": {
+        "id": 590975,
+        "url": "https://greasyfork.org/scripts/590975-strava-show-elevation-gain-and-loss-for-each-segment"
+      }
+    },
+    {
+      "path": "sites/strava.com/upload-commute-preset.user.js"
+    },
+    {
+      "path": "sites/techcrunch.com/close-newsletter-popup.user.js",
+      "greasyfork": {
+        "id": 591543,
+        "url": "https://greasyfork.org/scripts/591543-techcrunch-auto-close-the-newsletter-popup"
+      }
+    },
+    {
+      "path": "sites/theatlantic.com/games-todays-puzzle-link.user.js",
+      "greasyfork": {
+        "id": 591544,
+        "url": "https://greasyfork.org/scripts/591544-the-atlantic-games-link-to-today-s-puzzle"
+      }
+    },
+    {
+      "path": "sites/washingtonpost.com/keyboard-comment-navigation.user.js",
+      "category": "keyboard-comments"
     }
-  },
-  {
-    "path": "sites/cnrfc.noaa.gov/precip-default-view.user.js"
-  },
-  {
-    "path": "sites/connect.garmin.com/activity-tcx-download.user.js"
-  },
-  {
-    "path": "sites/connect.garmin.com/mtb-jumps-map-link.user.js",
-    "greasyfork": {
-      "id": 591536,
-      "url": "https://greasyfork.org/scripts/591536-garmin-connect-improve-ui-in-mtb-dynamics-jumps-view"
+  ],
+  "libraries": [
+    {
+      "path": "lib/keyboard-comment-nav.js",
+      "greasyfork": {
+        "id": 592124,
+        "url": "https://greasyfork.org/scripts/592124-keyboard-comment-nav",
+        "latest_version_url": "https://update.greasyfork.org/scripts/592124/1907421/keyboard-comment-nav.js"
+      }
+    },
+    {
+      "path": "lib/keyboard-shortcuts.js",
+      "greasyfork": {
+        "id": 592123,
+        "url": "https://greasyfork.org/scripts/592123-keyboard-shortcuts",
+        "latest_version_url": "https://update.greasyfork.org/scripts/592123/1907419/keyboard-shortcuts.js"
+      }
     }
-  },
-  {
-    "path": "sites/connect.garmin.com/upload-to-strava.user.js"
-  },
-  {
-    "path": "sites/example.com/bold-on-hover.user.js",
-    "category": "examples"
-  },
-  {
-    "path": "sites/example.com/config-value.user.js",
-    "category": "examples"
-  },
-  {
-    "path": "sites/example.com/error-button.user.js",
-    "category": "examples"
-  },
-  {
-    "path": "sites/example.com/error-on-load.user.js",
-    "category": "examples"
-  },
-  {
-    "path": "sites/example.com/show-gm-info.user.js",
-    "category": "examples"
-  },
-  {
-    "path": "sites/example.com/updated-script.user.js",
-    "category": "examples"
-  },
-  {
-    "path": "sites/feedly.com/scroll-index-to-top.user.js",
-    "greasyfork": {
-      "id": 591537,
-      "url": "https://greasyfork.org/scripts/591537-feedly-scroll-index-page-to-top"
-    }
-  },
-  {
-    "path": "sites/feedly.com/sort-filter-presets.user.js",
-    "greasyfork": {
-      "id": 591538,
-      "url": "https://greasyfork.org/scripts/591538-feedly-add-oldest-newest-buttons-for-single-click-order-toggle"
-    }
-  },
-  {
-    "path": "sites/greasyfork.org/prefill-forms-from-hash.user.js"
-  },
-  {
-    "path": "sites/members.onepeloton.com/classes-default-filters.user.js",
-    "greasyfork": {
-      "id": 591539,
-      "url": "https://greasyfork.org/scripts/591539-peloton-default-filters-on-class-lists"
-    }
-  },
-  {
-    "path": "sites/members.onepeloton.com/fix-bad-video-overlay.user.js",
-    "greasyfork": {
-      "id": 590890,
-      "url": "https://greasyfork.org/scripts/590890-peloton-player-fix-bad-video-overlay-on-tall-screens"
-    }
-  },
-  {
-    "path": "sites/members.onepeloton.com/keep-now-playing.user.js",
-    "greasyfork": {
-      "id": 590887,
-      "url": "https://greasyfork.org/scripts/590887-peloton-player-keep-the-now-playing-song-visible"
-    }
-  },
-  {
-    "path": "sites/news.ycombinator.com/keyboard-comment-navigation.user.js",
-    "category": "keyboard-comments"
-  },
-  {
-    "path": "sites/nytimes.com/athletic-keyboard-comment-navigation.user.js",
-    "category": "keyboard-comments"
-  },
-  {
-    "path": "sites/nytimes.com/keyboard-comment-navigation.user.js",
-    "category": "keyboard-comments"
-  },
-  {
-    "path": "sites/nytimes.com/spelling-bee.user.js",
-    "greasyfork": {
-      "id": 591403,
-      "url": "https://greasyfork.org/scripts/591403-nyt-spelling-bee-word-definitions-and-other-tweaks"
-    }
-  },
-  {
-    "path": "sites/pinkbike.com/article-image-navigation.user.js",
-    "greasyfork": {
-      "id": 591540,
-      "url": "https://greasyfork.org/scripts/591540-pinkbike-keyboard-navigation-for-article-photos"
-    }
-  },
-  {
-    "path": "sites/pinkbike.com/close-sticky-footer-ad.user.js",
-    "greasyfork": {
-      "id": 591541,
-      "url": "https://greasyfork.org/scripts/591541-pinkbike-auto-close-the-sticky-footer-ad"
-    }
-  },
-  {
-    "path": "sites/pinkbike.com/keyboard-comment-navigation.user.js",
-    "category": "keyboard-comments",
-    "greasyfork": {
-      "id": 591542,
-      "url": "https://greasyfork.org/scripts/591542-pinkbike-keyboard-comment-navigation"
-    }
-  },
-  {
-    "path": "sites/reddit.com/keyboard-comment-navigation.user.js",
-    "category": "keyboard-comments"
-  },
-  {
-    "path": "sites/strava.com/fix-climb-slider.user.js",
-    "greasyfork": {
-      "id": 590960,
-      "url": "https://greasyfork.org/scripts/590960-strava-fix-the-broken-climb-filter-on-segment-search"
-    }
-  },
-  {
-    "path": "sites/strava.com/segment-search-location-filter.user.js",
-    "greasyfork": {
-      "id": 590976,
-      "url": "https://greasyfork.org/scripts/590976-strava-segment-search-location-filter-and-unpaged-view"
-    }
-  },
-  {
-    "path": "sites/strava.com/show-elevation-loss.user.js",
-    "greasyfork": {
-      "id": 590975,
-      "url": "https://greasyfork.org/scripts/590975-strava-show-elevation-gain-and-loss-for-each-segment"
-    }
-  },
-  {
-    "path": "sites/strava.com/upload-commute-preset.user.js"
-  },
-  {
-    "path": "sites/techcrunch.com/close-newsletter-popup.user.js",
-    "greasyfork": {
-      "id": 591543,
-      "url": "https://greasyfork.org/scripts/591543-techcrunch-auto-close-the-newsletter-popup"
-    }
-  },
-  {
-    "path": "sites/theatlantic.com/games-todays-puzzle-link.user.js",
-    "greasyfork": {
-      "id": 591544,
-      "url": "https://greasyfork.org/scripts/591544-the-atlantic-games-link-to-today-s-puzzle"
-    }
-  },
-  {
-    "path": "sites/washingtonpost.com/keyboard-comment-navigation.user.js",
-    "category": "keyboard-comments"
-  }
-]
+  ]
+}

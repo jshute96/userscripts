@@ -36,9 +36,9 @@ Scripts uploaded to Greasy Fork have a `GF` link.
 | [Peloton: Default filters on class lists](sites/members.onepeloton.com/classes-default-filters.user.js) | [doc](sites/members.onepeloton.com/classes-default-filters.md) | [GF](https://greasyfork.org/scripts/591539-peloton-default-filters-on-class-lists) | Applies your preferred filters on class lists by default, so browsing starts from a useful view. Defaults are configurable per class type from the script menu. |
 | [Peloton Player: Fix bad video overlay on tall screens](sites/members.onepeloton.com/fix-bad-video-overlay.user.js) | [doc](sites/members.onepeloton.com/fix-bad-video-overlay.md) | [GF](https://greasyfork.org/scripts/590890-peloton-player-fix-bad-video-overlay-on-tall-screens) | Fixes a bug in Peloton's video player where, on large monitors, a fixed-size overlay is added over the video, creating an ugly horizontal seam. |
 | [Peloton Player: Keep the Now-Playing song visible](sites/members.onepeloton.com/keep-now-playing.user.js) | [doc](sites/members.onepeloton.com/keep-now-playing.md) | [GF](https://greasyfork.org/scripts/590887-peloton-player-keep-the-now-playing-song-visible) | Stops the class player auto-hiding its Now-Playing widget, so the current song is always readable. |
-| [NYTimes Spelling Bee: Word definitions and other tweaks](sites/nytimes.com/spelling-bee.user.js) | [doc](sites/nytimes.com/spelling-bee.md) | [GF](https://greasyfork.org/scripts/591403-nyt-spelling-bee-word-definitions-and-other-tweaks) | Shows definitions when you hover or click a word, adds a toolbar link to Spelling Bee Buddy, and closes the splash screens for you. |
+| [NYTimes Spelling Bee: Word definitions and other tweaks](sites/nytimes.com/spelling-bee.user.js) | [doc](sites/nytimes.com/spelling-bee.md) | [GF](https://greasyfork.org/scripts/591403-nytimes-spelling-bee-word-definitions-and-other-tweaks) | Shows definitions when you hover or click a word, adds a toolbar link to Spelling Bee Buddy, and closes the splash screens for you. |
 | [Pinkbike: Keyboard navigation for article photos](sites/pinkbike.com/article-image-navigation.user.js) | [doc](sites/pinkbike.com/article-image-navigation.md) | [GF](https://greasyfork.org/scripts/591540-pinkbike-keyboard-navigation-for-article-photos) | Adds i and Shift-I shortcuts that jump from photo to photo through an article, for nicer viewing in photo-heavy stories. |
-| [Pinkbike: Auto-close the floating footer ads](sites/pinkbike.com/close-sticky-footer-ad.user.js) | [doc](sites/pinkbike.com/close-sticky-footer-ad.md) | [GF](https://greasyfork.org/scripts/591541-pinkbike-auto-close-the-sticky-footer-ad) | Closes the sticky ad banners pinned to the bottom of the page that cover article text. |
+| [Pinkbike: Auto-close the floating footer ads](sites/pinkbike.com/close-sticky-footer-ad.user.js) | [doc](sites/pinkbike.com/close-sticky-footer-ad.md) | [GF](https://greasyfork.org/scripts/591541-pinkbike-auto-close-the-floating-footer-ads) | Closes the sticky ad banners pinned to the bottom of the page that cover article text. |
 | [Strava: Fix the broken climb filter on segment search](sites/strava.com/fix-climb-slider.user.js) | [doc](sites/strava.com/fix-climb-slider.md) | [GF](https://greasyfork.org/scripts/590960-strava-fix-the-broken-climb-filter-on-segment-search) | Bug fix for broken layout on the segment search page: Strava currently draws it vertically rather than horizontally because of missing CSS. |
 | [Strava: Segment search location filter and unpaged view](sites/strava.com/segment-search-location-filter.user.js) | [doc](sites/strava.com/segment-search-location-filter.md) | [GF](https://greasyfork.org/scripts/590976-strava-segment-search-location-filter-and-unpaged-view) | Adds a Location filter box in segment search, and makes search results unpaged. |
 | [Strava: Show elevation gain *and loss* for each segment](sites/strava.com/show-elevation-loss.user.js) | [doc](sites/strava.com/show-elevation-loss.md) | [GF](https://greasyfork.org/scripts/590975-strava-show-elevation-gain-and-loss-for-each-segment) | Strava shows climbing but never descending. This adds Elevation Loss next to Elevation Gain on the segment and activity pages. |
@@ -54,7 +54,7 @@ using the same hotkeys.
 <!-- update_readme.py category=keyboard-comments -->
 | Script | Doc | GF | Description |
 | --- | --- | --- | --- |
-| [Hacker News: Keyboard comment navigation](sites/news.ycombinator.com/keyboard-comment-navigation.user.js) | [doc](sites/news.ycombinator.com/keyboard-comment-navigation.md) |  | Adds keyboard shortcuts for moving through the comments on a story — next and previous comment, parent, next thread, and jump to the comments section. |
+| [Hacker News: Keyboard comment navigation](sites/news.ycombinator.com/keyboard-comment-navigation.user.js) | [doc](sites/news.ycombinator.com/keyboard-comment-navigation.md) | [GF](https://greasyfork.org/scripts/592127-hacker-news-keyboard-comment-navigation) | Adds keyboard shortcuts for moving through the comments on a story — next and previous comment, parent, next thread, and jump to the comments section. |
 | [The Athletic: Keyboard comment navigation](sites/nytimes.com/athletic-keyboard-comment-navigation.user.js) | [doc](sites/nytimes.com/athletic-keyboard-comment-navigation.md) |  | Adds keyboard shortcuts for moving through the comments on an article — next and previous comment, parent, next thread, and jump to the comments section. |
 | [NYTimes: Keyboard comment navigation](sites/nytimes.com/keyboard-comment-navigation.user.js) | [doc](sites/nytimes.com/keyboard-comment-navigation.md) |  | Adds keyboard shortcuts for moving through the comments panel on an article — next and previous comment, parent, next thread, and open or jump to the panel. |
 | [Pinkbike: Keyboard comment navigation](sites/pinkbike.com/keyboard-comment-navigation.user.js) | [doc](sites/pinkbike.com/keyboard-comment-navigation.md) | [GF](https://greasyfork.org/scripts/591542-pinkbike-keyboard-comment-navigation) | Adds keyboard shortcuts for moving through the comments on an article — next and previous comment, parent, next thread, and jump to the comments section. |
@@ -79,6 +79,19 @@ its own ([doc](sites/example.com/installed-list.md)).
 | [example.com: Error on load](sites/example.com/error-on-load.user.js) | [doc](sites/example.com/error-on-load.md) |  | Test fixture: throws an unhandled error during initial injection. |
 | [example.com: Show GM_info](sites/example.com/show-gm-info.user.js) | [doc](sites/example.com/show-gm-info.md) |  | Test fixture: adds a "Show GM_info" button that prints the GM_info payload under the bullet. |
 | [example.com: Updated script](sites/example.com/updated-script.user.js) | [doc](sites/example.com/updated-script.md) |  | Test fixture: bullet text includes a version constant so manual edits to the source file are visible on reload. |
+
+### Shared libraries
+
+These are shared libraries used by some of the scripts above, loaded with
+`@require`.  Scripts published on Greasy Fork can't reference libraries from
+GitHub. Instead, they reference specific versions of the library files, also
+published on Greasy Fork.
+
+<!-- update_readme.py libraries -->
+| Library | Doc | GF | Description |
+| --- | --- | --- | --- |
+| [keyboard-comment-nav.js](lib/keyboard-comment-nav.js) | [doc](lib/keyboard-comment-nav.md) | [GF](https://greasyfork.org/scripts/592124-keyboard-comment-nav) | Shared comment-thread keyboard navigation for userscripts. |
+| [keyboard-shortcuts.js](lib/keyboard-shortcuts.js) | [doc](lib/keyboard-shortcuts.md) | [GF](https://greasyfork.org/scripts/592123-keyboard-shortcuts) | Shared keyboard-shortcut helper for userscripts. |
 
 ## Development setup and workflow
 
