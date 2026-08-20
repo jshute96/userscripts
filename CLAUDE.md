@@ -351,6 +351,12 @@ if it's missing; it makes the next break diagnose itself.
 * **Getting an edit to take effect depends on the userscript manager —
   defer to the relevant skill** (e.g. `install-in-SourceMonkey` or
   `install-in-tampermonkey`) for how to trigger refresh.
+  - Under SourceMonkey (our default), editing the body of an
+    already-installed local script needs **nothing** — it re-reads the
+    file on every page load, so the user just reloads the page. Don't
+    fire a `refresh` after an ordinary edit. `refresh` is only needed for
+    changes to *which* scripts run where: a new or deleted script file,
+    a manifest change, or edited targeting headers.
 
 * To get scripts to update from github, increment the `@version` (in the last number field) before final commit and push.
 

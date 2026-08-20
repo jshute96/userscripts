@@ -30,12 +30,41 @@ The site name is a hash of the extension ID and should be consistent for any ins
   - Run `google-chrome chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/collections.html?refresh`
   - It opens a browser tab, so don't fire it speculatively — one
     refresh once the change is complete, not one per edit.
+  - **Not needed after editing an existing script's body.** Only run it
+    when *which* scripts run where has changed.
 
 ## Picking up edits to a script
 
 SourceMonkey re-reads local script files on every page load, so for a
-page the script *already* targets, the user just reloads the page. 
-`refresh` is needed for new script files or changed targeting metadata.
+page the script *already* targets, the user just reloads the page — no
+`refresh`, and nothing for us to do after an edit.
+
+`refresh` is needed only when the set of scripts, or where they run,
+changes.
+
+That covers local `@require` files too, including a local file
+overriding a remote URL (see below): reloading the page re-reads them
+as well. A `@require` actually fetched over http(s) is *not* re-checked
+on reload, so editing what it points at needs a `refresh`.
+
+## Local overrides for remote `@require`s
+
+For library development, SourceMonkey **reads local files in place of
+http references**. For a script run from a local file, if a file exists
+under the script's own directory — or under the directory of the
+collection it came from — whose path matches any suffix of the
+requested `@require` host and path, that local file is read instead of 
+fetching the URL. So a shared `lib/` at the top of a scripts directory is
+reachable from a script nested anywhere inside it.
+
+Extra directories can be added to the search path on SourceMonkey's
+Options page.
+
+The effect is that a script can keep its published `@require
+https://…/lib/foo.js` line unchanged and still be developed against the
+local `lib/foo.js` — no path juggling between development and
+publishing. Since the resolved file is local, edits to it are picked up
+by a plain page reload.
 
 ## Manifest files (`script_manifest.json`)
 
