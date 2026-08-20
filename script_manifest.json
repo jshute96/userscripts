@@ -173,6 +173,14 @@
       }
     },
     {
+      "path": "sites/theatlantic.com/keyboard-comment-navigation.user.js",
+      "category": "keyboard-comments"
+    },
+    {
+      "path": "sites/theverge.com/keyboard-comment-navigation.user.js",
+      "category": "keyboard-comments"
+    },
+    {
       "path": "sites/washingtonpost.com/keyboard-comment-navigation.user.js",
       "category": "keyboard-comments"
     }

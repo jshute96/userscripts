@@ -12,6 +12,9 @@ but those are mouse-only, and `next` / `prev` step over whole
 subtrees, with no way to move to the comment just below the one
 you're reading.
 
+HN comment threads get very long and deep. The `m` or `n` keys let you jump out
+of a boring thread or subthread and start the next one.
+
 Scripts adding the [same key bindings for several other sites are available here](https://github.com/jshute96/userscripts/blob/main/README.md#keyboard-comment-navigation).
 
 ### Keyboard shortcuts
