@@ -17,9 +17,9 @@ with a `NEW` badge. Those are the ones that will be uploaded.
 On an activity page, the gear menu gets an `Upload to Strava`
 item at the top, which uploads just that ride.
 
-The script only looks at the first page of activities (the newest 20).
-On the first run, and from the userscript manager's menu, you can reset
-the `NEW` state for the newest N rides.
+The script only looks at the first page of Garmin activities (the newest 20).
+Which are new is determined by reading your Strava activity list and matching
+rides by start timestamp.
 
 ### Alternative: Strava's Garmin connector
 
@@ -50,12 +50,11 @@ triggered myself.
   badged: they're outside what an upload looks at, so marking them New
   would promise a send that isn't going to happen. Hovering explains what it means. The badges update as soon
   as an upload finishes — including one run entirely on the Strava side
-  — and when either of the history commands changes it. Nothing is badged
-  before the first upload, when there's no history to compare against.
+  — and otherwise on reloading the page. Nothing is badged until the
+  Strava list has been read, or if reading it fails.
 * An **Upload to Strava** item appears at the top of the gear (More…)
   menu on a single activity's page, above a separator matching Garmin's
-  own. It sends that one activity regardless of its New state, and
-  records it as sent like any other upload.
+  own. It sends that one activity regardless of its New state.
 * The Strava upload tab comes to the front when a run starts from
   Garmin, whether it's newly opened or an existing one being reused.
 * An **Upload from Garmin** item appears at the top of Strava's upload
@@ -70,11 +69,8 @@ triggered myself.
   started from Garmin, both tabs show it.
 * Short one-off notices still appear for things that aren't part of a
   running upload — the menu commands' confirmations, and the like.
-* A prompt asks how many of the newest activities to send, on the first
-  upload and any time none of the listed activities are recognized.
-* Three userscript-manager menu commands, on Garmin Connect pages only:
-  two that adjust which activities count as already uploaded, and one
-  that diagnoses a failing run.
+* One userscript-manager menu command, on Garmin Connect pages only,
+  which diagnoses a failing run.
 
 ## Implementation
 
@@ -103,7 +99,7 @@ required.
 | Request | Purpose |
 | --- | --- |
 | `GET /app/activities` | 8 KB server-rendered shell; scrape `<meta name="csrf-token">` and `?bust=<version>` |
-| `GET /gc-api/activitylist-service/activities/search/activities?limit=20&start=0` | JSON list, newest first, with `activityId` and `activityName` |
+| `GET /gc-api/activitylist-service/activities/search/activities?limit=20&start=0` | JSON list, newest first, with `activityId`, `activityName` and `startTimeGMT` |
 | `GET /gc-api/download-service/export/tcx/activity/<id>` | the TCX, `application/vnd.garmin.tcx+xml` — the same endpoint Garmin's own "Export to TCX" menu item uses |
 
 #### The two gates on `gc-api`
@@ -165,12 +161,12 @@ still returns 200.
 
 #### Ordering, and rides that arrive out of order
 
-**Detection is by identity, not position.** `chooseActivities()` is a
-set difference — `listed.filter(a => !seen.has(a.id))` — so where an
-activity sits in the list has no bearing on whether it's recognized as
-new. A ride that appears in the middle of the list is picked up exactly
-like one at the top. (The `.reverse()` afterwards is only about the
-order files reach Strava, so they land oldest-first.)
+**Detection is by identity, not position.** `splitByStrava()` asks of
+each listed activity whether Strava has one starting at the same moment,
+so where an activity sits in the list has no bearing on whether it's
+recognized as new. A ride that appears in the middle of the list is
+picked up exactly like one at the top. (The `.reverse()` afterwards is
+only about the order files reach Strava, so they land oldest-first.)
 
 That matters because the list **is not in upload order**. Measured: the
 API sorts by activity *start* time descending — `sortBy=startLocal`
@@ -190,12 +186,6 @@ invisible to the script, and no amount of client-side sorting can
 recover it. Raising `LIST_LIMIT` is the only lever; the response is
 small (a few KB per activity), so a larger window is cheap if late
 syncs by more than ~20 rides ever become a real case.
-
-One related wrinkle: `keepNewestUnsent()` — the first-run prompt and the
-"how many are unsent" menu command — slices positionally, so its
-"newest N" means newest *by start time*, which for an out-of-order sync
-isn't the same as the most recently added. That only affects those two
-starting-point commands, never ordinary detection.
 
 #### Why `GM_xmlhttpRequest` and not `fetch`
 
@@ -233,6 +223,94 @@ Strava still can't ingest a URL — its upload form is
 `POST /uploads` is multipart too — so the bytes do have to pass through
 the browser. They just no longer pass through storage.
 
+### What counts as new
+
+Version 0.3 and earlier kept a `seenActivityIds` list in GM storage:
+whatever a run attached to Strava's form was recorded as sent, and
+anything not in the list was new. That is a *memory* of what happened,
+and it goes out of sync for the obvious reason — GM storage is per
+browser profile, so a second computer or a second browser starts from
+nothing and offers to re-upload the last twenty rides, and a ride sent
+through Strava's own Garmin connector is never recorded at all.
+
+Version 0.4 stops remembering and asks Strava instead.
+
+#### The join key
+
+Strava's copy of a ride agrees with Garmin's on almost nothing.
+Measured on one real ride:
+
+| | Garmin | Strava |
+| --- | --- | --- |
+| Start (UTC) | `2026-08-15 17:10:28` | `2026-08-15T17:10:28+0000` |
+| Moving time | 2:50:03 | 2:46:18 |
+| Elevation gain | 946 m | 960 m |
+| Distance | 29998.6 m | 29998.6 m |
+
+Strava recomputes moving time and elevation from the samples, so both
+drift. Distance usually survives but is sometimes trimmed by a few
+meters (25160.9 → 25154.7 on another ride), which makes it a tiebreaker
+at best.
+
+The start timestamp is different in kind: it is the recording's own,
+written by the device into the file, and neither side has any reason to
+touch it. Across twelve consecutive activities it matched **exactly, to
+the second**, every time. So that is the key — with a ±2 s tolerance
+(`START_TOLERANCE_MS`) purely as insurance against either side changing
+how it rounds.
+
+#### Reading Strava's list
+
+`GET /athlete/training_activities?…&page=<n>&per_page=20` is what
+Strava's own `/athlete/training` page reads. It answers a cross-origin
+`GM_xmlhttpRequest` from a Garmin tab as the signed-in user, so one code
+path serves both origins (`@connect www.strava.com` is required).
+
+The only header it wants is **`X-Requested-With: XMLHttpRequest`**. No
+CSRF token, no `Sec-Fetch-Site` override — nothing here is fronted by an
+edge that objects to an extension-shaped request, unlike Garmin's
+`gc-api` above.
+
+Two things about it are worth knowing before touching this code:
+
+* **Without that header it does not fail.** The URL is a real page as
+  well as an API, so it answers `200` with 98 KB of the training page's
+  HTML. Status is therefore useless as a success test; "did it parse as
+  JSON, with a `models` array" is the only honest one — and it doubles
+  as the signed-out test, since signed out this is a login page.
+* **`per_page` is capped at 20** however large a value you send
+  (measured with `per_page=100`). Reaching further back means more
+  requests, not a bigger one.
+
+#### Paging, and the edge of what we know
+
+Strava holds activities from everywhere, not only Garmin, so there is no
+fixed number of pages that covers a given stretch of Garmin's list.
+`stravaStarts(needed)` pages until the times run past `needed` (the
+oldest activity Garmin listed), the list ends, or it hits
+`STRAVA_MAX_PAGES` — 5 pages, 100 activities.
+
+It returns `covered` alongside the times: the oldest moment the answer
+can speak for. Only *giving up early* bounds what we know, so `covered`
+is left at `-Infinity` unless the loop stops at the page cap with pages
+still unread — running off the end of the list, or paging past `needed`,
+both leave nothing unread that could have mattered.
+
+The paging test is the page's **raw** length, not the number of start
+times we could parse. Conflating them lets a single unreadable
+`start_time` look like the end of the list, which would stop the paging
+early *and* claim full coverage of a truncated read — failing in the one
+direction this design exists to prevent. An activity whose start time
+won't parse still can't be matched by start time; that is logged, and is
+all that can be done about it.
+
+Garmin activities older than `covered` come back as `unjudged`. They are
+not badged and not uploaded, and the count is logged. That is the safe
+direction to fail: the alternative is treating "we didn't look" as "not
+on Strava" and re-uploading rides that are already there. Hitting the
+cap is logged separately, so a silent truncation can't masquerade as a
+clean answer.
+
 ### Who does what
 
 The files have to be attached to a form that only exists on Strava's
@@ -242,10 +320,10 @@ The only question is who picks the list.
 * **Started on Strava.** The menu item sends the tab to
   `/upload/select#upload-from-garmin`; on arrival the script clears the
   hash (so a reload doesn't start another run) and does everything
-  there — session, list, diff, downloads, attach. Nothing is written to
-  GM storage except the updated history. No Garmin tab is involved.
-* **Started on Garmin.** The Garmin tab fetches the list and does the
-  diff and any prompt itself, so the prompt lands in the tab the user is
+  there — session, both lists, diff, downloads, attach. Nothing is
+  written to GM storage at all. No Garmin tab is involved.
+* **Started on Garmin.** The Garmin tab reads both lists and does the
+  diff itself, so any failure it reports lands in the tab the user is
   looking at. It then writes a `request` — *just* the ids and names —
   and a Strava upload tab does the fetching.
 
@@ -300,8 +378,8 @@ this at all: that tab navigates itself, so it's already the focused one.
 
 | Key | Written by | Meaning |
 | --- | --- | --- |
-| `seenActivityIds` | whoever finishes a run | activity IDs already sent (`null` = never run) |
 | `request` | Garmin | `{requestId, activities: [{id, name}], ts}` |
+| `lastUpload` | Strava | `{ts, count}` — files were just attached, so other tabs' badges are stale |
 | `claim` | Strava | which upload tab took the request |
 | `progress` | Strava | `{requestId, done, total}`, so the Garmin tab's panel can follow along |
 | `result` | Strava | `{requestId, ok, count, error}` — the outcome |
@@ -322,9 +400,18 @@ and a slow-but-alive run still looks alive. Requests older than 15
 minutes are ignored, and swept from storage when a Garmin page next
 starts, so an abandoned one can't be picked up later.
 
-`seenActivityIds` is written by whichever side attached the files, which
-is usually the Strava tab. The Garmin side keeps its "New" badges in step
-by listening for changes to that key rather than to the run.
+Nothing records what was sent. What counts as already uploaded is read
+back off Strava each time — see "What counts as new" below — so the
+storage keys above are all about coordinating one run, and none of them
+outlive it. The Garmin side keeps its "New" badges in step by listening
+for `lastUpload` and re-reading both lists a few seconds later, which
+covers a run made entirely on the Strava side as well as one it started.
+
+`lastUpload` is deliberately separate from `result` rather than folded
+into it. `result` is addressed to whoever is waiting on a specific
+`requestId`, and a run the Strava tab started for itself has none — so
+it writes no result at all, and a badge refresh hung off `result` would
+simply never fire for exactly the path the Strava menu item takes.
 
 > **Requires a userscript manager with reliable cross-tab value
 > broadcasts** for the Garmin-initiated path. Early SourceMonkey builds
@@ -432,9 +519,9 @@ Two things the item has to do that a native one gets for free:
 
 Clicking goes straight to `dispatchToStrava([activity])`, skipping the
 list fetch and the diff entirely: sending something already sent is the
-point of the item, not a mistake to guard against. It still lands in the
-history afterwards, because the Strava side records whatever it actually
-attached, without caring where the list came from.
+point of the item, not a mistake to guard against. Its badge clears on
+the next recheck like any other, because "already uploaded" is read off
+Strava rather than recorded here.
 
 There's no spec for this. Driving it needs a real activity page, and the
 URL of one is account data we keep out of the repo.
@@ -464,28 +551,56 @@ inserting, which puts the badge alongside and shrinks the button to its
 content width (visually identical, since its content was already only
 ~83px of a 388px line).
 
-Two things decide whether a row is badged: its id being absent from the
-history, **and** its position being inside the window. The second is not
-optional. The page is infinite-scroll rather than paged, so scrolling
+Two things decide whether a row is badged: the diff having found no
+Strava activity starting at the same moment, **and** its position being
+inside the window. The second is not optional. The page is infinite-scroll rather than paged, so scrolling
 appends rows indefinitely, and rows old enough predate anything the
-script ever recorded. Measured on a real list scrolled to 180 rows: the
-id check alone would badge 163 of them, against the 3 that an upload
-would actually send. Position works as the window because rows arrive
+script ever recorded. Measured on a real list scrolled to 180 rows: without it, every row
+past the newest 20 would be badged, since the diff has nothing to say
+about activities it never fetched. Position works as the window because rows arrive
 newest-first, in the same order as the API.
 
+The answer and the painting are deliberately split, because they run at
+completely different rates. `refreshBadgeState()` asks both sites and
+stores the result in `badgeState`; `refreshNewBadges()` paints from that
+and touches no network. The observer fires many times a second while the
+list streams in, and a fetch per mutation would be absurd.
+
 `refreshNewBadges()` is idempotent — it adds and removes only where a
-row disagrees with the stored history — so it's safe to call as often
-as we like. It's driven from:
+row disagrees with `badgeState` — so it's safe to call as often as we
+like. It's driven from a debounced hook on the existing
+`MutationObserver`, since the list streams a row at a time and our own
+insertions re-trigger it.
 
-* a debounced hook on the existing `MutationObserver`, since the list
-  streams in a row at a time and our own insertions re-trigger it;
-* a `GM_addValueChangeListener` on `seenActivityIds`, which covers both
-  a local change and an upload that ran in a Strava tab;
-* `recordSeen()` and `keepNewestUnsent()`, so a local change doesn't
-  wait on the broadcast round-trip.
+`refreshBadgeState()` runs on every URL change, not only at init:
+arriving at the Activities list by SPA navigation is the common case
+(the toolbar button does exactly that), and the one-time init guard
+would swallow it. It self-gates on the path, and on `BADGE_FRESH_MS`
+(60 s) so paging between the list and a ride doesn't re-ask each lap.
+On a `lastUpload` write it does two separate things, and both are
+needed. It **invalidates** immediately — `badgeState = null`, plus a
+generation bump — and *then* schedules a forced refresh
+`UPLOAD_SETTLE_MS` later, since Strava needs a moment to turn an
+accepted file into a listed activity. The invalidation is what makes it
+correct on a tab that isn't looking at the Activities list: the deferred
+refresh self-gates on the path, so for an upload started from a ride's
+gear menu it finds the wrong path and does nothing, and without the
+invalidation the pre-upload answer would still be inside its freshness
+window when the user navigated back.
 
-With no history at all (`loadSeen()` returns `null`), nothing is badged:
-every row would qualify, and twenty badges convey nothing.
+The generation counter covers the other order: an upload landing while a
+fetch is already in flight. That fetch's answer predates the upload, so
+it is dropped rather than stored. A forced refresh arriving during a
+fetch is queued and re-run when it finishes, not discarded. There is no manual refresh command: reloading the
+page re-runs init and does strictly more. It reports failure to the console
+only: it runs on every page load, and a lapsed session is not worth a
+sign-in tab nobody asked for — clicking **Upload to Strava** reports it
+properly.
+
+Until the first answer lands, `badgeState` is `null` and nothing is
+badged. A failed fetch leaves it that way, which is the right default:
+a badge is a promise about what a click will send, and with no answer we
+have no business making one.
 
 ### Only one copy per page
 
@@ -495,19 +610,16 @@ it set, shows the red status panel, and stands down before
 initializing anything.
 
 Duplicate *installs* — the same script in two managers, or a manager
-copy alongside a local-file pointer — get separate GM storage, so their
-`seenActivityIds` disagree. The badges are where that shows: one copy
-adds a badge, the other's `MutationObserver` removes it, and the
-console fills with alternating `New badges: 2 added, 0 removed` /
-`0 added, 2 removed` forever. Nothing else surfaces it, since the
-buttons and menu items are idempotent by element id.
+copy alongside a local-file pointer — get separate GM storage. Since
+version 0.4 nothing persistent lives there, so the badges no longer
+flap: both copies read the same two lists and reach the same answer.
+What still breaks is the handover, below.
 
 The notice is deliberately loud, because standing down repairs
 nothing: which copy wins is load order, decided per tab, so a Garmin
 tab and a Strava tab can end up on different copies and the id list
-handed across never arrives. Uninstall one — then reset the starting
-point with the "Set how many activities are unsent…" menu command,
-since the survivor's history may be the stale one.
+handed across never arrives. Uninstall one; there is no state left over
+to repair afterwards.
 
 ### Where the time goes
 
@@ -542,8 +654,13 @@ response carries no `csrf-token` meta. Either signal is enough. The
 error carries a `signedOutOf` marker, and `reportFailure()` opens
 Garmin's sign-in page in a foreground tab with a note on it.
 
-**Strava** can't be probed the same way, because we never fetch Strava —
-we *are* Strava. Instead the whole-site `@match` means a bounced upload
+**Strava** now gets a direct check too, as a side effect of reading its
+activity list: signed out, `training_activities` serves a login page
+instead of JSON, which is the same non-JSON response the header check
+catches. That covers every run, since every run reads the list.
+
+That is not the whole story, though, because the upload *form* can
+bounce a tab even when the API answered. The whole-site `@match` means a bounced upload
 tab is still running this script: on a non-upload Strava page it looks
 for a request that started within the last 60 seconds — recent enough
 that the tab we opened is the obvious explanation — **and** a
@@ -628,6 +745,9 @@ change event trigger the upload requests.)
   `/gc-api/download-service/export/tcx/activity/<id>` serve a
   cookie-authenticated request carrying `Connect-Csrf-Token` and
   `Sec-Fetch-Site: same-origin`.
+* `GET /athlete/training_activities` answers a cookie-authenticated
+  request carrying `X-Requested-With: XMLHttpRequest` with JSON whose
+  `models` carry `start_time`, and `per_page` stays capped at 20.
 * Strava's upload page has
   `form[action*="/upload/files"] input[type="file"][name="files[]"]`
   and starts uploading on `change`.
@@ -643,7 +763,9 @@ change event trigger the upload requests.)
 item, and that the menu item sends its own tab to the upload page. It
 injects `test/gm-stubs.js` before the script, because the fixture runs
 the raw body with no userscript manager and this script reads GM storage
-as soon as it starts.
+as soon as it starts. Nothing is seeded: what counts as new now comes
+from `GM_xmlhttpRequest`, which the fixture has no fake for, so the badge
+fetch fails harmlessly and no row is badged.
 
 Nothing past the click is covered. Every request goes through
 `GM_xmlhttpRequest`, and a fake for that would be a fake of the entire

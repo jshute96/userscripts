@@ -1,13 +1,14 @@
 // ==UserScript==
 // @name         Garmin Connect → Strava: Upload new activities with one click
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.3.12
+// @version      0.4.3
 // @description  Adds an Upload to Strava button to Garmin's toolbar and an Upload from Garmin item to Strava's upload menu. Either sends all new rides you haven't uploaded yet.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://connect.garmin.com/*
 // @match        https://www.strava.com/*
 // @connect      connect.garmin.com
+// @connect      www.strava.com
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
 // @grant        GM_setValue
@@ -58,8 +59,6 @@
   // All of these live in this script's GM storage, visible from both
   // connect.garmin.com and www.strava.com.
 
-  // Array of activity IDs we've already sent. `null` means "never run".
-  const K_SEEN = 'seenActivityIds';
   // { requestId, activities: [{id, name}], ts } — the Garmin side asking
   // a Strava upload tab to fetch and upload these. Nothing but ids and
   // names; the tab that takes it does all the work.
@@ -73,6 +72,13 @@
   // { requestId, ok, count, error } — the outcome, so the Garmin side
   // can report it and stop waiting.
   const K_RESULT = 'result';
+  // { ts, count } — files were just attached to Strava's upload form.
+  // Written by whichever tab did it, on *both* paths: a run handed over
+  // from Garmin has a requestId and reports through `result`, but a run
+  // the Strava tab started itself has none, and an open Garmin tab still
+  // needs to know its badges are stale. Deliberately not folded into
+  // `result` for that reason.
+  const K_UPLOADED = 'lastUpload';
   // { ts, message } — a note left for the sign-in page we're about to
   // open, so the explanation lands in the tab the user ends up looking at.
   const K_SIGNIN_HINT = 'signinHint';
@@ -91,8 +97,30 @@
   const CLAIM_SETTLE_MS = 600;
   // Ignore a request left behind by a run that died half way through.
   const REQUEST_STALE_MS = 15 * 60 * 1000;
-  // Keep the seen list from growing without bound.
-  const SEEN_LIMIT = 500;
+  // How long to let Strava turn accepted files into listed activities
+  // before asking it what it has. Only affects how soon the New badges
+  // clear; the next page load would fix them anyway.
+  const UPLOAD_SETTLE_MS = 8000;
+  // How long an answer about what's on Strava stays good enough to
+  // repaint from without asking again. Only bounds how often navigating
+  // back to the Activities list costs two requests; an upload refreshes
+  // regardless of it.
+  const BADGE_FRESH_MS = 60 * 1000;
+  // Strava's list endpoint caps a page at 20 however large a `per_page`
+  // we ask for (measured), so the only way to reach further back is more
+  // requests. The cap is the backstop: 5 pages covers 100 Strava
+  // activities, which is a lot of non-Garmin rides to have interleaved
+  // into the window Garmin's newest 20 span. Hitting it is reported, not
+  // silently absorbed — see stravaStarts.
+  const STRAVA_PAGE_SIZE = 20;
+  const STRAVA_MAX_PAGES = 5;
+  // How far apart two start times may be and still be the same ride.
+  // Measured across twelve consecutive activities, every Garmin
+  // `startTimeGMT` matched its Strava `start_time` exactly, to the
+  // second — the recording's start timestamp passes through the file
+  // unchanged. The tolerance is only insurance against either side
+  // changing how it rounds.
+  const START_TOLERANCE_MS = 2000;
   // The window: how many of the most recent activities the script
   // considers at all, for both uploading and badging.
   //
@@ -226,6 +254,9 @@
   // has done anything.
   const STRAVA_UPLOAD_URL = 'https://www.strava.com/upload/select';
   const STRAVA_LOGIN_URL = 'https://www.strava.com/login';
+  const STRAVA_ORIGIN = 'https://www.strava.com';
+
+  const hostLabel = (url) => (/strava\.com/.test(url) ? 'Strava' : 'Garmin');
 
   // GM_xmlhttpRequest is callback-shaped. Everything below wants a
   // promise, and wants a non-2xx to stay a resolved response (each
@@ -239,9 +270,13 @@
         responseType: options.responseType,
         timeout: options.timeoutMs || 120000,
         onload: resolve,
+        // Named from the URL rather than hardcoded: this serves both
+        // sites, and "couldn't reach Garmin" for a Strava outage sends
+        // debugging the wrong way.
         onerror: (err) => reject(new Error(
-          `couldn't reach Garmin (${(err && err.message) || 'network error'})`)),
-        ontimeout: () => reject(new Error('Garmin took too long to answer')),
+          `couldn't reach ${hostLabel(url)} ` +
+          `(${(err && err.message) || 'network error'})`)),
+        ontimeout: () => reject(new Error(`${hostLabel(url)} took too long to answer`)),
       });
     });
   }
@@ -322,7 +357,91 @@
     return rows.map((a) => ({
       id: String(a.activityId),
       name: (a.activityName || '').trim() || 'activity',
+      // "2026-08-15 17:10:28", UTC despite carrying no zone. This is the
+      // recording's own start timestamp, and the only field that
+      // survives the trip to Strava unaltered — see stravaStarts.
+      start: Date.parse(String(a.startTimeGMT || '').replace(' ', 'T') + 'Z'),
     }));
+  }
+
+  // Strava's activity list, as its own /athlete/training page reads it.
+  //
+  // `X-Requested-With` is the whole of what it wants — no CSRF token, no
+  // `Sec-Fetch-Site` override, and it answers a cross-origin
+  // GM_xmlhttpRequest from a Garmin tab as the signed-in user (measured;
+  // unlike Garmin's /gc-api, nothing here is fronted by an edge that
+  // rejects an extension-shaped request). Which means one code path
+  // serves both origins.
+  //
+  // Without that header the endpoint does not fail — it returns 200 and
+  // the training page's HTML, because the URL is also a real page. So
+  // "did it parse as JSON" is the only honest success test, and it
+  // doubles as the signed-out test: signed out, this is a login page.
+  async function stravaPage(page) {
+    const url = `${STRAVA_ORIGIN}/athlete/training_activities` +
+      '?keywords=&activity_type=&workout_type=&commute=&new_activity_only=false' +
+      `&page=${page}&per_page=${STRAVA_PAGE_SIZE}`;
+    const response = await gmFetch(url, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    let models = null;
+    try {
+      models = JSON.parse(response.responseText || '').models;
+    } catch { /* HTML, not JSON — handled below */ }
+    if (!Array.isArray(models)) {
+      const err = new Error(response.status === 200
+        ? "Strava answered with a page instead of the activity list, which " +
+          'usually means the session has lapsed'
+        : `couldn't read the Strava activity list (HTTP ${response.status})`);
+      err.signedOutOf = 'Strava';
+      throw err;
+    }
+    const starts = models.map((m) => Date.parse(m.start_time)).filter(Number.isFinite);
+    if (starts.length !== models.length) {
+      console.log(TAG, `${models.length - starts.length} of ${models.length} Strava ` +
+        "activities on page had no readable start_time; they can't be matched");
+    }
+    // `count` is what Strava sent, `starts` what we could read. They are
+    // not interchangeable: a short page means the end of the list, and
+    // deciding that from `starts` would let one unreadable timestamp
+    // stop the paging and claim we had read everything.
+    return { starts, count: models.length };
+  }
+
+  // Every Strava start time back to `needed`, newest first.
+  //
+  // Strava holds activities from anywhere, not just Garmin, so there is
+  // no fixed number of pages that covers a given stretch of Garmin's
+  // list — we page until the times run past `needed`. `covered` is the
+  // oldest moment this answer can speak for: -Infinity when we reached
+  // the end of Strava's list, otherwise the oldest time we actually
+  // read. Beyond it we know nothing, and the caller must not guess.
+  async function stravaStarts(needed) {
+    const starts = [];
+    // Only a page we stopped *early* on bounds what we know. Running off
+    // the end of the list, or past `needed`, leaves nothing unread that
+    // could have mattered — so `covered` is only assigned when we give
+    // up with pages still to go.
+    let covered = -Infinity;
+    let capped = false;
+    for (let page = 1; page <= STRAVA_MAX_PAGES; page += 1) {
+      const { starts: times, count } = await stravaPage(page);
+      starts.push(...times);
+      if (count < STRAVA_PAGE_SIZE) break; // the end of the list
+      const oldest = times.length ? Math.min(...times) : -Infinity;
+      if (oldest <= needed) break;
+      if (page === STRAVA_MAX_PAGES) {
+        covered = oldest;
+        capped = true;
+      }
+    }
+    console.log(TAG, `Strava lists ${starts.length} activities back to ` +
+      (covered === -Infinity ? 'the start of the account' : new Date(covered).toISOString()));
+    if (capped) {
+      console.log(TAG, `stopped at the ${STRAVA_MAX_PAGES}-page cap without reaching ` +
+        'the far end of the Garmin list; older Garmin activities are left unjudged');
+    }
+    return { starts, covered };
   }
 
   // The same endpoint Garmin's own "Export to TCX" menu item uses.
@@ -417,91 +536,58 @@
   //                       What counts as "new"
   // =====================================================================
 
-  function loadSeen() {
-    const stored = GM_getValue(K_SEEN, null);
-    return Array.isArray(stored) ? stored : null;
-  }
-
-  function recordSeen(ids) {
-    const merged = [...ids, ...(loadSeen() || [])];
-    GM_setValue(K_SEEN, [...new Set(merged)].slice(0, SEEN_LIMIT));
-    refreshNewBadges();
-  }
-
-  // Mark the newest `count` listed activities as unsent and everything
-  // else — listed or remembered — as sent. This is how both the first-run
-  // prompt and the menu command set the starting point.
-  function keepNewestUnsent(listed, count) {
-    const unsent = new Set(listed.slice(0, count).map((a) => a.id));
-    const older = listed.slice(count).map((a) => a.id);
-    const merged = [...older, ...(loadSeen() || [])].filter((id) => !unsent.has(id));
-    GM_setValue(K_SEEN, [...new Set(merged)].slice(0, SEEN_LIMIT));
-    refreshNewBadges();
-  }
-
-  // Ask for a count, defaulting to 1. Returns null if the user cancels or
-  // types something that isn't a number, in which case nothing changes.
-  function askCount(message, max, defaultCount = 1) {
-    const answer = window.prompt(message, String(Math.min(defaultCount, max)));
-    if (answer === null) return null;
-    const count = parseInt(answer.trim(), 10);
-    if (!Number.isFinite(count) || count < 0) {
-      console.log(TAG, `didn't understand "${answer}"; nothing changed`);
-      toast(`"${answer}" isn't a number — nothing changed.`);
-      return null;
-    }
-    return Math.min(count, max);
-  }
-
-  // Diff the fetched list against what we've sent before, and return the
-  // activities to upload, oldest first so Strava lists them in the order
-  // they happened. Returns [] when there's nothing to do (already said
-  // so on screen). Runs on whichever side started the run, so the prompt
-  // lands in the tab the user is looking at.
-  function chooseActivities(listed) {
-    const seen = loadSeen();
-    const seenSet = new Set(seen || []);
-    const recognized = listed.filter((a) => seenSet.has(a.id)).length;
-
-    if (seen !== null && recognized > 0) {
-      const fresh = listed.filter((a) => !seenSet.has(a.id)).reverse();
-      if (!fresh.length) {
-        console.log(TAG, 'no new activities');
-        setStatus('No new activities to send.', { done: true });
+  // Which of `listed` are not on Strava yet, oldest first so Strava
+  // lists them in the order they happened, plus the ones we can't say
+  // either way about.
+  //
+  // The join is the start timestamp. Nothing else survives the trip:
+  // Strava recomputes moving time (2:46:18 against Garmin's 2:50:03 on
+  // one measured ride) and elevation (960 m against 946 m), and trims
+  // distance by a few meters. The start second is the recording's own,
+  // and matched exactly on every activity we compared.
+  function splitByStrava(listed, index) {
+    const fresh = [];
+    const unjudged = [];
+    for (const activity of listed) {
+      if (!Number.isFinite(activity.start) || activity.start < index.covered) {
+        unjudged.push(activity);
+      } else if (!index.has(activity.start)) {
+        fresh.push(activity);
       }
-      return fresh;
     }
+    return { fresh: fresh.reverse(), unjudged };
+  }
 
-    // Either we've never run, or our memory has nothing in common with
-    // what's on the page — a cleared history, or a long enough gap that
-    // the whole list has turned over. Both look identical from here:
-    // every activity is "new", and silently sending twenty rides to
-    // Strava is not what anyone wants. Ask instead.
-    const headline = seen === null
-      ? 'First upload.'
-      : 'None of the listed activities have been uploaded before.';
-    const count = askCount(
-      `${headline} The newest N activities will be uploaded to Strava. ` +
-      `How many should we send? (0–${listed.length})\n\n` +
-      'After this, previously uploaded activities will be remembered.',
-      listed.length);
-    if (count === null) {
-      console.log(TAG, 'first-run prompt cancelled; nothing changed');
-      setStatus('Cancelled — nothing was uploaded or recorded.', { done: true });
-      return [];
+  // Start times bucketed by second, so a lookup can sweep the tolerance
+  // window without scanning the list.
+  function startIndex({ starts, covered }) {
+    const seconds = new Set(starts.map((t) => Math.round(t / 1000)));
+    const slack = Math.round(START_TOLERANCE_MS / 1000);
+    return {
+      covered,
+      has(ms) {
+        const second = Math.round(ms / 1000);
+        for (let d = -slack; d <= slack; d += 1) if (seconds.has(second + d)) return true;
+        return false;
+      },
+    };
+  }
+
+  // The one question both sides ask: given Garmin's newest activities,
+  // which are missing from Strava? Answered from the two lists every
+  // time, so it is the same answer in every browser and on every
+  // machine, and repairs itself after an upload made anywhere else.
+  async function diffAgainstStrava(listed) {
+    if (!listed.length) return { fresh: [], unjudged: [] };
+    const oldest = Math.min(...listed.map((a) => a.start).filter(Number.isFinite));
+    const index = startIndex(await stravaStarts(Number.isFinite(oldest) ? oldest : Date.now()));
+    const split = splitByStrava(listed, index);
+    if (split.unjudged.length) {
+      console.log(TAG, `${split.unjudged.length} Garmin ` +
+        `${split.unjudged.length === 1 ? 'activity is' : 'activities are'} older than ` +
+        'anything we read from Strava; leaving them alone');
     }
-    // Everything older than the newest `count` is declared already
-    // uploaded right away. The ones we're about to send are recorded
-    // only once they're attached to the upload form.
-    keepNewestUnsent(listed, count);
-    console.log(TAG, `first run: sending the newest ${count} of ${listed.length}, ` +
-      `recorded the other ${listed.length - count} as already sent`);
-    if (count === 0) {
-      setStatus(`Recorded all ${listed.length} listed activities as already uploaded.`,
-        { done: true });
-      return [];
-    }
-    return listed.slice(0, count).reverse();
+    return split;
   }
 
   // Shared error reporting. A lapsed session on either site is the one
@@ -571,8 +657,17 @@
     onGarminUrl();
 
     // An upload that ran entirely on the Strava side still changes what
-    // counts as new here, so follow the history rather than the run.
-    GM_addValueChangeListener(K_SEEN, () => refreshNewBadges());
+    // counts as new here. Invalidate first and re-ask second: the
+    // invalidation is what makes this correct on a tab that isn't
+    // looking at the Activities list right now, since the deferred
+    // refresh below would find the wrong path and do nothing. Strava
+    // needs a moment to turn an accepted file into a listed activity,
+    // hence the delay before asking.
+    GM_addValueChangeListener(K_UPLOADED, (key, oldV, newV) => {
+      if (!newV) return;
+      invalidateBadgeState();
+      setTimeout(() => refreshBadgeState(true), UPLOAD_SETTLE_MS);
+    });
 
     // Second trigger for the gear-menu item, independent of the
     // MutationObserver. The observer is the main path, but whether its
@@ -596,11 +691,16 @@
       console.log(TAG, `${location.pathname} is outside /app/; waiting for the app`);
       return;
     }
+    // Outside the one-time init below, because arriving at the
+    // Activities list by SPA navigation is the common case — the toolbar
+    // button does exactly that — and the init guard would swallow it.
+    // It self-gates on the path and on how old the last answer is.
+    refreshBadgeState();
     if (garminAppStarted) return;
     garminAppStarted = true;
     sweepStaleRequest();
     installButtons();
-    registerMenuCommands();
+    registerDiagnostic();
   }
 
   // A run that dies without reporting — tab closed, navigated away —
@@ -651,17 +751,88 @@
     return ((link.getAttribute('href') || '').match(/\/app\/activity\/(\d+)/) || [])[1] || null;
   }
 
+  // The last answer from diffAgainstStrava, as ids: which rows to badge,
+  // and which rows the answer covers at all. The badges are driven by a
+  // MutationObserver that fires many times a second while the list
+  // renders, and the answer costs two sites' worth of requests — so it
+  // is fetched on a schedule of its own (refreshBadgeState) and read
+  // from here. `null` until the first fetch lands, which badges nothing.
+  let badgeState = null;
+
+  // Bumped whenever something makes the current answer wrong. A fetch
+  // reads it on the way in and drops its result if it changed while the
+  // requests were in flight — otherwise an upload landing mid-fetch is
+  // overwritten by an answer that predates it, and the badges stay
+  // wrong until the next navigation.
+  let badgeGeneration = 0;
+
+  function invalidateBadgeState() {
+    badgeState = null;
+    badgeGeneration += 1;
+    refreshNewBadges();
+  }
+
+  // Ask both sites again and repaint. Cheap enough to run on arriving at
+  // the list and after an upload, too expensive to run per mutation — or
+  // per lap of someone paging between Activities and a ride, hence the
+  // freshness window. `force` is for the one caller that knows the
+  // answer just changed: the upload that changed it.
+  let badgeFetchInFlight = false;
+  let badgeFetchPending = false;
+  async function refreshBadgeState(force = false) {
+    // The badges are the only consumer, and they exist on one page.
+    if (location.pathname !== ACTIVITIES_PATH) return false;
+    if (badgeFetchInFlight) {
+      // Queue rather than drop: the in-flight answer is the one this
+      // call is trying to replace, so returning here would leave the
+      // badges on the stale side until the next navigation.
+      badgeFetchPending = badgeFetchPending || force;
+      return false;
+    }
+    if (!force && badgeState && Date.now() - badgeState.at < BADGE_FRESH_MS) {
+      refreshNewBadges();
+      return true;
+    }
+    badgeFetchInFlight = true;
+    const generation = badgeGeneration;
+    try {
+      const listed = await garminList(await garminSession());
+      const { fresh, unjudged } = await diffAgainstStrava(listed);
+      if (generation !== badgeGeneration) {
+        console.log(TAG, 'an upload landed while we were asking; dropping this answer');
+        return false;
+      }
+      badgeState = {
+        at: Date.now(),
+        fresh: new Set(fresh.map((a) => a.id)),
+        judged: new Set(listed.filter((a) => !unjudged.includes(a)).map((a) => a.id)),
+      };
+      console.log(TAG, `${fresh.length} of ${listed.length} listed activities ` +
+        'are not on Strava yet');
+      refreshNewBadges();
+      return true;
+    } catch (err) {
+      // Quietly: this runs on every load of the activities page, and a
+      // lapsed session is not worth a sign-in tab the user didn't ask
+      // for. Clicking Upload to Strava reports it properly.
+      console.log(TAG, "couldn't work out what's new:", (err && err.message) || err);
+      return false;
+    } finally {
+      badgeFetchInFlight = false;
+      if (badgeFetchPending) {
+        badgeFetchPending = false;
+        refreshBadgeState(true);
+      }
+    }
+  }
+
   // Idempotent, and safe to call as often as the observer fires: it adds
-  // and removes only where the row disagrees with the stored history.
+  // and removes only where the row disagrees with the last answer.
   function refreshNewBadges() {
     if (location.hostname !== 'connect.garmin.com') return;
     if (location.pathname !== ACTIVITIES_PATH) return;
     const rows = document.querySelectorAll(ROW_SELECTOR);
     if (!rows.length) return;
-    const seen = loadSeen();
-    // Before the first upload there's no history to compare against, so
-    // every row would be "new" — badging all twenty says nothing.
-    const seenSet = seen === null ? null : new Set(seen);
     let added = 0;
     let removed = 0;
     let index = -1;
@@ -675,7 +846,8 @@
       // going to happen. Rows arrive newest-first, same order as the API,
       // so position is the window.
       const inWindow = index < LIST_LIMIT;
-      const wanted = inWindow && !!id && seenSet !== null && !seenSet.has(id);
+      const wanted = inWindow && !!id && !!badgeState
+        && badgeState.judged.has(id) && badgeState.fresh.has(id);
       const existing = row.querySelector('.' + BADGE_CLASS);
       if (wanted && !existing) {
         const typeLine = row.querySelector(TYPE_LINE_SELECTOR);
@@ -710,14 +882,24 @@
 
   // ----------------------------------------------------------- the run
 
-  // Fetch the list and diff it against the history. Shared, because
-  // either side may be the one that starts a run — and the prompt has to
-  // land in the tab the user is looking at.
+  // Fetch both lists and diff them. Shared, because either side may be
+  // the one that starts a run, and both reach both sites the same way.
   async function newActivities(session) {
     const listed = await garminList(session);
     console.log(TAG, `Garmin lists ${listed.length} recent activities`);
-    const fresh = chooseActivities(listed);
-    if (fresh.length) {
+    const { fresh, unjudged } = await diffAgainstStrava(listed);
+    if (!fresh.length) {
+      console.log(TAG, 'no new activities');
+      // "Everything is on Strava" would be a lie whenever some rides
+      // were left unjudged — the page cap was hit, or a start time
+      // wouldn't parse. Say what we actually checked.
+      setStatus(unjudged.length
+        ? `No new activities among the ${listed.length - unjudged.length} we could ` +
+          `check. ${plural(unjudged.length, 'activity is', 'activities are')} older ` +
+          "than anything read from Strava, and weren't checked — see the console."
+        : 'No new activities to send — everything Garmin lists is already on Strava.',
+        { done: true });
+    } else {
       console.log(TAG, `${plural(fresh.length, 'new activity', 'new activities')}:`,
         fresh.map((a) => a.id).join(', '));
     }
@@ -740,8 +922,7 @@
       // it happen in a background tab is no use to anybody.
       //
       // GM_openInTab is an extension API, so unlike window.open it
-      // doesn't need the click's user activation — which the first-run
-      // prompt() would have spent by now anyway.
+      // doesn't need the click's user activation.
       GM_openInTab(STRAVA_UPLOAD_URL, { active: true, setParent: true });
     }
   }
@@ -777,7 +958,15 @@
     const start = performance.now();
     clearRequestKeys();
     const requestId = `r${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-    GM_setValue(K_REQUEST, { requestId, activities, ts: Date.now() });
+    // Narrowed on the way out: the working tab needs an id to fetch and
+    // a name to show, and `start` is only ever used by the diff that
+    // already happened here. Keeping the payload to what it says it is
+    // costs one map.
+    GM_setValue(K_REQUEST, {
+      requestId,
+      activities: activities.map(({ id, name }) => ({ id, name })),
+      ts: Date.now(),
+    });
     setStatus(`Handing ${plural(activities.length, 'activity', 'activities')} to Strava…`);
 
     // Runs alongside the wait rather than blocking it, so it needs its
@@ -858,9 +1047,9 @@
     console.log(TAG, `gear menu: sending activity ${activity.id} to Strava`);
     setStatus(`Sending ${activity.name} to Strava…`);
     // Straight to dispatch — no list, no diff. Sending an activity that
-    // was already sent is the point of the item, not a mistake to guard
-    // against. It lands in the history either way, because the Strava
-    // side records whatever it actually attached.
+    // is already on Strava is the point of the item, not a mistake to
+    // guard against. Its badge clears on the next diff like any other,
+    // since "already uploaded" is read off Strava rather than recorded.
     dispatchToStrava([activity]).catch((err) => {
       clearRequestKeys();
       reportFailure(err, 'upload failed');
@@ -1030,40 +1219,6 @@
     scheduleBadges();
   }
 
-  // The menu commands work off the fetched list, not the rendered rows,
-  // so they behave the same on any /app/ page — and match exactly what an
-  // upload would consider.
-  function registerMenuCommands() {
-    GM_registerMenuCommand('Set how many activities are unsent…', () => {
-      garminSession().then(garminList).then((listed) => {
-        if (!listed.length) {
-          console.log(TAG, 'menu: Garmin returned no activities');
-          toast('Garmin returned no activities.');
-          return;
-        }
-        const count = askCount(
-          'The newest N activities will be marked as not yet uploaded, so the ' +
-          `next upload sends them. How many? (0–${listed.length})\n\n` +
-          'Everything older is recorded as already uploaded.',
-          listed.length);
-        if (count === null) return;
-        keepNewestUnsent(listed, count);
-        console.log(TAG, `menu: left the newest ${count} of ${listed.length} unsent`);
-        toast(count === 0
-          ? `Marked all ${listed.length} listed activities as already uploaded.`
-          : `The newest ${count} will be sent on the next upload.`);
-      }).catch((err) => reportFailure(err, 'menu command failed'));
-    });
-    GM_registerMenuCommand('Forget which activities were sent', () => {
-      GM_deleteValue(K_SEEN);
-      clearRequestKeys();
-      refreshNewBadges();
-      console.log(TAG, 'cleared the sent-activity history');
-      toast('Cleared the sent-activity history — the next upload will ask how ' +
-        'many to send.');
-    });
-    registerDiagnostic();
-  }
 
   // =====================================================================
   //                          Strava upload side
@@ -1321,10 +1476,13 @@
     console.log(TAG, `attached ${files.length} file(s) and started the upload ` +
       `(${since(start)} for the whole run)`);
 
-    // Only now — once the files are actually attached and uploading — do
-    // these count as sent. Anything short of that leaves them new, so the
-    // next click retries them.
-    recordSeen(activities.map((a) => a.id));
+    // Nothing to record about *which* activities went: what counts as
+    // sent is read back off Strava, so they stop being new as soon as
+    // Strava lists them. A run that dies before this point leaves them
+    // new by construction, and the next click retries them. All any
+    // other tab needs is that something changed.
+    GM_setValue(K_UPLOADED, { ts: Date.now(), count: files.length });
+
     if (requestId) {
       // Retire the request here as well as on the Garmin side, so a run
       // whose initiating tab was closed still doesn't leave one parked.

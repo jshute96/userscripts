@@ -31,9 +31,11 @@ const UPLOAD_BUTTON_ID = 'jshute-garmin-upload-to-strava-btn';
 test.describe('Garmin Connect → Strava: Upload new activities with one click', () => {
   test.beforeEach(async ({ page, loadUserscript }) => {
     // Must come first: the stubs have to exist when the body runs.
-    // A seeded history keeps the badges deterministic — without it
-    // loadSeen() returns null and nothing is badged.
-    await injectGmStubs(page, { values: { seenActivityIds: [] } });
+    // Nothing is seeded: what counts as new is now read off Strava
+    // through GM_xmlhttpRequest, which the fixture has no fake for, so
+    // the badge fetch fails harmlessly and no row is badged. These
+    // specs cover the buttons and the menu item, not the diff.
+    await injectGmStubs(page);
     await loadUserscript(SCRIPT_PATH);
   });
 
