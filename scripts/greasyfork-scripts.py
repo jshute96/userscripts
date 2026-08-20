@@ -119,6 +119,107 @@ class Manifest:
     self.path.write_text(json.dumps(output, indent=2) + "\n", encoding="utf-8")
 
 
+# ---------- @require rewriting ----------
+
+# A metadata-block @require line: the directive, then the one URL it names.
+REQUIRE_LINE = re.compile(r"^(//\s*@require\s+)(\S+)[^\S\n]*$", re.MULTILINE)
+
+# Where our shared libraries live when a script is installed from GitHub.
+GITHUB_LIB_PREFIX = "https://raw.githubusercontent.com/"
+
+
+def library_require_map(manifest: "Manifest") -> dict:
+  """github_url -> latest_version_url, for every library that has both.
+
+  Both fields are recorded per library in the manifest: `github_url` is
+  the raw URL our scripts @require, and `latest_version_url` is the one
+  exact Greasy Fork version that stands for it there.
+  """
+  mapping = {}
+  for entry in manifest.libraries:
+    github = entry.get("github_url")
+    greasyfork = entry.get("greasyfork", {}).get("latest_version_url")
+    if github and greasyfork:
+      mapping[github] = greasyfork
+  return mapping
+
+
+def rewrite_requires(source: str, manifest: "Manifest") -> tuple:
+  """Point a script's @require lines at Greasy Fork instead of GitHub.
+
+  Greasy Fork rejects a `raw.githubusercontent.com` @require, so the
+  copy posted there has to name each library's `latest_version_url`
+  instead. Everything else — bare relative paths to same-site helpers,
+  URLs on other hosts — is left alone.
+
+  Returns the rewritten source and the (old, new) pairs it changed. A
+  GitHub @require with no library entry to map it to is an error: it
+  would be rejected on submit, and silently leaving it in place would
+  make that look like a Greasy Fork problem rather than a missing
+  `github_url` in the manifest.
+  """
+  mapping = library_require_map(manifest)
+  changed = []
+  unmapped = []
+
+  def replace(match):
+    directive, url = match.group(1), match.group(2)
+    if not url.startswith(GITHUB_LIB_PREFIX):
+      return match.group(0)
+    if url not in mapping:
+      unmapped.append(url)
+      return match.group(0)
+    changed.append((url, mapping[url]))
+    return directive + mapping[url]
+
+  rewritten = REQUIRE_LINE.sub(replace, source)
+  if unmapped:
+    raise SystemExit(
+      "error: no Greasy Fork library recorded for @require "
+      + ", ".join(unmapped)
+      + f"\n  add the library to {manifest.path.name} with a github_url and a "
+        "published greasyfork.latest_version_url")
+  return rewritten, changed
+
+
+# Any @require Greasy Fork can't serve to an installed script: a raw file
+# on GitHub (which it rejects outright) or a bare relative path (which
+# only resolves against a local install's own directory).
+GITHUB_HOST = re.compile(r"^https?://(raw\.githubusercontent\.com|(gist\.)?github\.com)/", re.I)
+
+
+def unpublishable_requires(source: str) -> list:
+  """(url, what's wrong) for each @require that can't be published.
+
+  Both cases are ones our scripts legitimately have on disk — a GitHub
+  raw URL for a `lib/` helper, a bare relative path for a same-site
+  helper — and both are broken for everyone who installs from Greasy
+  Fork. `rewrite_requires` fixes the first; nothing fixes the second,
+  so a script with one has to be published with its helper inlined.
+  """
+  problems = []
+  for match in REQUIRE_LINE.finditer(source):
+    url = match.group(2)
+    if GITHUB_HOST.match(url):
+      problems.append((url, "a GitHub URL, which Greasy Fork rejects"))
+    elif "://" not in url:
+      problems.append((url, "a relative path, which only resolves for a local install"))
+    elif not url.lower().startswith(("http://", "https://")):
+      # `file://`, most likely — convert-to-file-pointer.py writes those,
+      # and a pointer copy is easy to hand to the wrong command.
+      problems.append((url, "not an http(s) URL, so no one but this machine can fetch it"))
+  return problems
+
+
+def check_publishable(source: str, what: str) -> None:
+  """Stop unless every @require in `source` would work on Greasy Fork."""
+  problems = unpublishable_requires(source)
+  if problems:
+    raise SystemExit(
+      f"error: {what} has @require lines Greasy Fork can't publish:\n"
+      + "\n".join(f"  {url}\n    {why}" for url, why in problems))
+
+
 # ---------- local scripts ----------
 
 def header_field(path: Path, pattern: re.Pattern) -> str:
@@ -163,6 +264,19 @@ def selected(manifest: "Manifest", only: list) -> tuple:
           [libraries[path] for path in wanted if path in libraries])
 
 
+def repo_path(source: str) -> Path:
+  """A path naming a file in the repo, as the commands spell one.
+
+  Relative paths are read against the repo root rather than the working
+  directory, so `sites/foo/bar.user.js` means the same thing from
+  anywhere — which is how the manifest spells a path too.
+  """
+  full = (Path(source) if Path(source).is_absolute() else REPO_ROOT / source).resolve()
+  if not full.is_file():
+    raise SystemExit(f"error: no such file: {full}")
+  return full
+
+
 def raw_url(source: str, branch: str) -> str:
   """Build the raw.githubusercontent.com URL that serves a local script.
 
@@ -173,9 +287,7 @@ def raw_url(source: str, branch: str) -> str:
   """
   if "://" in source:
     return source
-  full = (Path(source) if Path(source).is_absolute() else REPO_ROOT / source).resolve()
-  if not full.is_file():
-    raise SystemExit(f"error: no such file: {full}")
+  full = repo_path(source)
   try:
     relative = full.relative_to(REPO_ROOT)
   except ValueError:
@@ -295,10 +407,8 @@ def cmd_match(args) -> None:
   libraries = match_libraries(args.api_base, library_entries)
 
   print(f"published and matched ({len(pairs)}):")
+  out_of_sync = False
   for entry, name, version, remote in pairs:
-    # A local version ahead of the published one means we have changes
-    # that were never posted.
-    same = "  " if version == remote["version"] else "* "
     notes = ""
     if str(entry.get("greasyfork", {}).get("id")) != str(remote["id"]):
       notes += "   [id not in manifest]"
@@ -306,7 +416,15 @@ def cmd_match(args) -> None:
       # Matched by the recorded id, so a local rename shows up here
       # rather than as two unmatched scripts.
       notes += f"   [renamed; posted as {remote['name']!r}]"
-    print(f"  {same}{remote['id']}  local v{version} / posted v{remote['version']}  {entry['path']}{notes}")
+    # A local version ahead of the published one means we have changes
+    # that were never posted; a note means the manifest and Greasy Fork
+    # disagree about something else. Either way the line needs reading,
+    # so both get the same mark in the left column.
+    mark = "  "
+    if version != remote["version"] or notes:
+      mark = "* "
+      out_of_sync = True
+    print(f"  {mark}{remote['id']}  local v{version} / posted v{remote['version']}  {entry['path']}{notes}")
   print(f"\nlocal only, never published ({len(unpublished)}):")
   for entry, name, _ in unpublished:
     print(f"    {entry['path']}" + ("" if name else "   [no @name header!]"))
@@ -332,9 +450,11 @@ def cmd_match(args) -> None:
         # deleted on Greasy Fork, or the hand-typed id is wrong.
         note = f"   [id {recorded} not found on Greasy Fork!]" if recorded is not None else ""
         print(f"    {entry['path']}{note}")
-  if any(v != r["version"] for _, _, v, r in pairs) or stale:
-    print("\n('*' marks a local @version that differs from the posted one, or a "
-          "library whose recorded URLs differ from what Greasy Fork reports.)")
+  if out_of_sync or stale:
+    print("\n('*' marks anything published that's out of step with what Greasy "
+          "Fork reports: a local @version that differs from the posted one, a "
+          "note in brackets on the same line, or a library whose recorded URLs "
+          "are out of date.)")
 
 
 def cmd_link(args) -> None:

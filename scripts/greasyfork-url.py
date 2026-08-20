@@ -33,6 +33,20 @@ Examples:
 The page is only ever filled in, never submitted — read it over and click
 Greasy Fork's own button.
 
+@require checking and rewriting:
+  Greasy Fork rejects a raw.githubusercontent.com @require, so --code-file
+  rewrites each one naming a lib/ helper to that library's recorded
+  latest_version_url before inlining the code. The mapping comes from
+  script_manifest.json (a library's `github_url` and its
+  `greasyfork.latest_version_url`); a GitHub @require with no library entry
+  is an error rather than a silent pass-through. --no-rewrite-requires posts
+  the file verbatim, unchecked.
+
+  --code-upload and import hand Greasy Fork the file as it stands, with no
+  chance to rewrite anything on the way, so a local path there is only
+  checked: a @require naming a GitHub URL or a bare relative path stops the
+  command. (A file the import names by URL isn't fetched, so isn't checked.)
+
 Local files:
   --code-file and --info-file are read here and inlined into the URL, so
   they always work. --image-files and --code-upload can only be passed as a
@@ -97,6 +111,51 @@ def from_doc(doc_path: str) -> tuple[str, list[str]]:
   return load_sibling("extract-description.py").description_and_images(Path(doc_path))
 
 
+def code_for_greasyfork(path_str: str, rewrite: bool) -> str:
+  """The script's source as it should be posted to Greasy Fork.
+
+  Our scripts @require the shared `lib/` helpers from
+  raw.githubusercontent.com, which Greasy Fork won't accept — so the
+  posted copy names each library's recorded `latest_version_url`
+  instead, and then the result is checked for any @require that still
+  wouldn't work for someone installing from Greasy Fork. Both come from
+  greasyfork-scripts.py, reading the same manifest, so the two tools
+  can't disagree about which version a script requires.
+  """
+  source = read_text(path_str)
+  if not rewrite:
+    # Explicitly "post exactly this file" — so don't rewrite it, and
+    # don't second-guess it either.
+    return source
+  module = load_sibling("greasyfork-scripts.py")
+  source, changed = module.rewrite_requires(source, module.Manifest(module.MANIFEST))
+  for old_url, new_url in changed:
+    print(f"@require rewritten for Greasy Fork:\n  {old_url}\n  -> {new_url}", file=sys.stderr)
+  module.check_publishable(source, path_str)
+  return source
+
+
+def check_requires_of(path_str: str, what: str, repo_relative: bool = False) -> None:
+  """Check a file we're handing to Greasy Fork whole, without rewriting.
+
+  Uploads and imports post the file as it stands — Greasy Fork fetches
+  or reads it itself, so there's no opportunity to fix a `lib/`
+  @require on the way. A repo path is read and checked; a URL is left
+  alone, since checking it would mean fetching it.
+
+  `repo_relative` says how to read the path: import names files the way
+  the manifest does, relative to the repo root whatever the working
+  directory is, while --code-upload takes an ordinary path from the
+  shell. Reading an import's path the second way would break the
+  command anywhere but the repo root, where it used to work.
+  """
+  if "://" in path_str:
+    return
+  module = load_sibling("greasyfork-scripts.py")
+  path = str(module.repo_path(path_str)) if repo_relative else path_str
+  module.check_publishable(read_text(path), what)
+
+
 def read_text(path_str: str) -> str:
   # Read rather than stat, so a pipe works too — process substitution
   # (`--info-file <(some-command)`) hands us a /dev/fd entry, which isn't
@@ -149,10 +208,11 @@ def script_params(args) -> list[tuple[str, str]]:
   if sum(code_sources) > 1:
     raise SystemExit("error: pass only one of --code-file, --code-url, --code-upload")
   if args.code_file:
-    params.append(("code", read_text(args.code_file)))
+    params.append(("code", code_for_greasyfork(args.code_file, args.rewrite_requires)))
   elif args.code_url:
     params.append(("code_url", args.code_url))
   elif args.code_upload:
+    check_requires_of(args.code_upload, args.code_upload)
     params.append(("code_upload", as_location(args.code_upload, args)))
 
   doc_images: list[str] = []
@@ -202,6 +262,14 @@ def script_params(args) -> list[tuple[str, str]]:
 
 def update_params(args) -> list[tuple[str, str]]:
   params = script_params(args)
+  # Greasy Fork keeps the description on the version form, so posting code
+  # without one leaves the old text in place — invisibly, since the field
+  # arrives looking the way it always does. Say so; it's a warning rather
+  # than an error because a code-only fix-up is a legitimate thing to want.
+  if args.code_file and not (args.extract_from_doc or args.info_file or args.info_text):
+    print("warning: posting code without updating description — the currently posted one "
+          "stays. Pass --extract-from-doc <the script's .md> to update it.",
+          file=sys.stderr)
   if args.changelog_text and args.changelog_file:
     raise SystemExit("error: pass only one of --changelog-text, --changelog-file")
   if args.changelog_format and not (args.changelog_text or args.changelog_file):
@@ -335,6 +403,8 @@ def main() -> int:
     sub.add_argument("--extract-from-doc", metavar="FILE",
                      help="extract description and image-files from the script's .md doc")
     sub.add_argument("--code-file", metavar="FILE", help="read the code from FILE and inline it")
+    sub.add_argument("--rewrite-requires", action=argparse.BooleanOptionalAction, default=True,
+                     help="point --code-file's lib/ @requires at Greasy Fork (default: on)")
     sub.add_argument("--code-url", metavar="URL", help="have the browser load the code from URL")
     sub.add_argument("--code-upload", metavar="FILE", help="attach FILE to the 'Or upload' input")
     sub.add_argument("--info-file", metavar="FILE", help="read Additional info from FILE (format from its extension)")
@@ -359,7 +429,9 @@ def main() -> int:
   update_parser = subparsers.add_parser(
     "update", add_help=False, help="post a new version of an existing script",
     description="Fill the 'Post a new version' form for an existing script.", epilog=shared_note)
-  update_parser.add_argument("script", help="script id, slug, or a URL containing one")
+  update_parser.add_argument("script_id",
+                             help="the Greasy Fork script id (an integer), or a slug or "
+                                  "URL containing one")
   add_hidden_help(update_parser)
   add_common_options(update_parser, documented=False)
   add_script_options(update_parser)
@@ -395,10 +467,14 @@ def main() -> int:
     if args.script_locale:
       params.append(("script_locale", args.script_locale))
   elif args.command == "update":
-    path = f"{prefix}/scripts/{script_id_of(args.script)}/versions/new"
+    path = f"{prefix}/scripts/{script_id_of(args.script_id)}/versions/new"
     params = update_params(args)
   else:
     path = f"{prefix}/import"
+    # Greasy Fork fetches these from GitHub and keeps syncing from them,
+    # so whatever @require lines are in the file are what its users get.
+    for source in args.urls:
+      check_requires_of(source, source, repo_relative=True)
     params = [("urls", "\n".join(source_url(s, args.branch) for s in args.urls))]
     if args.language:
       params.append(("language", args.language))

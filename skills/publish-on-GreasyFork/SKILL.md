@@ -64,6 +64,7 @@ Fork id and URL go, on the same entry as the script they belong to:
   "libraries": [
     {
       "path": "lib/keyboard-shortcuts.js",
+      "github_url": "https://raw.githubusercontent.com/jshute96/userscripts/main/lib/keyboard-shortcuts.js",
       "greasyfork": {
         "id": 592123,
         "url": "https://greasyfork.org/scripts/592123-keyboard-shortcuts",
@@ -89,11 +90,13 @@ JSON twin at
 `https://api.greasyfork.org/en/scripts/<id>-<slug>.json`. From then on
 `match` and `link` work from that id like any other entry.
 
-Libraries carry one extra field, `latest_version_url`. Greasy Fork
-mints a new version URL every time a version is posted, and a
-`@require` has to name one exact version — so this is the URL a script
-would point at, and it goes stale as soon as a new version is posted.
-`match` flags that; `link` refreshes it.
+Libraries carry two extra fields. `github_url` is the raw URL our
+scripts `@require` — hand-written, and the left-hand side of the
+rewrite below. `latest_version_url` is its Greasy Fork counterpart:
+Greasy Fork mints a new version URL every time a version is posted, and
+a `@require` has to name one exact version, so this is the URL a posted
+script points at. It goes stale as soon as a new version is posted;
+`match` flags that, `link` refreshes it.
 
 ## Actions
 
@@ -127,12 +130,35 @@ option for libraries at all, so each version is posted by hand.
 Then hand-record the id in the manifest's `libraries` list (see above)
 and run `link` to fill in the rest.
 
-**A script that `@require`s a `lib/` file can't be published as-is.**
-Our scripts point their `@require` lines at `raw.githubusercontent.com`,
-which Greasy Fork rejects, and that includes the copy an import-from-
-GitHub would fetch — so auto-update is unavailable for these scripts
-until their `@require`s name the libraries' `latest_version_url`s
-instead. Doing that by hand is the only route today.
+### Scripts that `@require` a `lib/` file
+
+Greasy Fork rejects a `raw.githubusercontent.com` `@require`, and that
+includes the copy an import-from-GitHub would fetch — so **these
+scripts can't be imported, and don't get auto-update.** Publish them
+with "Publish a standalone copy" (or `update` for a new version) and
+post each version by hand.
+
+`--code-file` handles the URLs: before inlining the code it rewrites
+every `@require` naming a `lib/` helper to that library's
+`latest_version_url`, matching on the library's `github_url` in the
+manifest. It prints each rewrite it makes, and stops with an error if a
+GitHub `@require` has no library entry to map it to — the fix is to
+record `github_url` and a published `greasyfork.latest_version_url` for
+that library, not to post the file as it stands.
+
+Nothing on disk changes: the checked-in scripts keep their GitHub
+`@require`s, which is what a local SourceMonkey install needs.
+`--no-rewrite-requires` posts the file verbatim, unchecked.
+
+**An `@require` with a relative path can't be published at all**.
+
+### The `@require` check
+
+`import`, `--code-upload` and `--code-file` all refuse to build a URL
+for a local script whose `@require` lines wouldn't be allowed in GF. 
+An import names files by URL and can't rewrite anything, so for
+a `lib/`-using script the check is the whole answer: it will never be
+importable, and has to be posted as a standalone copy.
 
 ### Publish by importing from GitHub (preferred)
 
@@ -234,10 +260,19 @@ Only use this for standalone (unsynced) scripts — a synced one picks
 up the new code from GitHub on its own, once the user pushes. Bump
 `@version` first.
 
+**Send the description every time**, with `--extract-from-doc`, not
+just the code:
+
 ```bash
 scripts/greasyfork-url.py update 590960 \
-    --code-file sites/strava.com/fix-climb-slider.user.js
+    --code-file sites/strava.com/fix-climb-slider.user.js \
+    --extract-from-doc sites/strava.com/fix-climb-slider.md \
+    --changelog-text "What changed in this version."
 ```
+
+Greasy Fork keeps the description on the version form, so a run
+without `--extract-from-doc` silently leaves the old text posted — and
+the `.md` doc may have updated.
 
 ## Images
 

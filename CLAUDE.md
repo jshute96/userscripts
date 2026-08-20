@@ -129,6 +129,7 @@ them only to track what exists and where each is published:
 ```json
 {
   "path": "lib/keyboard-shortcuts.js",
+  "github_url": "https://raw.githubusercontent.com/jshute96/userscripts/main/lib/keyboard-shortcuts.js",
   "greasyfork": {
     "id": 592123,
     "url": "https://greasyfork.org/scripts/592123-keyboard-shortcuts",
@@ -137,11 +138,18 @@ them only to track what exists and where each is published:
 }
 ```
 
-`latest_version_url` is the extra field libraries carry. Greasy Fork
-gives a library one id and one landing page (`url`), but mints a *new*
-URL for every version posted, and a `@require` has to name one exact
-version. Scripts loading `@require` libraries from Greasy Fork point at
-a specific version and don't get updates without updating the `@require`.
+Libraries carry two extra fields, and they're the two sides of the same
+URL. `github_url` is the raw URL our scripts `@require`; write it by
+hand. `latest_version_url` is what that becomes on Greasy Fork: Greasy
+Fork gives a library one id and one landing page (`url`), but mints a
+*new* URL for every version posted, and a `@require` has to name one
+exact version. Scripts loading `@require` libraries from Greasy Fork
+point at a specific version and don't get updates without updating the
+`@require`.
+
+The pair is what lets `greasyfork-url.py --code-file` rewrite a
+script's GitHub `@require`s to Greasy Fork ones as it posts them — see
+the `@require` notes below.
 
 `scripts/greasyfork-scripts.py match` reports whether each recorded
 `latest_version_url` is still the newest, and `link` refreshes it. It
@@ -435,12 +443,23 @@ if it's missing; it makes the next break diagnose itself.
     libraries published on Greasy Fork or an allowlisted CDN. Our
     `lib/` files are now published there (see `libraries` in
     `script_manifest.json`), but the scripts still `@require` the
-    GitHub raw URLs, so **a script using `lib/` can't be published
-    as-is** — and in particular can't use Greasy Fork's import-from-
-    GitHub auto-update, since the copy it fetches is the one with the
-    GitHub `@require`s. Publishing one means posting a copy whose
-    `@require` lines point at the libraries' `latest_version_url`s.
-    Not automated.
+    GitHub raw URLs, so **a script using `lib/` can't use Greasy
+    Fork's import-from-GitHub auto-update** — the copy it fetches is
+    the one with the GitHub `@require`s. Publish these by posting the
+    code instead (`greasyfork-url.py new`/`update --code-file`), which
+    rewrites each `lib/` `@require` to that library's
+    `latest_version_url` on the way, matching it by the library's
+    `github_url` in the manifest. The checked-in file is untouched —
+    it keeps the GitHub URLs a local install needs — so every version
+    is still posted by hand.
+  - **A relative-path `@require` can't be published at all**: it only
+    resolves against a local install's directory, so a Greasy Fork
+    install gets a script whose helper never loads. Publishing such a
+    script means inlining the helper into the posted copy.
+  - `greasyfork-url.py` checks for both before it builds a form URL —
+    on `import` and `--code-upload`, which hand Greasy Fork the file
+    as-is, and on `--code-file` after its rewrite. A script it stops
+    on is one that would have been published broken.
   - Publishing a library itself is manual too: the new/update forms are
     the same URLs as for scripts, but you pick `library` and the fields
     differ. There's no import-from-GitHub for libraries at all.
