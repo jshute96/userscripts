@@ -24,14 +24,33 @@ The site name is a hash of the extension ID and should be consistent for any ins
   - Run `google-chrome chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/collections.html?add_source=/path/directory`
   - Point the filename at the absolute path.
   - Typically, we'd run this once, for the `userscripts` directory covering this repo.
-  - After adding or removing scripts under this directory, use the `refresh` command so SourceMonkey picks up the change.
+  - After adding or removing scripts under this directory, use the
+    `refresh-file` command, naming the new/removed file or the directory
+    itself, so SourceMonkey picks up the change.
 
-* `refresh`: Re-scan the installed sources for scripts and their targeting
+* `refresh-file`: Re-scan only what covers one file or directory —
+  **the default refresh for this repo.**
+  - Run `google-chrome 'chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/collections.html?refresh_file=/abs/path'`
+  - The path is a file or a directory, as an absolute path.
+  - It refreshes every local collection whose scanned directory overlaps
+    the path, plus any individually-added local script pointing at it.
+    Overlapping collections are re-scanned whole, which notices files
+    added, renamed, or deleted.
+
+* `refresh-local`: Re-scan every local collection, skipping the web ones.
+  - Run `google-chrome chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/collections.html?refresh_local`
+  - Use when the change spans several unrelated local directories and
+    naming one path wouldn't cover it.
+
+* `refresh`: Re-scan **everything**, including every http(s) and GitHub
+  collection.
   - Run `google-chrome chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/collections.html?refresh`
-  - It opens a browser tab, so don't fire it speculatively — one
-    refresh once the change is complete, not one per edit.
-  - **Not needed after editing an existing script's body.** Only run it
-    when *which* scripts run where has changed.
+  - Only when you actually want remote collections re-fetched.
+
+All three open a browser tab, so don't fire them speculatively — one
+refresh once the change is complete, not one per edit. **None is needed
+after editing an existing script's body**; only when *which* scripts run
+where has changed.
 
 ## Picking up edits to a script
 
@@ -39,13 +58,13 @@ SourceMonkey re-reads local script files on every page load, so for a
 page the script *already* targets, the user just reloads the page — no
 `refresh`, and nothing for us to do after an edit.
 
-`refresh` is needed only when the set of scripts, or where they run,
-changes.
+A refresh is needed only when the set of scripts, or where they run,
+changes — and then `refresh-file` on the affected path is enough.
 
 That covers local `@require` files too, including a local file
 overriding a remote URL (see below): reloading the page re-reads them
 as well. A `@require` actually fetched over http(s) is *not* re-checked
-on reload, so editing what it points at needs a `refresh`.
+on reload, so editing what it points at needs a refresh.
 
 ## Local overrides for remote `@require`s
 

@@ -89,8 +89,8 @@ maybe HTML), follow this flow:
 6. **Suggest install**
    - If using SourceMonkey (the default), the directory should be installed
      already, and the manifest entry was added in step 4. Run the
-     `install-in-SourceMonkey` skill's `refresh` command once so
-     SourceMonkey picks up the new file.
+     `install-in-SourceMonkey` skill's `refresh-file` command once,
+     naming the new script's path, so SourceMonkey picks up the new script.
    - If using Tampermonkey, use the `install-in-tampermonkey` skill's
    `install-pointer` action, so the user can iterate by reloading.
 7. **Write a Playwright spec** (`<name>.spec.js`) once the user
@@ -362,9 +362,11 @@ if it's missing; it makes the next break diagnose itself.
   - Under SourceMonkey (our default), editing the body of an
     already-installed local script needs **nothing** — it re-reads the
     file on every page load, so the user just reloads the page. Don't
-    fire a `refresh` after an ordinary edit. `refresh` is only needed for
+    fire a refresh after an ordinary edit. A refresh is only needed for
     changes to *which* scripts run where: a new or deleted script file,
-    a manifest change, or edited targeting headers.
+    a manifest change, or edited targeting headers. When one is needed,
+    use the skill's `refresh-file` on the changed path — the plain
+    `refresh` re-fetches every remote collection too.
 
 * To get scripts to update from github, increment the `@version` (in the last number field) before final commit and push.
 
