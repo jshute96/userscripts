@@ -5,8 +5,8 @@ description: Interact with the SourceMonkey chrome extension for installing or e
 
 ## Target page
 
-SourceMonkey's control page is avaialable at
-`chrome-extension://chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/collections.html`
+SourceMonkey's control page is available at
+`chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/collections.html`
 
 The site name is a hash of the extension ID and should be consistent for any installation from unpacked files.
 
