@@ -1,19 +1,22 @@
-# Substack: Auto-close the subscribe and sign-in popups
+# Substack: Auto-close the subscribe, referral, and sign-in popups
 
 ## Summary
 
-Reading a Substack post means dismissing two interruptions:
+Reading a Substack post means dismissing several interruptions:
 
 * A **"Discover more from ..." subscribe modal** that covers the text
   and dims the page behind it.
+* A **"*Someone* shared this with you" referral popup**, shown when you
+  arrive from a shared link, asking you to follow the person who shared
+  it before you keep reading.
 * A **"Sign in to *blog* with substack.com" bubble** under the
   browser's address bar, offering to hand the blog your Substack name,
   email, and profile picture.
 
-This script gets rid of both. The subscribe modal is closed as soon as
-it appears, and the sign-in bubble never opens at all — it's browser UI
-rather than part of the page, so instead of closing it, the script
-declines the request that would have summoned it.
+This script gets rid of all three. The two in-page popups are closed as
+soon as they appear, and the sign-in bubble never opens at all — it's
+browser UI rather than part of the page, so instead of closing it, the
+script declines the request that would have summoned it.
 
 Signing in through the blog's own **Sign in** link still works as
 usual; only the automatic browser prompt is suppressed. Sign-in
@@ -31,8 +34,8 @@ Third-party sign-in, i.e. `chrome://settings/content/federatedIdentityApi`.
 
 ## Visible changes
 
-* The subscribe modal and its dimming overlay disappear on their own,
-  usually before you notice them.
+* The subscribe modal, the referral popup, and their dimming overlay
+  disappear on their own, usually before you notice them.
 * The sign-in bubble under the address bar never appears.
 
 ## Implementation
@@ -56,7 +59,7 @@ Two consequences:
   the initial document load, so it's not a general answer to
   false-positive matches.
 * For any other site that uses `/p/` paths, both halves gate themselves
-  at runtime instead: the modal half checks the page is Substack's
+  at runtime instead: the popup half checks the page is Substack's
   before it observes anything, and the sign-in patch checks each
   request's provider before declining it. Nothing is watched and
   nothing is intercepted.
@@ -107,10 +110,10 @@ What we assume:
    convenience, and a user dismissing the bubble produces the same
    rejection.
 3. Substack's provider stays on a `substack.com` host.
-4. The patch is wrapped in a `try`/`catch`. It runs before the modal
+4. The patch is wrapped in a `try`/`catch`. It runs before the popup
    half, in the same IIFE, so an exception here — assigning to
    `creds.get` throws under `'use strict'` if a browser or extension
-   ever makes it non-writable — would otherwise take the modal half
+   ever makes it non-writable — would otherwise take the popup half
    down with it, silently.
 5. The userscript manager runs the script in the page's JavaScript
    world, so patching `navigator.credentials.get` is visible to the
@@ -119,39 +122,64 @@ What we assume:
    manager is sandboxing the script away from the page's `navigator`
    and the patch isn't reaching the page.
 
-### The subscribe modal
+### The in-page popups
 
-The modal is rendered inside the post's `<article>`, positioned
-absolutely, with a sibling element for the dimming overlay:
+Both popups are built from the same dialog component and share a close
+button, but they name themselves differently — which is why the script
+matches on the *accessible name* rather than on one attribute.
+
+**The subscribe modal** is rendered inside the post's `<article>`,
+positioned absolutely, with a sibling element for the dimming overlay:
 
 - `div[role="dialog"][aria-label="Subscribe modal"]` — the modal
   itself. Its class list also carries a `subscribeDialog-<hash>`
   CSS-module class, but the hash rotates on every deploy, so we match
-  on the role/aria-label instead.
+  on the role and name instead.
 - `button[aria-label="close"]` inside it — the X button, also
   `title="Close"`, holding a `lucide-x` SVG.
 - A sibling `div` with a `background-<hash>` class and an animated
   inline `opacity` — the dimming overlay. Substack removes it as part
   of its own dismissal, so we don't touch it directly.
 
-In practice the modal is already in the DOM by the time the document is
-parsed on a post page, so it's usually closed before it's visible;
-Substack can also insert it later, hence the observer. Substack
-remembers the dismissal (site storage), so it generally doesn't come
-back on later visits until that's cleared.
+**The referral popup** appears on a post opened from a share link (the
+`?r=<code>` parameter), reading "*Name* shared this with you" over
+**Follow *Name* and continue reading** / **Skip** buttons. It's a
+[Radix](https://www.radix-ui.com/) dialog — a widely used React
+component library Substack builds on — so its markup differs:
+
+- `div[role="dialog"][data-testid="modal"]`, with an `id` like
+  `radix-P0-235` (generated per render, so not usable as an anchor) and
+  `data-state="open"`.
+- No `aria-label`. The name comes via `aria-labelledby`, pointing at a
+  visually-hidden `<h2>Follow on Substack</h2>` — note that's the
+  component's internal name, not the "shared this with you" heading the
+  reader sees, which is a separate `<h3>`.
+- The same `button[aria-label="close"]` X in its header.
+
+Since the dialog names are what we match on, adding a further Substack
+popup means adding its accessible name to `POPUP_NAMES`.
+
+In practice the subscribe modal is already in the DOM by the time the
+document is parsed on a post page, so it's usually closed before it's
+visible; the referral popup arrives later, after hydration, hence the
+observer. Substack remembers each dismissal (site storage), so they
+generally don't come back on later visits until that's cleared.
 
 What we assume:
 
-1. The modal keeps `role="dialog"` and `aria-label="Subscribe modal"`.
+1. Every popup we want to close is a `div[role="dialog"]` whose
+   accessible name — its `aria-label`, or the joined text of the
+   elements its `aria-labelledby` points at — is one of the fixed
+   strings in `POPUP_NAMES` (compared lowercased).
 2. The close button stays a descendant `<button>` with
    `aria-label="close"`, and responds to a plain `.click()`.
-3. Dismissal either removes the modal from the DOM or hides it via
+3. Dismissal either removes the popup from the DOM or hides it via
    `display` / `visibility` / `offsetParent`.
 
 What we change:
 
 1. **Start at `DOMContentLoaded`, on a Substack page only.** There's no
-   DOM to inspect at `document-start`, so the modal half waits (and
+   DOM to inspect at `document-start`, so the popup half waits (and
    starts immediately if the manager injected us later than the header
    asks, i.e. `readyState` is no longer `loading`). It then confirms the
    page is Substack's — the hostname, or `[class*="pencraft"]` /
@@ -172,23 +200,26 @@ What we change:
 
 2. **Watch for later ones.** `tryClose()` runs once up front, then a
    `MutationObserver` on `document.documentElement` watches
-   childList/subtree mutations — the modal being re-inserted — plus
+   childList/subtree mutations — a popup being inserted — plus
    `style` / `class` attribute changes, for later visibility toggles.
    Because the overlay animates its inline opacity, callbacks arrive
    once per frame during the fade-in; they're coalesced into one check
    per 100ms tick, with `setTimeout` rather than
    `requestAnimationFrame`, which doesn't run at all in a background
    tab.
-3. **Close whenever visible.** `tryClose()` finds a visible modal and
-   clicks its close button. React tears the modal down on a later
-   render, and the overlay fades out first, so the result is confirmed
-   by polling every 200ms for up to 3s — gone or hidden is logged as a
+3. **Close whenever visible.** `tryClose()` finds the first visible
+   recognized popup and clicks its close button. Unrecognized dialogs
+   are left alone, so a share sheet or comment composer the user opened
+   deliberately isn't dismissed under them. React tears the popup down on
+   a later render, and the overlay fades out first, so the result is
+   confirmed by polling every 200ms for up to 3s — gone or hidden is logged as a
    success, still there at the timeout is logged as a warning. A
    `clickPending` flag keeps the observer from clicking again while a
    close is still settling, and after three clicks that closed nothing
    the script logs an error and stops trying — otherwise a broken close
    button turns every page mutation into another attempt, forever.
-4. **Never disconnect.** Substack shows the modal more than once per
-   page, and moves between posts client-side, so the observer stays
+4. **Never disconnect.** Substack shows these more than once per page
+   (the referral popup can follow the subscribe one), and moves between
+   posts client-side, so the observer stays
    attached for the life of the page. The success log includes a count
    so repeat closes are visible in the console.

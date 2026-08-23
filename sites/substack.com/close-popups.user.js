@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         Substack: Auto-close the subscribe and sign-in popups
+// @name         Substack: Auto-close the subscribe, referral, and sign-in popups
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.0
-// @description  Closes the "Discover more from" subscribe popup that covers a post, and stops the browser's sign-in bubble from appearing at all.
+// @version      1.1.0
+// @description  Closes the "Discover more from" subscribe popup and the "shared this with you" referral popup that cover a post, and stops the browser's sign-in bubble from appearing at all.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://*.substack.com/*
@@ -84,14 +84,48 @@
   }
 
   // ---------------------------------------------------------------------
-  // 2. The in-page subscribe modal.
+  // 2. The in-page popups.
   //
   // Substack's CSS-module class names carry build-hash suffixes that rotate on
   // every deploy, so anchor on role/aria attributes and nothing else.
   // ---------------------------------------------------------------------
 
-  const MODAL_SELECTOR = 'div[role="dialog"][aria-label="Subscribe modal"]';
+  // Substack shows several of these, all built from the same dialog
+  // component, and names them differently: the "Discover more from" subscribe
+  // interstitial is labelled inline, while the referral popup ("<name> shared
+  // this with you", from a ?r= share link) is a Radix dialog whose name lives
+  // in a visually-hidden <h2> pointed at by aria-labelledby. So match on the
+  // accessible name rather than on one attribute.
+  const DIALOG_SELECTOR = 'div[role="dialog"]';
   const CLOSE_SELECTOR = 'button[aria-label="close"]';
+  const POPUP_NAMES = ['subscribe modal', 'follow on substack'];
+
+  function accessibleName(el) {
+    const label = el.getAttribute('aria-label');
+    if (label) return label.trim().toLowerCase();
+    const id = el.getAttribute('aria-labelledby');
+    if (id) {
+      // aria-labelledby may list several ids; the name is their text joined.
+      const text = id.split(/\s+/)
+        .map((i) => document.getElementById(i))
+        .filter(Boolean)
+        .map((n) => n.textContent)
+        .join(' ');
+      return text.trim().toLowerCase();
+    }
+    return '';
+  }
+
+  // Returns the first visible popup we recognize, or null. Deliberately
+  // name-based: closing every dialog on the page would also dismiss ones the
+  // user opened on purpose (share sheets, the comment composer).
+  function findPopup() {
+    for (const el of document.querySelectorAll(DIALOG_SELECTOR)) {
+      if (!isVisible(el)) continue;
+      if (POPUP_NAMES.includes(accessibleName(el))) return el;
+    }
+    return null;
+  }
 
   function isVisible(el) {
     if (!el) return false;
@@ -113,12 +147,11 @@
   const SETTLE_TIMEOUT_MS = 3000;
 
   function confirmClosed(waited) {
-    const modal = document.querySelector(MODAL_SELECTOR);
-    if (!modal || !isVisible(modal)) {
+    if (!findPopup()) {
       clickPending = false;
       failedAttempts = 0;
       closedCount += 1;
-      console.log(TAG, 'subscribe modal closed (count:', closedCount + ')');
+      console.log(TAG, 'popup closed (count:', closedCount + ')');
       return;
     }
     if (waited >= SETTLE_TIMEOUT_MS) {
@@ -128,7 +161,7 @@
         console.error(TAG, 'close button did not work', failedAttempts,
                       'times; giving up on this page');
       } else {
-        console.warn(TAG, 'click did not hide the subscribe modal after',
+        console.warn(TAG, 'click did not hide the popup after',
                      SETTLE_TIMEOUT_MS, 'ms');
       }
       return;
@@ -138,14 +171,16 @@
 
   function tryClose() {
     if (clickPending || failedAttempts >= MAX_FAILED_ATTEMPTS) return;
-    const modal = document.querySelector(MODAL_SELECTOR);
-    if (!modal || !isVisible(modal)) return;
-    const btn = modal.querySelector(CLOSE_SELECTOR);
+    const popup = findPopup();
+    if (!popup) return;
+    const btn = popup.querySelector(CLOSE_SELECTOR);
     if (!btn) {
-      console.warn(TAG, 'subscribe modal visible but close button not found');
+      console.warn(TAG, 'popup visible but close button not found:',
+                   accessibleName(popup));
       return;
     }
-    console.log(TAG, 'subscribe modal detected — clicking close');
+    console.log(TAG, 'popup detected — clicking close:',
+                accessibleName(popup));
     clickPending = true;
     btn.click();
     setTimeout(() => confirmClosed(SETTLE_POLL_MS), SETTLE_POLL_MS);
@@ -179,14 +214,15 @@
            !!document.querySelector(SUBSTACK_MARKUP_SELECTOR);
   }
 
-  function watchForModal() {
+  function watchForPopups() {
     if (!onSubstackPage()) {
-      console.log(TAG, 'not a Substack page; not watching for the modal');
+      console.log(TAG, 'not a Substack page; not watching for popups');
       return;
     }
-    // The modal is server-rendered, so it's usually here already.
+    // The subscribe popup is server-rendered, so it's often here already.
     tryClose();
-    // Substack can show it more than once per page, and navigates between
+    // Substack can show more than one per page (the referral popup arrives
+    // after hydration, later than the subscribe one), and it navigates between
     // posts client-side, so keep watching rather than disconnecting after the
     // first close.
     const observer = new MutationObserver(scheduleTryClose);
@@ -201,8 +237,8 @@
   // At @run-at document-start there's no DOM to check yet; if the manager
   // injected us later than that, the document is ready and we start now.
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', watchForModal);
+    document.addEventListener('DOMContentLoaded', watchForPopups);
   } else {
-    watchForModal();
+    watchForPopups();
   }
 })();
