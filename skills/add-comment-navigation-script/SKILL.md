@@ -209,6 +209,60 @@ closed, each menu open, hover/focus. Recurring surprises:
 
 ## Remaining site-specific concerns
 
+**Headers that hide on scroll-down.** Before writing `headerOffset`,
+check whether the header's *visibility* depends on scroll direction —
+Substack's does, and this cost three iterations. Measure it: scroll the
+live page down 300px, then up 300px, and read the bar's `position`,
+`top` and `height` after each.
+
+If it hides going down and returns going up, no constant is right, and
+neither is sampling its live position — mid-animation it flips between
+`fixed` and `absolute` with `top` anywhere in `[-height, 0]`, so you
+get a different answer on every keypress. Decide by *direction*
+instead: `headerOffset` is called with the jump's target, so
+`rect.top < 0` means heading up (reserve the height, the header is
+coming back) and `rect.top > height` means heading down (reserve
+nothing, it's leaving). For a target already within that band, snap to
+whichever end the header is currently at — returning its live occlusion
+there feeds back on itself and walks the page a few px per press.
+Leave a pixel or two of slack on the band's edges: these measurements
+are fractional (71.7356px), and an exact comparison put a target
+resting at 72.0 outside the band and moved the page a full header
+height on a repeat press.
+
+Sanity check by measuring the gap between the target's top and the
+header's *painted bottom edge* after each key; it should be 0 in both
+directions. Sample ~1.5s after the keypress, or you catch `settle`
+corrections in flight and get plausible-looking wrong numbers.
+
+  Two follow-on effects to expect on such a site:
+
+  * **Never let a downward jump overshoot.** A correction for an
+    overshoot is a scroll *upward*, and upward is the gesture that
+    brings a hide-on-scroll header back, so it reappears right after the
+    jump looks finished and shoves the content down. Users notice
+    immediately. The cause to check for is a header that also *changes
+    height* near the top of the page (Substack's is 84px above ~90px of
+    scroll and 72px below): a jump starting at the top loses that
+    difference in content height while it animates, and both
+    `scrollIntoView` and a computed `scrollTo` fix their destination
+    before it happens. Aim short by the collapse amount and let `settle`
+    close the gap downward. The collapsed height can't be read until the
+    page has scrolled, so learn it on any `headerOffset` call made while
+    scrolled and over-estimate until then — erring short is free, erring
+    long summons the header.
+  * **Check `j` immediately after `c`.** `c` doesn't set
+    `lastJumpTarget`, so the next `j` re-derives "current" from the
+    viewport — and if `c`'s landing and the visibility gate disagree
+    about the header, `j` starts from the second comment and looks like
+    it skipped one. On Substack the header slid back in during `c`'s
+    scroll, raising the gate by its own height, and a first comment with
+    a short body then failed it. Fix the landing, not the bookkeeping:
+    once `c` lands the comment's top at the header's bottom, the gate
+    (30px below the header) sits well inside the comment's own body.
+    This one is invisible until you hit a page whose first comment is
+    short.
+
 **Sticky headers.** If anything overlays the top of the scroll area,
 supply `headerOffset()`. Prefer a value the site declares over
 measuring — but check *where* it's declared: Reddit sets

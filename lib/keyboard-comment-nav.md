@@ -136,7 +136,7 @@ entry dies with the array. Sites whose parent is a DOM ancestor
 | `open` | | `{ canOpen(), click() }` for sites that don't render comments until a button is clicked. |
 | `enabled()` | | Gate for everything but `c` (panel open, on a comments page). |
 | `container()` | | Scroll container, when comments have their own. |
-| `headerOffset()` | | Sticky-header height to offset scrolls and the current-comment test by. |
+| `headerOffset(el)` | | Sticky-header height to offset scrolls and the current-comment test by. Called with the jump's target element when computing a scroll destination, and with no argument for the current-comment test — see below. |
 | `strategy` | | Scroll strategy, below. |
 | `capture` | | Passed through to `keyboard-shortcuts.js`. |
 
@@ -161,6 +161,26 @@ viewport check would re-pick the same source, recompute the same
 target, and look like the script is doing nothing. It's invalidated by
 `wheel`, `touchmove`, and any unbound keypress (PageDown, arrows,
 space) — all signs the user moved the viewport themselves.
+
+### `headerOffset` is asked two different questions
+
+`headerOffset` is called from two places, and a site with a header that
+appears and disappears wants to answer them differently:
+
+* **From `scrollToEl`, with the target element** — "how much room
+  should this jump leave at the top?" A site whose header's visibility
+  depends on scroll direction can compare the target's current
+  `getBoundingClientRect().top` against the viewport to work out which
+  way the page is about to move, and reserve the header's height only
+  when it's about to reappear. (Substack hides its bar on scroll-down
+  and slides it back on scroll-up, so a constant is wrong half the
+  time in each direction.)
+* **From `findCurrent`, with no argument** — "how much of the viewport
+  is covered *right now*?" This one wants the header's actual current
+  occlusion, since it's deciding which comment the user is looking at.
+
+Sites whose header simply sits there answer both with the same number
+and can ignore the argument entirely.
 
 ### The comment list is never cached
 
@@ -188,6 +208,15 @@ These differ between sites for real reasons, so this stays pluggable:
   scroll settles, re-measure and re-issue if the target moved. Bails
   when the scroll is clamped at the document end — that's the browser
   doing all it can, not drift.
+
+  **The offset is re-asked for on every correction**, not captured
+  once. A correction is a new scroll, and on a site whose header
+  appears and disappears the right offset can have changed since the
+  original: correcting a 12px overshoot means scrolling *up* 12px,
+  which is exactly what makes Substack's header slide back in, so the
+  destination that was right a moment ago now has 72px of header over
+  it. Re-asking converges in one extra correction; capturing the
+  offset leaves the target under the header.
 * `container` — `scrollTo` on the panel's own scroll container.
 * `raf` — hand-rolled cosine easing writing `container.scrollTop`
   directly, for containers where both `scrollIntoView` and `scrollTo`
@@ -218,3 +247,11 @@ the keystroke passes through to the site rather than being swallowed.
 It deliberately does **not** set `lastJumpTarget`: `c` means "go to the
 top of the section", and the next `j` should advance from whatever
 comment the viewport actually lands on.
+
+That relies on the site landing `c` somewhere the viewport test agrees
+with. It's worth checking on a site with a sticky header: if `c` leaves
+the first comment's body above `headerOffset() + MIN_VISIBLE_PX`, the
+next `j` starts from the *second* comment and looks like it skipped
+one. The fix belongs in the site's landing position, not here — see
+`sites/substack.com/keyboard-comment-navigation.md`, where the header's
+own animation was making the landing and the gate disagree.
