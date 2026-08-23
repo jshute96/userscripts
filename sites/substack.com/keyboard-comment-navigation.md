@@ -46,13 +46,15 @@ script is just Substack's selectors and its `parentOf`.
 
 ### Where it runs
 
-`@match https://*.substack.com/*` plus `@match https://*/p/*`, with
-`@exclude https://*.instagram.com/*` — the same targeting as
-[`close-popups.user.js`](close-popups.md) next door, for the same
-reasons. Substack publications run on custom domains as well as on
-`*.substack.com`, and a match pattern can only test the URL, so the
-`/p/<slug>` path shape is what identifies a post on a custom domain.
-Comments are at `/p/<slug>/comments`, which the same pattern covers.
+`@match https://*.substack.com/*` plus `@match https://*/p/*` and
+`@match https://*/cp/*`, with `@exclude https://*.instagram.com/*` —
+the same targeting as [`close-popups.user.js`](close-popups.md) next
+door, for the same reasons. Substack publications run on custom domains
+as well as on `*.substack.com`, and a match pattern can only test the
+URL, so the path shape is what identifies a post on a custom domain.
+`/p/<slug>` is an ordinary post and `/p/<slug>/comments` its comments
+page, both covered by the same pattern; `/cp/<id>` is a cross-post, and
+needs its own.
 
 Nothing gates on the URL beyond that. `enabled()` asks two questions:
 is this a Substack page, and does it have comments in the DOM. If
@@ -140,7 +142,13 @@ and in-flow, can't be perturbed by the animation at all.
    `.comment`. The selectors are `:scope >`-scoped, so a wrapper
    inserted between them would silently drop the comment back to using
    its whole container as its body — which is the "`j` is stuck" bug.
-4. The post-to-comments link keeps `class="more-comments"`.
+4. The post-to-comments link keeps `class="more-comments"`, and the
+   post's action bar keeps `aria-label="Post UFI"` with a
+   `.post-ufi-comment-button` inside it. If the `Post UFI` label goes,
+   the scoping does too and `c` on a cross-post could click a
+   recommended-post card's comment button instead — a wrong-page
+   navigation rather than a no-op, so it's worth re-checking that one
+   deliberately.
 5. `#substack-comments` remains the id of the post page's comments
    section.
 6. The top bar is findable as `[data-testid="navbar"]` (or
@@ -166,10 +174,28 @@ prose.
   it gives the landing a concrete element to measure against. The
   container stays as a fallback for a comments page with no comments in
   it.
-* Post page — returns nothing while `a.more-comments` exists, which
-  makes the library fall through to `open` and follow the link. Only
-  when that link is absent (a post whose comments all fit inline) does
-  it scroll to the first inline comment instead.
+* Post page — returns nothing while there's somewhere to navigate to,
+  which makes the library fall through to `open`. Only when there
+  isn't (a post whose comments all fit inline) does it scroll to the
+  first inline comment instead.
+
+**`open`** has two ways off a post and onto its comments page:
+
+* `a.more-comments` — the "N more comments..." link under an ordinary
+  post's inline preview.
+* `[aria-label="Post UFI"] .post-ufi-comment-button` — the comment
+  bubble in the post's action bar. ("UFI" is Substack's name for that
+  row of like / comment / restack buttons.) This is the only way in on
+  a **cross-post**, at `/cp/<id>`, which renders no comment section at
+  all — `/cp/<id>/comments` is a 404 — and whose bubble navigates to
+  the *original* post's `/p/<slug>/comments`, where everything works
+  normally. It's a `<button>` with no `href`, so it has to be clicked
+  rather than followed.
+
+  The scoping matters: the same button class appears on every
+  recommended-post card further down the page (five on the cross-post
+  we measured, with comment counts 9, 9, 0, 5 and 4). There is exactly
+  one `[aria-label="Post UFI"]`, and it belongs to the post itself.
 
 **`headerOffset`** is the awkward one, and took three tries.
 

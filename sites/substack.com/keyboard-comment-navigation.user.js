@@ -1,12 +1,13 @@
 // ==UserScript==
 // @name         Substack: Keyboard comment navigation
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.5
+// @version      1.0.6
 // @description  Adds keyboard shortcuts for moving through the comments on a post — next and previous comment, parent, next thread, and jump to the comments section.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://*.substack.com/*
 // @match        https://*/p/*
+// @match        https://*/cp/*
 // @exclude      https://*.instagram.com/*
 // @require      https://raw.githubusercontent.com/jshute96/userscripts/main/lib/keyboard-shortcuts.js
 // @require      https://raw.githubusercontent.com/jshute96/userscripts/main/lib/keyboard-comment-nav.js
@@ -52,6 +53,12 @@
     postSection:   '#substack-comments',
     // "126 more comments..." — the link from a post to its comments page.
     moreComments:  'a.more-comments',
+    // The comment bubble in the post's own like/comment/restack bar.
+    // Scoped to `[aria-label="Post UFI"]` — the page carries the same
+    // button on every recommended-post card further down, and there is
+    // exactly one Post UFI bar, belonging to the post itself. ("UFI" is
+    // Substack's name for that row of post actions.)
+    ufiComments:   '[aria-label="Post UFI"] .post-ufi-comment-button',
 
     // The publication bar across the top of every page. `.main-menu` is
     // the in-flow placeholder; the bar that actually paints is an inner
@@ -184,10 +191,41 @@
         || document.querySelector(SEL.postSection);
     },
 
-    open: {
-      canOpen: () => !!document.querySelector(SEL.moreComments),
-      click: () => document.querySelector(SEL.moreComments).click(),
-    },
+    // Two ways off a post and onto its comments page, tried in order.
+    //
+    // `a.more-comments` is the "N more comments..." link under a normal
+    // post's inline preview.
+    //
+    // A cross-post — one publication republishing another's post, served
+    // at `/cp/<id>` rather than `/p/<slug>` — renders no comment section
+    // at all, and `/cp/<id>/comments` is a 404. Its only way in is the
+    // comment bubble in the post's action bar, which is a `<button>`
+    // with no `href`, so it has to be clicked rather than followed. It
+    // navigates to the *original* post's `/p/<slug>/comments`, where
+    // everything below works normally.
+    open: (() => {
+      const target = () => onSubstackPage()
+        ? (document.querySelector(SEL.moreComments)
+           || document.querySelector(SEL.ufiComments))
+        : null;
+      return {
+        canOpen: () => !!target(),
+        // Re-resolved rather than reusing what `canOpen` found: the
+        // library calls them separately, and Substack re-renders in
+        // between. If it has gone by then, say so — the library has
+        // already logged that it's opening the comments, and a silent
+        // no-op after that line would read as a navigation that simply
+        // didn't happen.
+        click: () => {
+          const el = target();
+          if (!el) {
+            console.error(TAG, 'comments link vanished before it was clicked');
+            return;
+          }
+          el.click();
+        },
+      };
+    })(),
 
     // The publication bar hides itself when the page scrolls down and
     // slides back in when it scrolls up. Measured on a live comments

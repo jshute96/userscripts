@@ -1,12 +1,13 @@
 // ==UserScript==
 // @name         Substack: Auto-close the subscribe, referral, and sign-in popups
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.1.0
+// @version      1.1.1
 // @description  Closes the "Discover more from" subscribe popup and the "shared this with you" referral popup that cover a post, and stops the browser's sign-in bubble from appearing at all.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://*.substack.com/*
 // @match        https://*/p/*
+// @match        https://*/cp/*
 // @exclude      https://*.instagram.com/*
 // @grant        none
 // @run-at       document-start

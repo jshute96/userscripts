@@ -42,12 +42,17 @@ Third-party sign-in, i.e. `chrome://settings/content/federatedIdentityApi`.
 
 ### Where it runs
 
-`@match https://*.substack.com/*` plus `@match https://*/p/*`. A
-custom-domain post is `https://<domain>/p/<slug>`, and a match pattern
-can only test the URL, never the page, so the path shape is what
-identifies a Substack post from the header.
+`@match https://*.substack.com/*` plus `@match https://*/p/*` and
+`@match https://*/cp/*`. A match pattern can only test the URL, never
+the page, so on a custom domain the path shape is what identifies a
+Substack post from the header. There are two such shapes:
+`https://<domain>/p/<slug>` for an ordinary post, and
+`https://<domain>/cp/<id>` for a **cross-post** — one publication
+republishing another's post. A cross-post is served at its own URL with
+no redirect to the original, so `/p/*` alone misses it and the popups
+go unclosed there.
 
-Two consequences:
+Consequences:
 
 * A custom-domain blog's homepage, `/archive`, and `/about` aren't
   covered — the popups can still appear there. On `*.substack.com`
@@ -58,8 +63,8 @@ Two consequences:
   rather than the start of a list — `@exclude` is only checked against
   the initial document load, so it's not a general answer to
   false-positive matches.
-* For any other site that uses `/p/` paths, both halves gate themselves
-  at runtime instead: the popup half checks the page is Substack's
+* For any other site that uses `/p/` or `/cp/` paths, both halves gate
+  themselves at runtime instead: the popup half checks the page is Substack's
   before it observes anything, and the sign-in patch checks each
   request's provider before declining it. Nothing is watched and
   nothing is intercepted.
