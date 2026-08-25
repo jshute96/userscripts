@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Garmin Connect → Strava: Upload new activities with one click
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.4.3
+// @version      0.4.5
 // @description  Adds an Upload to Strava button to Garmin's toolbar and an Upload from Garmin item to Strava's upload menu. Either sends all new rides you haven't uploaded yet.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -82,6 +82,12 @@
   // { ts, message } — a note left for the sign-in page we're about to
   // open, so the explanation lands in the tab the user ends up looking at.
   const K_SIGNIN_HINT = 'signinHint';
+  // { ts, activities: [{id, name}] } — a list this tab worked out on
+  // some other Strava page, left for the upload page it is about to
+  // navigate itself to. Not `request`: that key drives the claim
+  // protocol between separate tabs, and this is one tab handing work to
+  // its own next page load, which nobody else should take.
+  const K_PENDING = 'pendingUpload';
 
   // How long the Garmin side waits for a Strava tab to finish. Only a
   // backstop against a tab that was closed mid-run: the status panel is
@@ -97,6 +103,10 @@
   const CLAIM_SETTLE_MS = 600;
   // Ignore a request left behind by a run that died half way through.
   const REQUEST_STALE_MS = 15 * 60 * 1000;
+  // Ignore a handoff left behind by a navigation that never arrived —
+  // the user cancelled it, or went somewhere else instead. Short,
+  // because the only legitimate gap is one page load.
+  const PENDING_STALE_MS = 2 * 60 * 1000;
   // How long to let Strava turn accepted files into listed activities
   // before asking it what it has. Only affects how soon the New badges
   // clear; the next page load would fix them anyway.
@@ -1243,7 +1253,10 @@
   const STRAVA_MENU_SELECTOR = 'li.upload-menu ul.options';
   const STRAVA_MENU_ITEM_ID = 'jshute-strava-upload-from-garmin';
   // Set on the upload page's URL when we send this tab there to start a
-  // run, so the page knows to start one on arrival.
+  // run, so the page knows to start one on arrival. Bare when the link
+  // is followed normally (a middle-click, say), and `=<nonce>` when we
+  // navigate ourselves with an already-diffed list waiting in storage —
+  // see takePending for why the nonce is there.
   const STRAVA_TRIGGER_HASH = '#upload-from-garmin';
 
   function ensureStravaMenuItem() {
@@ -1264,6 +1277,11 @@
     link.appendChild(icon);
     link.appendChild(document.createTextNode('Upload from Garmin'));
     link.addEventListener('click', (event) => {
+      // Ctrl/Cmd/Shift-click means "open this href somewhere else", and
+      // the href is the upload page — which does the whole run itself on
+      // arrival. Swallowing those would navigate the current tab
+      // instead, which is the opposite of what was asked for.
+      if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
       event.preventDefault();
       console.log(TAG, 'Upload from Garmin clicked');
       if (STRAVA_UPLOAD_PATH_RE.test(location.pathname)) {
@@ -1271,10 +1289,13 @@
         return;
       }
       // The files have to be attached to the upload form, so the run has
-      // to happen on that page. Nothing goes to Garmin in a tab any more
-      // — this one fetches from Garmin itself once it gets there.
-      console.log(TAG, 'going to the upload page to run there');
-      window.location.assign(STRAVA_UPLOAD_URL + STRAVA_TRIGGER_HASH);
+      // to happen on that page — but only once we know there is
+      // something to send. Everything before that point (the Garmin
+      // session, both lists, the diff) is origin-independent
+      // `GM_xmlhttpRequest` work that runs just as well from here, so we
+      // do it here and leave the user where they were if the answer is
+      // "nothing new" or "sign in first".
+      checkThenGoToUpload();
     });
     item.appendChild(link);
     list.insertBefore(item, list.firstElementChild);
@@ -1329,10 +1350,16 @@
       // here to run the Strava menu item's upload is still an upload tab
       // afterwards, and should go on serving the Garmin button like any
       // other. Returning early here left it deaf for the rest of its life.
-      if (location.hash === STRAVA_TRIGGER_HASH) {
+      const triggered = location.hash === STRAVA_TRIGGER_HASH ||
+        location.hash.startsWith(STRAVA_TRIGGER_HASH + '=');
+      if (triggered) {
+        const nonce = location.hash.slice(STRAVA_TRIGGER_HASH.length + 1);
         // Drop the hash so a reload doesn't silently start another run.
         history.replaceState(null, '', location.pathname + location.search);
-        startStravaRun();
+        // No nonce means the link was followed rather than sent by our
+        // own check — nothing is waiting for this load, so it does the
+        // whole run itself.
+        startStravaRun(nonce ? takePending(nonce) : null);
         return;
       }
 
@@ -1374,9 +1401,77 @@
 
   // Started from Strava's own menu item, on the upload page. Everything
   // happens here — the list, the downloads, the upload — with no Garmin
-  // tab involved.
-  function startStravaRun() {
-    runOnStrava(null).catch((err) => reportFailure(err, 'upload failed'));
+  // tab involved. `pending` is the already-diffed list when we arrived
+  // here from another Strava page; null when the menu item was clicked
+  // on this page and the diff still has to be done.
+  function startStravaRun(pending = null) {
+    runOnStrava(pending).catch((err) => reportFailure(err, 'upload failed'));
+  }
+
+  // The list this tab left for itself on the way here, if it is still
+  // fresh and is actually the one this load was sent for. Taken rather
+  // than read: a reload of the upload page should not silently re-send a
+  // list the previous load already handled.
+  //
+  // The nonce is what makes "left for itself" true. GM storage is global
+  // and carries no tab identity, so without it any upload page loading
+  // within the freshness window would swallow the value — and a second
+  // tab that arrives to find it gone re-runs the diff, sees the same
+  // activities still missing from Strava, and uploads every one of them
+  // a second time. A value whose nonce doesn't match is left alone for
+  // the load it belongs to.
+  function takePending(nonce) {
+    const pending = GM_getValue(K_PENDING, null);
+    if (!pending || !pending.activities || !pending.activities.length) return null;
+    if (pending.nonce !== nonce) {
+      console.log(TAG, "the waiting list was left for a different page load; " +
+        'leaving it and checking again');
+      return null;
+    }
+    GM_deleteValue(K_PENDING);
+    if (Date.now() - pending.ts > PENDING_STALE_MS) {
+      console.log(TAG, 'the handed-over list is too old to trust; checking again');
+      return null;
+    }
+    console.log(TAG, `picked up ${plural(pending.activities.length, 'activity', 'activities')} ` +
+      'handed over from the page the upload was started on');
+    return { activities: pending.activities };
+  }
+
+  // Clicked somewhere on Strava that isn't the upload page. Work out
+  // what's new from right here, and only navigate once we know there is
+  // something to attach — a signed-out session or an empty diff leaves
+  // the user on the page they were reading.
+  let stravaCheckInFlight = false;
+
+  async function checkThenGoToUpload() {
+    if (stravaCheckInFlight) {
+      console.log(TAG, 'already checking; ignoring this click');
+      setStatus('Already checking Garmin — wait for that to finish.');
+      return;
+    }
+    stravaCheckInFlight = true;
+    try {
+      setStatus('Checking Garmin for new activities…');
+      const session = await garminSession();
+      // Says its own "nothing new" in the status panel.
+      const fresh = await newActivities(session);
+      if (!fresh.length) return;
+      const nonce = `p${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+      GM_setValue(K_PENDING, {
+        ts: Date.now(),
+        nonce,
+        activities: fresh.map(({ id, name }) => ({ id, name })),
+      });
+      setStatus(`Found ${plural(fresh.length, 'new activity', 'new activities')} — ` +
+        'going to the upload page…');
+      console.log(TAG, 'going to the upload page to send them');
+      window.location.assign(`${STRAVA_UPLOAD_URL}${STRAVA_TRIGGER_HASH}=${nonce}`);
+    } catch (err) {
+      reportFailure(err, 'upload failed');
+    } finally {
+      stravaCheckInFlight = false;
+    }
   }
 
   // Take the request, but only if we actually won it.

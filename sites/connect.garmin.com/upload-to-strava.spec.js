@@ -135,20 +135,34 @@ test.describe('Garmin Connect → Strava: Upload new activities with one click',
     expect(menu.href).toBe('https://www.strava.com/upload/select#upload-from-garmin');
   });
 
-  test('"Upload from Garmin" sends this tab to the upload page', async ({ page }) => {
-    // The run happens on the upload page, in this same tab — no Garmin
-    // tab is opened. The click handler navigates before it touches
-    // Garmin, so this half is testable without a manager.
+  test('"Upload from Garmin" stays put when Garmin says sign in', async ({ page }) => {
+    // The click now checks Garmin *before* navigating, so a check that
+    // can't get past the sign-in page must leave the tab where it was.
+    // Faking the one request the check starts with is enough to reach
+    // that decision without a real Garmin session.
     await page.goto(STRAVA_URL);
     await expect(page.locator('#' + STRAVA_ITEM_ID)).toHaveCount(1, { timeout: 10000 });
+    await page.evaluate(() => {
+      window.GM_xmlhttpRequest = ({ onload }) => onload({
+        status: 200, finalUrl: 'https://connect.garmin.com/signin/', responseText: '',
+      });
+    });
 
     let opened = 0;
     page.context().on('page', () => { opened += 1; });
+    const before = page.url();
     // The item is inside a closed drop-down, so click it directly rather
     // than through the locator's visibility check.
     await page.evaluate((id) => document.getElementById(id).querySelector('a').click(),
       STRAVA_ITEM_ID);
-    await page.waitForURL('**/upload/select*', { timeout: 10000 });
+
+    const status = page.locator('#jshute-garmin-strava-status');
+    await expect(status).toContainText("not signed in to Garmin", { timeout: 10000 });
+    expect(page.url()).toBe(before);
+    // The sign-in page is offered in a tab of its own — through
+    // GM_openInTab, which the stubs record rather than open.
     expect(opened).toBe(0);
+    expect(await page.evaluate(() => window.__gmStubs.openedTabs.map(t => t.url)))
+      .toEqual(['https://connect.garmin.com/signin/']);
   });
 });

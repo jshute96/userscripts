@@ -58,8 +58,10 @@ triggered myself.
 * The Strava upload tab comes to the front when a run starts from
   Garmin, whether it's newly opened or an existing one being reused.
 * An **Upload from Garmin** item appears at the top of Strava's upload
-  drop-down, above Upload activity. It sends the current tab to the
-  upload page and runs the whole upload there. No Garmin tab is opened.
+  drop-down, above Upload activity. It checks Garmin from wherever you
+  are and only goes to the upload page once it knows it has something to
+  send — nothing new, or a lapsed session, leaves you on the page you
+  were reading. No Garmin tab is opened.
 * All three added controls carry a tooltip describing what they do.
 * A status panel in the top right reports what's happening for the whole
   run, rewriting itself as it goes rather than flashing a message and
@@ -317,11 +319,31 @@ The files have to be attached to a form that only exists on Strava's
 upload page, so the download always happens **in a Strava upload tab**.
 The only question is who picks the list.
 
-* **Started on Strava.** The menu item sends the tab to
-  `/upload/select#upload-from-garmin`; on arrival the script clears the
-  hash (so a reload doesn't start another run) and does everything
-  there — session, both lists, diff, downloads, attach. Nothing is
-  written to GM storage at all. No Garmin tab is involved.
+* **Started on Strava.** Everything up to the attach — session, both
+  lists, diff — is `GM_xmlhttpRequest` work that doesn't care which
+  origin it runs from, so the menu item does it *on the page you clicked
+  it from*. Only if the diff is non-empty does the tab go to
+  `/upload/select#upload-from-garmin`, carrying the list in a
+  `pendingUpload` value and a nonce in the hash; on arrival the script
+  clears the hash (so a reload doesn't start another run), takes and
+  deletes that value if its nonce matches, and downloads and attaches. Clicking the item while already on the upload
+  page does the whole thing in place, with no `pendingUpload` written.
+  Either way no Garmin tab is involved.
+
+  `pendingUpload` is deliberately not the `request` key: `request` drives
+  the claim protocol between separate tabs, and this is one tab handing
+  work to its own next page load, which no other tab should take. It's
+  ignored if more than two minutes old — the only legitimate gap is a
+  single page load, so anything longer means the navigation never
+  happened.
+
+  "Its own next page load" is what the nonce enforces. GM storage is
+  global and holds no tab identity, so a bare match on the key would let
+  *any* upload page loading inside that window swallow the value — and
+  the load it was meant for, finding it gone, re-runs the diff, sees the
+  same activities still missing from Strava, and uploads all of them
+  again. A mismatched nonce is left in place rather than deleted, so the
+  load it belongs to still finds it.
 * **Started on Garmin.** The Garmin tab reads both lists and does the
   diff itself, so any failure it reports lands in the tab the user is
   looking at. It then writes a `request` — *just* the ids and names —
@@ -384,6 +406,7 @@ this at all: that tab navigates itself, so it's already the focused one.
 | `progress` | Strava | `{requestId, done, total}`, so the Garmin tab's panel can follow along |
 | `result` | Strava | `{requestId, ok, count, error}` — the outcome |
 | `signinHint` | either | a note to show on the sign-in page it's about to open |
+| `pendingUpload` | Strava | `{ts, nonce, activities: [{id, name}]}` — a diff a Strava page left for the upload page it's navigating itself to; the nonce is echoed in that page's URL hash |
 
 `request` is retired by both sides when a run finishes — the initiating
 tab in a `finally`, and the serving tab as it writes the result — so a
@@ -465,13 +488,18 @@ explaining). A `MutationObserver` re-adds it if Strava re-renders the
 nav; a fixed `id` keeps that idempotent — which also means an edit to
 the tooltip only shows up after a page reload, not on a re-insert.
 
-The href is the upload page with the trigger fragment, and the click
-handler cancels the navigation only to do the same thing itself (or to
-start the run in place, if you were already on the upload page).
+The href is the upload page with the trigger fragment. A plain click is
+cancelled: the handler runs the check in place first and navigates only
+when there's something to upload (or, on the upload page already, just
+starts the run). That's what keeps a "nothing new" answer or a Garmin
+sign-in prompt from costing you the page you were reading — the
+navigation happens after the answer, not before it.
 
-One consequence worth knowing: clicking the item from another Strava
-page navigates that tab away to the upload page. If the run then fails,
-you've lost whatever page you were on.
+A click carrying a modifier is left alone, so Ctrl/Cmd/Shift-click and
+middle-click open the href where the browser would normally put it. The
+run there starts from a bare fragment with no nonce, which the arriving
+page reads as "nothing is waiting for me" and does the whole check
+itself.
 
 ### The activity page's gear menu
 
