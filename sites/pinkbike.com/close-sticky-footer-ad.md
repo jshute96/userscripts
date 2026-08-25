@@ -2,13 +2,20 @@
 
 ## Summary
 
-Closes the floating ad banners that Pinkbike pins across the bottom of
-every page, as soon as they appear.
+Gets rid of the floating ad banners that Pinkbike pins across the
+bottom of every page, covering the article text you're reading.
+
+Pinkbike's own sticky footer never slides in at all: the script
+dismisses it up front, before the page has a chance to show it. Ad
+units injected by third parties can't be headed off that way, so those
+are closed as soon as they appear instead.
 
 ## Visible changes
 
-* The sticky footer ad that overlays the bottom of Pinkbike pages is
-  closed automatically the moment it appears.
+* The sticky footer ad that overlays the bottom of Pinkbike pages
+  never appears at all — the script tells the page it has been
+  dismissed before it gets a chance to slide in. If that isn't
+  possible it falls back to closing the ad the moment it appears.
 * The floating Underdog Media ad panel (the one with the small dog
   logo next to its X) is closed the same way.
 
@@ -66,13 +73,55 @@ The script will break if any of these change:
 ### What we change
 
 On `document-idle`, a single table of `{name, container, close}`
-entries drives everything:
+entries — plus an optional `preempt` — drives everything:
+
+0. **Suppress the unit up front where the page lets us.** Pinkbike's
+   own close button runs `nfs_footerClose()`, which hides the footer
+   *and* sets a page-level `nfs_footer_hidden` flag that its scroll
+   handler checks before every `fadeIn`. Calling that function
+   ourselves at startup suppresses the unit for the life of the page:
+   nothing is ever visible, not even for the length of a fade, and the
+   slot stays `display: none`. A target opts in with
+   `preempt: 'nfs_footerClose'`.
+
+   It is reachable because the page declares it as a top-level
+   function in a classic `<script>`, so it lands on `window`, and
+   `@grant none` puts the userscript in that same world. **This is the
+   one part of the script that depends on sandbox mode** — a manager
+   running us in an isolated world would not see the function. Hence
+   the `typeof` check, the 5s `PREEMPT_DEADLINE_MS` grace period for
+   the page's scripts to run, and the fact that the whole click path
+   below is kept as the fallback rather than replaced. Verified: after
+   the call, three synthetic scroll events that would otherwise fade
+   the footer in leave it at `display: none`.
+
+   The one cost is that this fires the site's `pb.analytics`
+   `news-sticky-footer-ad-close` event on page load, i.e. it reports a
+   close the user didn't manually perform. That is the same event a
+   real close sends, and the script's whole purpose is to close the
+   thing, so it's reported once rather than once per retry.
+
+   The right-rail unit has an equivalent `nfs_sidebarClose()`, unused
+   — we leave the sidebar alone (see the end of this file).
 
 1. **Sweep once immediately**, then on every mutation. One
    `MutationObserver` on `document.documentElement` watches
    childList/subtree plus `style` and `class` attributes; its callback
    is coalesced through a 100ms timer, since ad loading generates
    mutation bursts.
+
+   **Mutations are not the only thing that schedules a sweep**, and
+   assuming they were was a bug (fixed in 1.3.0). Any path that
+   declines to click *now* — a cooldown that hasn't expired, a
+   `verify()` that found the click didn't stick — schedules its own
+   follow-up sweep. Otherwise the retry waits for a mutation that
+   never comes: the fade which undid the click is typically the
+   page's last activity on a static article, and with `@noframes`
+   nothing inside the embedded video counts. The observed symptom was
+   an ad sitting open for the life of the page after exactly one
+   failed click. `scheduleSweep(delay)` keeps whichever pending sweep
+   is due soonest, so a mutation can still pull a cooldown retry
+   forward.
 2. **Close each visible container.** Both units are `position: fixed`,
    so `offsetParent` is always null and useless here; visibility is
    `display` / `visibility` / `opacity` from `getComputedStyle` plus a
@@ -80,22 +129,56 @@ entries drives everything:
    flipping `visibility` and `opacity`, not `display`.) When a
    container is visible, the script finds its close button *within*
    that container and clicks it.
-3. **Verify after the fade, not immediately.** `fadeIn("slow")` runs
-   for ~600ms, and a click landing part-way through is undone by the
-   remainder of the animation — the ad blinks shut and comes back. So
-   the result is checked `VERIFY_DELAY_MS` (1200ms) after the click,
-   and a target is not re-clicked within `CLICK_COOLDOWN_MS` (1000ms),
-   which also keeps the flurry of per-frame `style` writes during a
-   fade from burning through the attempt budget in one second.
+3. **Click when the fade ends, detected rather than waited out.**
+   `fadeIn("slow")` runs for ~600ms, and a click landing part-way
+   through is undone by the remainder of the animation — the ad blinks
+   shut and comes back. Through 1.2.x the script clicked immediately,
+   lost that race, and only recovered on a retry `VERIFY_DELAY_MS`
+   (then 1200ms) later, so the ad sat on screen for well over a
+   second.
+
+   Measured on a live article, `#nfs_footer` during a fade-in:
+
+   | t | computed opacity | inline `style` |
+   |---|---|---|
+   | 0–586ms | 0 → 0.998 | `opacity: <n>; display: block;` |
+   | 612ms | 1 | `display: block;` |
+
+   jQuery holds an inline `opacity` for the whole ramp and *removes
+   the property* in its completion step. So **full computed opacity
+   with no inline `opacity` left** is a precise "the animation is
+   over" signal needing no safety margin. The script polls every
+   `POLL_MS` (50ms) while a unit is visible but unsettled, then clicks
+   once. `SETTLE_MS` (120ms at full opacity) is the fallback for a
+   unit that parks at inline `opacity: 1` and never animates, and
+   `MAX_SETTLE_WAIT_MS` (1500ms) clicks anyway rather than watching
+   forever something that never reaches opacity 1. That deadline runs
+   from the start of the current fade, not from when the unit first
+   appeared: a container that goes opaque and then fades again is
+   starting a new animation, and a deadline that kept running would
+   leave the settle gate open for every later click on that appearance.
+
+   Because the click is now aimed at a settled unit, `VERIFY_DELAY_MS`
+   (300ms) and `CLICK_COOLDOWN_MS` (250ms) no longer have to outlast a
+   fade — they only cover a click that genuinely failed. Measured
+   effect on the same ad: close lands at ~630ms instead of ~1170ms,
+   with one click issued instead of two. (Each click also fires the
+   site's `pb.analytics` close event, so single-clicking is the
+   politer outcome too.)
 4. **Keep watching after a successful close.** The observer stays
    connected for the life of the page and re-closes a unit that comes
    back — either because the site re-showed it, or because a click
    raced a fade. This was the original bug: v1.0.x set a `dismissed`
    flag on the first apparent success and disconnected, so anything
    that reappeared afterwards stayed on screen for good.
-5. **Give up eventually.** After `MAX_ATTEMPTS` (10) *consecutive*
+5. **Give up eventually.** After `MAX_ATTEMPTS` (12) *consecutive*
    clicks that don't stick, the script stops clicking that unit and
    says so; otherwise a changed close button means clicking forever.
+   Consecutive failures back the cooldown off linearly (250ms, 500ms,
+   750ms, …), so the budget spans ~16s rather than the 3s a flat
+   250ms would give it. With the click aimed at a settled unit a retry
+   is already rare, so repeated failures mean something is genuinely
+   wrong — and each one fires the site's analytics close event.
    The count resets on every confirmed close, so a long read that
    re-shows the ad a dozen times doesn't exhaust the budget and report
    a break that isn't one. The observer disconnects only once every
@@ -112,10 +195,15 @@ load, so the two units above are unlikely to be the only ones. Adding a
 newly-spotted one is a matter of appending a `{name, container, close}`
 entry to `TARGETS`.
 
-At 15s the script logs one status line — each known unit as `not seen`,
-`closed xN`, `closed xN but OPEN NOW`, or `SEEN, GAVE UP` — so "the ad
+At 15s the script logs one status line — each known unit as
+`suppressed up front`, `not seen`, `closed xN`, `closed xN but OPEN
+NOW`, or `SEEN, GAVE UP` — so "the ad
 simply wasn't served on this page" is distinguishable from "the close
 selector broke" without having DevTools open from page load.
+`suppressed up front` is reported only when the preempt function
+returned cleanly; one that throws is recorded as called (so it isn't
+retried in a loop) but leaves the unit to be reported by the click
+path, which is what actually dealt with it.
 
 Pinkbike's sticky right-rail ad, `#nfs_sidebar`, is left alone. It has
 its own close button (`#sticky-right-rail-pb-close`) and could be added

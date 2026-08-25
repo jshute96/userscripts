@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Pinkbike: Auto-close the floating footer ads
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.2.1
-// @description  Closes the sticky ad banners pinned to the bottom of the page that cover article text.
+// @version      1.3.1
+// @description  Stops the sticky ad banners that cover article text at the bottom of the page from ever sliding in, and closes any that still appear.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://www.pinkbike.com/*
@@ -17,7 +17,9 @@
   const TAG = '[pinkbike ad]';
 
   // Each entry is one ad unit we know how to dismiss. `container` locates
-  // the overlay; `close` locates the click target inside it.
+  // the overlay; `close` locates the click target inside it. Optional
+  // `preempt` names a global function the page itself uses to dismiss the
+  // unit for good — see tryPreempt().
   const TARGETS = [
     {
       // Pinkbike's own sticky footer (Google Ad Manager slot sticky-footer-pb).
@@ -25,6 +27,7 @@
       name: 'sticky footer',
       container: '#nfs_footer',
       close: '#sticky-footer-pb-close',
+      preempt: 'nfs_footerClose',
     },
     {
       // Underdog Media ("udm") adhesion unit, injected by a third-party tag.
@@ -37,15 +40,41 @@
 
   const STATUS_DELAY_MS = 15000;
 
-  // The ad fades in over ~600ms (jQuery "slow"), and a click landing mid-fade
-  // is undone by the rest of the animation. So: wait out the fade before
-  // judging whether the click worked, and don't re-click faster than that.
-  const VERIFY_DELAY_MS = 1200;
-  const CLICK_COOLDOWN_MS = 1000;
+  // How long to keep looking for a `preempt` function before concluding it
+  // isn't coming and falling back to clicking, and how often to re-check.
+  const PREEMPT_DEADLINE_MS = 5000;
+  const PREEMPT_POLL_MS = 200;
+
+  // A click landing mid-fade is undone by the rest of the animation, so we
+  // wait for the fade to finish — but by watching for it rather than by
+  // sitting out a fixed worst-case delay.
+  //
+  // Measured on a live article: jQuery's fadeIn("slow") holds an inline
+  // `opacity` for the whole 600ms ramp and *removes the property* in its
+  // completion step. So full computed opacity with no inline opacity left
+  // is a precise "the animation is over" signal, with no margin needed.
+  // SETTLE_MS is the fallback for a unit that simply parks at inline
+  // opacity 1 and never animates.
+  const POLL_MS = 50;
+  const SETTLE_MS = 120;
+
+  // If a unit never reaches opacity 1 (a vendor could park one at 0.95),
+  // stop waiting and click anyway rather than watching it forever.
+  const MAX_SETTLE_WAIT_MS = 1500;
+
+  // With the click aimed at a settled unit, these only cover a click that
+  // genuinely failed, so they no longer have to outlast a fade.
+  const VERIFY_DELAY_MS = 300;
+  const CLICK_COOLDOWN_MS = 250;
 
   // Stop clicking a container that keeps ignoring us, rather than retrying
-  // for the life of the page.
-  const MAX_ATTEMPTS = 10;
+  // for the life of the page. Consecutive failures back the cooldown off
+  // linearly (250ms, 500ms, 750ms, …): with the click now aimed at a settled
+  // unit a retry is rare, so repeated failures mean something is actually
+  // wrong, and hammering a broken close button a dozen times over the ~16s
+  // those backed-off retries span is both useless and rude — each click
+  // fires the site's analytics event.
+  const MAX_ATTEMPTS = 12;
 
   console.log(TAG, 'initializing');
 
@@ -66,6 +95,11 @@
     attempts: 0,
     closes: 0,
     lastClickAt: 0,
+    preemptCalled: false,
+    preempted: false,
+    preemptGaveUp: false,
+    visibleSince: 0,
+    opaqueSince: 0,
     gaveUp: false,
   }));
 
@@ -77,6 +111,11 @@
       if (entry.attempts >= MAX_ATTEMPTS) {
         entry.gaveUp = true;
         console.warn(TAG, 'giving up on ' + t.name + ' — its close button may have changed');
+      } else {
+        // Retry under our own timer. The fade that undid the click was the
+        // page's last activity, so waiting for another mutation to drive the
+        // next sweep can mean waiting for the rest of the page's life.
+        scheduleSweep(0);
       }
       return;
     }
@@ -88,18 +127,92 @@
     console.log(TAG, t.name + ' ad closed' + (entry.closes > 1 ? ' (again, x' + entry.closes + ')' : ''));
   }
 
+  // Best case: don't close the ad, stop it from ever showing.
+  //
+  // Pinkbike's own close button runs nfs_footerClose(), which hides the unit
+  // *and* sets a page-level flag its scroll handler checks before every
+  // fade-in. Calling that function ourselves at startup therefore suppresses
+  // the unit for the life of the page — no fade to wait out, nothing visible
+  // even briefly, and the ad slot stays display:none.
+  //
+  // It's reachable because the page declares it as a top-level function in a
+  // classic script, so it lands on `window`, and `@grant none` puts us in
+  // that same world. A manager that ran us in an isolated world would not see
+  // it — hence the typeof check and the fall back to clicking, which is why
+  // the click machinery below stays in place regardless.
+  function tryPreempt(entry) {
+    const t = entry.target;
+    if (!t.preempt || entry.preemptCalled || entry.preemptGaveUp) return;
+    const fn = window[t.preempt];
+    if (typeof fn !== 'function') {
+      if (performance.now() - startedAt > PREEMPT_DEADLINE_MS) {
+        entry.preemptGaveUp = true;
+        console.log(TAG, t.name + ': ' + t.preempt + '() not reachable — ' +
+          'relying on the click path');
+      }
+      return;
+    }
+    // Two flags, because they answer different questions. `preemptCalled`
+    // is set before the call so a throw part-way can't put us in a retry
+    // loop; `preempted` is set only on a clean return, because that is what
+    // the status line means by "suppressed up front" — and a call that
+    // threw has to fall through to the click path's reporting instead of
+    // claiming the unit was dealt with.
+    entry.preemptCalled = true;
+    try {
+      fn();
+      entry.preempted = true;
+      console.log(TAG, t.name + ' suppressed up front via ' + t.preempt + '()');
+    } catch (e) {
+      console.warn(TAG, t.preempt + '() threw', e);
+    }
+  }
+
   function tryClose(entry) {
     if (entry.gaveUp || entry.attempts >= MAX_ATTEMPTS) return;
     const t = entry.target;
     const container = document.querySelector(t.container);
-    if (!container || !isVisible(container)) return;
+    if (!container || !isVisible(container)) {
+      entry.visibleSince = 0;
+      entry.opaqueSince = 0;
+      return;
+    }
     if (!entry.seen) {
       entry.seen = true;
       console.log(TAG, t.name + ' ad detected (' + t.container + ')');
     }
-    // Don't burn attempts on the flurry of style writes a fade produces.
     const now = performance.now();
-    if (now - entry.lastClickAt < CLICK_COOLDOWN_MS) return;
+    if (!entry.visibleSince) entry.visibleSince = now;
+
+    // Wait for the fade-in to finish rather than clicking into it. A unit
+    // that arrives already opaque settles on the first sweep, so nothing
+    // that appears without an animation pays for this.
+    if (getComputedStyle(container).opacity === '1') {
+      if (!entry.opaqueSince) entry.opaqueSince = now;
+    } else {
+      // Dropping back below 1 is a *new* fade, not more of the one we
+      // already waited out, so the deadline restarts with it. Without this
+      // `visibleSince` only ever resets when the container goes away, so
+      // 1.5s into an appearance the gate below is open for good and every
+      // later sweep clicks straight into a fade — the exact race the gate
+      // exists to prevent. (Only on the transition: a unit parked below 1
+      // forever never sets `opaqueSince`, so its deadline still fires.)
+      if (entry.opaqueSince) entry.visibleSince = now;
+      entry.opaqueSince = 0;
+    }
+    const settled = entry.opaqueSince &&
+      (!container.style.opacity || now - entry.opaqueSince >= SETTLE_MS);
+    if (!settled && now - entry.visibleSince < MAX_SETTLE_WAIT_MS) {
+      scheduleSweep(POLL_MS);
+      return;
+    }
+
+    const cooling = CLICK_COOLDOWN_MS * Math.max(1, entry.attempts) -
+      (now - entry.lastClickAt);
+    if (cooling > 0) {
+      scheduleSweep(cooling);
+      return;
+    }
     const btn = container.querySelector(t.close);
     if (!btn) {
       console.warn(TAG, t.name + ' is visible but close button not found (' + t.close + ')');
@@ -112,12 +225,23 @@
     setTimeout(() => verify(entry), VERIFY_DELAY_MS);
   }
 
+  const SWEEP_DEBOUNCE_MS = 100;
+  const startedAt = performance.now();
+
   let observer = null;
   let pending = null;
+  let pendingDueAt = 0;
 
   function sweep() {
     pending = null;
+    pendingDueAt = 0;
+    state.forEach(tryPreempt);
     state.forEach(tryClose);
+    // Keep looking for a preempt function that hasn't been defined yet, under
+    // our own timer — the page may go quiet before its scripts have run.
+    if (state.some((e) => e.target.preempt && !e.preemptCalled && !e.preemptGaveUp)) {
+      scheduleSweep(PREEMPT_POLL_MS);
+    }
     // Keep watching even after a successful close: the site re-shows these
     // units on scroll, and a fade can undo a click we thought had landed.
     if (state.every((e) => e.gaveUp || e.attempts >= MAX_ATTEMPTS) && observer) {
@@ -128,12 +252,22 @@
   }
 
   // The page mutates constantly while ads load and fade, so coalesce bursts.
-  function scheduleSweep() {
-    if (pending !== null) return;
-    pending = setTimeout(sweep, 100);
+  // Callers that are waiting on a cooldown pass their own delay; whichever
+  // sweep is due soonest wins, so a mutation can still pull one forward.
+  function scheduleSweep(delayMs) {
+    const delay = delayMs === undefined ? SWEEP_DEBOUNCE_MS : delayMs;
+    const dueAt = performance.now() + delay;
+    if (pending !== null) {
+      if (dueAt >= pendingDueAt) return;
+      clearTimeout(pending);
+    }
+    pendingDueAt = dueAt;
+    pending = setTimeout(sweep, delay);
   }
 
-  observer = new MutationObserver(scheduleSweep);
+  // Wrapped, not passed directly: the observer would hand its mutation list
+  // to scheduleSweep as the delay.
+  observer = new MutationObserver(() => scheduleSweep());
   observer.observe(document.documentElement, {
     childList: true,
     subtree: true,
@@ -149,6 +283,7 @@
     const summary = state
       .map((e) => {
         const open = isVisible(document.querySelector(e.target.container));
+        if (e.preempted) return e.target.name + ': suppressed up front' + (open ? ' but OPEN NOW' : '');
         if (!e.seen) return e.target.name + ': not seen';
         if (e.gaveUp) return e.target.name + ': SEEN, GAVE UP';
         return e.target.name + ': closed x' + e.closes + (open ? ' but OPEN NOW' : '');
