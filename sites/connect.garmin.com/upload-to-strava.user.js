@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Garmin Connect → Strava: Upload new activities with one click
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.4.6
+// @version      0.4.7
 // @description  Adds an Upload to Strava button to Garmin's toolbar and an Upload from Garmin item to Strava's upload menu. Either sends all new rides you haven't uploaded yet.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -223,6 +223,22 @@
     const ms = performance.now() - mark;
     return ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}s`;
   };
+
+  // Give a just-written value a chance to become readable before the page
+  // that wrote it goes away. `GM_setValue` looks synchronous but is backed
+  // by the extension's asynchronous storage, so writing and navigating in
+  // the same tick can lose the write — and the page we navigate to is the
+  // one that needs the value. Reading it back is the only confirmation
+  // available from here; it proves the manager has taken the write, not
+  // that it has hit disk, which is as far as any page can see.
+  async function confirmStored(key, predicate, budgetMs = 500, gapMs = 25) {
+    const deadline = Date.now() + budgetMs;
+    for (;;) {
+      if (predicate(GM_getValue(key, null))) return true;
+      if (Date.now() >= deadline) return false;
+      await new Promise((resolve) => setTimeout(resolve, gapMs));
+    }
+  }
 
   // Resolve when `key`'s value satisfies `predicate`, checking the current
   // value first so we don't miss a write that landed before we listened.
@@ -1350,8 +1366,11 @@
       // Ctrl/Cmd/Shift-click means "open this href somewhere else", and
       // the href is the upload page — which does the whole run itself on
       // arrival. Swallowing those would navigate the current tab
-      // instead, which is the opposite of what was asked for.
-      if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+      // instead, which is the opposite of what was asked for. Alt-click
+      // is deliberately not in the list: it means "download the link
+      // target", so letting it through would save the upload page's HTML
+      // to disk and start nothing.
+      if (event.ctrlKey || event.metaKey || event.shiftKey) return;
       event.preventDefault();
       console.log(TAG, 'Upload from Garmin clicked');
       if (STRAVA_UPLOAD_PATH_RE.test(location.pathname)) {
@@ -1426,10 +1445,29 @@
         const nonce = location.hash.slice(STRAVA_TRIGGER_HASH.length + 1);
         // Drop the hash so a reload doesn't silently start another run.
         history.replaceState(null, '', location.pathname + location.search);
-        // No nonce means the link was followed rather than sent by our
-        // own check — nothing is waiting for this load, so it does the
-        // whole run itself.
-        startStravaRun(nonce ? takePending(nonce) : null);
+        if (!nonce) {
+          // The link was followed rather than sent by our own check, so
+          // nothing is waiting for this load and it does the whole run
+          // itself.
+          startStravaRun(null);
+          return;
+        }
+        const pending = takePending(nonce);
+        if (!pending) {
+          // A nonce means some page diffed *for this load*. Not finding
+          // that list is not a reason to go and diff again: the likeliest
+          // causes are a second click that overwrote the list, or the run
+          // that took it already going — and a self-run then uploads the
+          // same activities a second time, which is what the nonce exists
+          // to prevent. Standing down costs one more click in the rare
+          // case where the handoff was genuinely lost.
+          console.log(TAG, 'sent here for a list that is not here; standing down');
+          setStatus("Couldn't pick up the list this page was sent for — another " +
+            'upload may have taken it. Nothing was sent from here; start it ' +
+            'again if nothing happens.', { error: true });
+          return;
+        }
+        startStravaRun(pending);
         return;
       }
 
@@ -1481,7 +1519,8 @@
   // The list this tab left for itself on the way here, if it is still
   // fresh and is actually the one this load was sent for. Taken rather
   // than read: a reload of the upload page should not silently re-send a
-  // list the previous load already handled.
+  // list the previous load already handled. `null` means the caller must
+  // stand down, not go and work it out again — see the arrival branch.
   //
   // The nonce is what makes "left for itself" true. GM storage is global
   // and carries no tab identity, so without it any upload page loading
@@ -1494,8 +1533,11 @@
     const pending = GM_getValue(K_PENDING, null);
     if (!pending || !pending.activities || !pending.activities.length) return null;
     if (pending.nonce !== nonce) {
-      console.log(TAG, "the waiting list was left for a different page load; " +
-        'leaving it and checking again');
+      // Left for a *different* load — a second click, in this tab or
+      // another, that overwrote ours. Left in place rather than deleted,
+      // so the load it belongs to still finds it.
+      console.log(TAG, 'the waiting list was left for a different page load; ' +
+        'leaving it alone');
       return null;
     }
     GM_deleteValue(K_PENDING);
@@ -1535,8 +1577,19 @@
       });
       setStatus(`Found ${plural(fresh.length, 'new activity', 'new activities')} — ` +
         'going to the upload page…');
+      const stored = await confirmStored(K_PENDING, (v) => v && v.nonce === nonce);
+      // Navigating with the nonce is a promise that the list is there to
+      // be picked up, and the upload page stands down rather than
+      // re-diffing if it isn't. So when the write can't be confirmed,
+      // don't make the promise: go with a bare fragment and let that page
+      // do the whole run itself. One extra diff, still exactly one upload.
+      if (!stored) {
+        console.log(TAG, "couldn't confirm the handed-over list was stored; " +
+          'sending the upload page to work it out itself');
+      }
       console.log(TAG, 'going to the upload page to send them');
-      window.location.assign(`${STRAVA_UPLOAD_URL}${STRAVA_TRIGGER_HASH}=${nonce}`);
+      window.location.assign(STRAVA_UPLOAD_URL + STRAVA_TRIGGER_HASH +
+        (stored ? `=${nonce}` : ''));
     } catch (err) {
       reportFailure(err, 'upload failed');
     } finally {

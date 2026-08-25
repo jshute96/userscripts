@@ -369,11 +369,27 @@ The only question is who picks the list.
 
   "Its own next page load" is what the nonce enforces. GM storage is
   global and holds no tab identity, so a bare match on the key would let
-  *any* upload page loading inside that window swallow the value — and
-  the load it was meant for, finding it gone, re-runs the diff, sees the
-  same activities still missing from Strava, and uploads all of them
-  again. A mismatched nonce is left in place rather than deleted, so the
-  load it belongs to still finds it.
+  *any* upload page loading inside that window swallow the value. A
+  mismatched nonce is left in place rather than deleted, so the load it
+  belongs to still finds it.
+
+  A nonced load that can't find its list **stands down** — it does not
+  re-diff. That is the other half of the same guard: a second click, in
+  this tab or another, overwrites the pending list, and if the load whose
+  nonce lost then worked the problem out for itself it would upload the
+  same activities the winner is already uploading. Standing down costs
+  one more click in the rare case where the handoff was genuinely lost;
+  re-diffing costs a duplicate upload every time. A **bare** fragment is
+  different and safe — it says nobody diffed for this load, so it does
+  the whole run itself.
+
+  Which is why the navigation only carries a nonce once `GM_setValue` has
+  been read back (`confirmStored`, 500ms budget). `GM_setValue` looks
+  synchronous but is backed by asynchronous extension storage, and
+  writing then navigating in the same tick can lose the write. The nonce
+  in the URL is a promise that the list is there; if the write can't be
+  confirmed we navigate with a bare fragment instead and let that page do
+  its own diff. One extra diff, still exactly one upload.
 * **Started on Garmin.** The Garmin tab reads both lists and does the
   diff itself, so any failure it reports lands in the tab the user is
   looking at. It then writes a `request` — *just* the ids and names —
@@ -525,11 +541,13 @@ starts the run). That's what keeps a "nothing new" answer or a Garmin
 sign-in prompt from costing you the page you were reading — the
 navigation happens after the answer, not before it.
 
-A click carrying a modifier is left alone, so Ctrl/Cmd/Shift-click and
-middle-click open the href where the browser would normally put it. The
-run there starts from a bare fragment with no nonce, which the arriving
-page reads as "nothing is waiting for me" and does the whole check
-itself.
+Ctrl/Cmd/Shift-click and middle-click are left alone, so they open the
+href where the browser would normally put it. The run there starts from
+a bare fragment with no nonce, which the arriving page reads as "nothing
+is waiting for me" and does the whole check itself. Alt-click is
+deliberately *not* in that list: it means "download the link target", so
+letting it through would save the upload page's HTML to disk and start
+nothing at all.
 
 ### The activity page's gear menu
 
