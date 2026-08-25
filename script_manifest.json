@@ -154,6 +154,9 @@
       }
     },
     {
+      "path": "sites/strava.com/segment-leaderboard-ranks.user.js"
+    },
+    {
       "path": "sites/strava.com/segment-search-location-filter.user.js",
       "greasyfork": {
         "id": 590976,
