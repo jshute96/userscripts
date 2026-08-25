@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Pinkbike: Auto-close the floating footer ads
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.3.1
+// @version      1.3.2
 // @description  Stops the sticky ad banners that cover article text at the bottom of the page from ever sliding in, and closes any that still appear.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -96,6 +96,7 @@
     closes: 0,
     lastClickAt: 0,
     preemptCalled: false,
+    preemptThrew: false,
     preempted: false,
     preemptGaveUp: false,
     visibleSince: 0,
@@ -153,18 +154,34 @@
       return;
     }
     // Two flags, because they answer different questions. `preemptCalled`
-    // is set before the call so a throw part-way can't put us in a retry
-    // loop; `preempted` is set only on a clean return, because that is what
-    // the status line means by "suppressed up front" — and a call that
-    // threw has to fall through to the click path's reporting instead of
-    // claiming the unit was dealt with.
+    // stops a throw part-way turning into a same-sweep retry loop;
+    // `preempted` is set only on a clean return, because that is what the
+    // status line means by "suppressed up front" — a call that threw has
+    // not dealt with the unit and must not claim to have.
     entry.preemptCalled = true;
     try {
       fn();
       entry.preempted = true;
       console.log(TAG, t.name + ' suppressed up front via ' + t.preempt + '()');
     } catch (e) {
-      console.warn(TAG, t.preempt + '() threw', e);
+      // A throw is usually "defined but not ready yet" — the function is
+      // there before the slot it dismisses is — so it gets the same grace
+      // period as "not defined yet" rather than being fatal on the first
+      // one. Making it fatal meant one early throw dropped the unit to the
+      // click path for the life of the page, and the ad visibly slides in
+      // before it's closed, which is the whole thing preempting avoids.
+      if (performance.now() - startedAt > PREEMPT_DEADLINE_MS) {
+        entry.preemptGaveUp = true;
+        console.warn(TAG, t.name + ': ' + t.preempt + '() kept throwing — ' +
+          'relying on the click path', e);
+        return;
+      }
+      entry.preemptCalled = false; // a later sweep tries again
+      if (!entry.preemptThrew) {
+        entry.preemptThrew = true; // once per unit; sweeps are frequent
+        console.warn(TAG, t.name + ': ' + t.preempt + '() threw; retrying until ' +
+          PREEMPT_DEADLINE_MS / 1000 + 's', e);
+      }
     }
   }
 
@@ -283,10 +300,18 @@
     const summary = state
       .map((e) => {
         const open = isVisible(document.querySelector(e.target.container));
-        if (e.preempted) return e.target.name + ': suppressed up front' + (open ? ' but OPEN NOW' : '');
-        if (!e.seen) return e.target.name + ': not seen';
-        if (e.gaveUp) return e.target.name + ': SEEN, GAVE UP';
-        return e.target.name + ': closed x' + e.closes + (open ? ' but OPEN NOW' : '');
+        // Every fact this line knows, rather than the first one that
+        // applies. A preempt that returned cleanly but didn't actually
+        // hold would otherwise report `suppressed up front` while the
+        // click path was underneath it burning its whole budget — the
+        // exact break this line exists to make visible.
+        const parts = [];
+        if (e.preempted) parts.push('suppressed up front');
+        if (!e.seen) parts.push('not seen');
+        else if (e.gaveUp) parts.push('SEEN, GAVE UP');
+        else parts.push('closed x' + e.closes);
+        if (open) parts.push('OPEN NOW');
+        return e.target.name + ': ' + parts.join(', ');
       })
       .join(', ');
     console.log(TAG, 'status after ' + STATUS_DELAY_MS / 1000 + 's — ' + summary);

@@ -91,7 +91,13 @@ entries — plus an optional `preempt` — drives everything:
    running us in an isolated world would not see the function. Hence
    the `typeof` check, the 5s `PREEMPT_DEADLINE_MS` grace period for
    the page's scripts to run, and the fact that the whole click path
-   below is kept as the fallback rather than replaced. Verified: after
+   below is kept as the fallback rather than replaced. A call that
+   *throws* gets that same grace period rather than being fatal: the
+   usual cause is the function existing before the slot it dismisses
+   does, and treating the first throw as final dropped the unit to the
+   click path for the life of the page — which means watching the ad
+   slide in before it's closed, the thing preempting exists to avoid.
+   The throw is logged once per unit, not once per retry. Verified: after
    the call, three synthetic scroll events that would otherwise fade
    the footer in leave it at `display: none`.
 
@@ -195,15 +201,17 @@ load, so the two units above are unlikely to be the only ones. Adding a
 newly-spotted one is a matter of appending a `{name, container, close}`
 entry to `TARGETS`.
 
-At 15s the script logs one status line — each known unit as
-`suppressed up front`, `not seen`, `closed xN`, `closed xN but OPEN
-NOW`, or `SEEN, GAVE UP` — so "the ad
-simply wasn't served on this page" is distinguishable from "the close
-selector broke" without having DevTools open from page load.
-`suppressed up front` is reported only when the preempt function
-returned cleanly; one that throws is recorded as called (so it isn't
-retried in a loop) but leaves the unit to be reported by the click
-path, which is what actually dealt with it.
+At 15s the script logs one status line per known unit, built from
+every fact it has rather than the first one that applies:
+`suppressed up front` (only when the preempt function returned
+cleanly), then `not seen` / `closed xN` / `SEEN, GAVE UP`, then
+`OPEN NOW` if the container is visible at that moment — e.g.
+`sticky footer: suppressed up front, not seen` on a normal load, or
+`suppressed up front, SEEN, GAVE UP, OPEN NOW` for a preempt that
+returned cleanly without holding. Reporting only the first applicable
+fact hid exactly that case, which is the break the line exists to
+catch: "the ad wasn't served" and "the close path is broken" have to
+stay distinguishable without DevTools open from page load.
 
 Pinkbike's sticky right-rail ad, `#nfs_sidebar`, is left alone. It has
 its own close button (`#sticky-right-rail-pb-close`) and could be added
