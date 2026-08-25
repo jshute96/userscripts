@@ -293,18 +293,48 @@ oldest activity Garmin listed), the list ends, or it hits
 `STRAVA_MAX_PAGES` — 5 pages, 100 activities.
 
 It returns `covered` alongside the times: the oldest moment the answer
-can speak for. Only *giving up early* bounds what we know, so `covered`
-is left at `-Infinity` unless the loop stops at the page cap with pages
-still unread — running off the end of the list, or paging past `needed`,
-both leave nothing unread that could have mattered.
+can speak for. `covered` is `-Infinity` — "we read everything that could
+have mattered" — only when the loop ends for one of two reasons that
+prove it: an **empty page**, or a page whose oldest time is at or past
+`needed`. Any other stop leaves `covered` at the oldest time actually
+read, and a read that produced no readable time at all is bounded at
+`Date.now()`, which leaves everything unjudged.
 
-The paging test is the page's **raw** length, not the number of start
-times we could parse. Conflating them lets a single unreadable
-`start_time` look like the end of the list, which would stop the paging
-early *and* claim full coverage of a truncated read — failing in the one
+**A short page is not the end of the list.** It used to be treated as
+one, and that is the sharp edge here: declaring the end sets `covered`
+to `-Infinity`, which turns "we stopped reading" into "Strava doesn't
+have it", and every Garmin activity older than the truncation point is
+uploaded again. The symptom is a *contiguous block* of already-uploaded
+rides at the old end of the Garmin window coming back as new, which
+Strava then rejects as duplicates — observed once, on five consecutive
+rides. Confirming the real end costs one extra request that returns
+nothing; that is far cheaper than the failure it rules out.
+
+For the same reason the paging test is the page's **raw** length, not
+the number of start times we could parse. Conflating them lets a page of
+unreadable `start_time`s look like a position in the list, stopping the
+paging early *and* claiming coverage of a truncated read — the one
 direction this design exists to prevent. An activity whose start time
 won't parse still can't be matched by start time; that is logged, and is
 all that can be done about it.
+
+#### What the logs say about a diff
+
+The diff is three reads and a comparison, and each part logs enough to
+be re-checked after the fact — the failure above was invisible because
+the totals looked reasonable and nothing said what had been read:
+
+* Garmin's list: every id with its start time, and how many were asked
+  for, so a short list is obvious.
+* Each Strava page: its raw count, how many starts were readable, and
+  the time span it covered. A short page mid-list shows up here.
+* Where the read stopped, and whether that was the confirmed end of the
+  list, the page cap, or a stop that bounds `covered`.
+* Every activity called new: its start time and the **nearest** Strava
+  start, with the gap in seconds. That gap separates the two ways a
+  diff goes wrong — seconds or hours means we read the ride and the
+  comparison rejected it (tolerance, time zone); days means Strava's
+  answer never contained it, and the question is where the read stopped.
 
 Garmin activities older than `covered` come back as `unjudged`. They are
 not badged and not uploaded, and the count is logged. That is the safe

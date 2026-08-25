@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Garmin Connect → Strava: Upload new activities with one click
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.4.5
+// @version      0.4.6
 // @description  Adds an Upload to Strava button to Garmin's toolbar and an Upload from Garmin item to Strava's upload menu. Either sends all new rides you haven't uploaded yet.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -210,6 +210,11 @@
 
   const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 
+  // Start times are the entire basis of the diff, so every log line about
+  // one prints it the same way and in one zone. Seconds matter (the match
+  // tolerance is 2s); milliseconds never do.
+  const iso = (ms) => (Number.isFinite(ms) ? new Date(ms).toISOString().replace(/\.\d+Z$/, 'Z') : 'unreadable');
+
   // Elapsed time since a performance.now() mark, for the timing in the
   // logs. Most of a run is Garmin's export endpoint generating and
   // shipping several MB of XML — measured at ~1s per ride — so when this
@@ -364,7 +369,7 @@
       throw new Error(`couldn't read the Garmin activity list (HTTP ${response.status})`);
     }
     const rows = Array.isArray(response.response) ? response.response : [];
-    return rows.map((a) => ({
+    const listed = rows.map((a) => ({
       id: String(a.activityId),
       name: (a.activityName || '').trim() || 'activity',
       // "2026-08-15 17:10:28", UTC despite carrying no zone. This is the
@@ -372,6 +377,12 @@
       // survives the trip to Strava unaltered — see stravaStarts.
       start: Date.parse(String(a.startTimeGMT || '').replace(' ', 'T') + 'Z'),
     }));
+    // The raw input to the diff. When the diff later decides something is
+    // new that plainly isn't, this is the line that says whether the wrong
+    // answer came from what we read or from how we compared it.
+    console.log(TAG, `Garmin returned ${plural(listed.length, 'activity', 'activities')} ` +
+      `(asked for ${limit}):`, listed.map((a) => `${a.id} ${iso(a.start)}`).join(', '));
+    return listed;
   }
 
   // Strava's activity list, as its own /athlete/training page reads it.
@@ -424,32 +435,70 @@
   // no fixed number of pages that covers a given stretch of Garmin's
   // list — we page until the times run past `needed`. `covered` is the
   // oldest moment this answer can speak for: -Infinity when we reached
-  // the end of Strava's list, otherwise the oldest time we actually
-  // read. Beyond it we know nothing, and the caller must not guess.
+  // the end of Strava's list or read past `needed`, otherwise the oldest
+  // time we actually read. Beyond it we know nothing, and the caller
+  // must not guess.
+  //
+  // Getting `covered` wrong in the -Infinity direction is the expensive
+  // mistake: it turns "we never looked" into "Strava doesn't have it",
+  // and every Garmin activity past the point we stopped reading is
+  // uploaded again. So only two things end the paging early, and neither
+  // is a guess — an empty page, and reading past `needed`.
   async function stravaStarts(needed) {
     const starts = [];
-    // Only a page we stopped *early* on bounds what we know. Running off
-    // the end of the list, or past `needed`, leaves nothing unread that
-    // could have mattered — so `covered` is only assigned when we give
-    // up with pages still to go.
-    let covered = -Infinity;
+    // Until something proves otherwise, assume we stopped short: an
+    // answer that claims more coverage than it has re-uploads rides.
+    let bounded = true;
     let capped = false;
+    let rawCount = 0;
     for (let page = 1; page <= STRAVA_MAX_PAGES; page += 1) {
       const { starts: times, count } = await stravaPage(page);
       starts.push(...times);
-      if (count < STRAVA_PAGE_SIZE) break; // the end of the list
-      const oldest = times.length ? Math.min(...times) : -Infinity;
-      if (oldest <= needed) break;
-      if (page === STRAVA_MAX_PAGES) {
-        covered = oldest;
-        capped = true;
+      rawCount += count;
+      console.log(TAG, `Strava page ${page}: ${plural(count, 'activity', 'activities')}` +
+        (times.length === count ? '' : `, ${count - times.length} without a readable start`) +
+        (times.length ? `, ${iso(Math.max(...times))} … ${iso(Math.min(...times))}` : ''));
+      // A page with nothing on it is the only unambiguous end of the
+      // list. A *short* page is not: Strava has been seen returning
+      // fewer than it was asked for with more still behind it, and
+      // treating that as the end declared the whole account read, which
+      // marked every older Garmin activity new and re-uploaded it. The
+      // real end costs one extra request to confirm, which is cheap
+      // beside that.
+      if (count === 0) {
+        bounded = false;
+        break;
       }
+      // No readable time on this page says nothing about where we are in
+      // the list, so it can't end the paging either.
+      if (!times.length) continue;
+      if (Math.min(...times) <= needed) {
+        bounded = false;
+        break;
+      }
+      if (page === STRAVA_MAX_PAGES) capped = true;
     }
+    // The oldest thing we read is exactly how far back the answer
+    // reaches. Reaching the end of the list having read no *time* is the
+    // exception: "the account is empty" and "we couldn't read any of
+    // it" are the same value here and the opposite conclusion, so
+    // `Date.now()` leaves every activity unjudged rather than uploading
+    // the lot.
+    const unreadable = !starts.length && rawCount > 0;
+    const covered = bounded || unreadable
+      ? (starts.length ? Math.min(...starts) : Date.now())
+      : -Infinity;
     console.log(TAG, `Strava lists ${starts.length} activities back to ` +
-      (covered === -Infinity ? 'the start of the account' : new Date(covered).toISOString()));
+      (covered === -Infinity ? 'the start of the account' : iso(covered)));
     if (capped) {
       console.log(TAG, `stopped at the ${STRAVA_MAX_PAGES}-page cap without reaching ` +
         'the far end of the Garmin list; older Garmin activities are left unjudged');
+    } else if (unreadable) {
+      console.log(TAG, `none of the ${rawCount} Strava activities we read had a ` +
+        'readable start time, so nothing can be matched; judging nothing');
+    } else if (bounded) {
+      console.log(TAG, 'stopped without confirming the end of the Strava list; ' +
+        `anything older than ${iso(covered)} is left unjudged`);
     }
     return { starts, covered };
   }
@@ -580,6 +629,19 @@
         for (let d = -slack; d <= slack; d += 1) if (seconds.has(second + d)) return true;
         return false;
       },
+      // Only for the logs, and worth the linear scan there: it separates
+      // the two ways an activity can look new. A nearest match seconds or
+      // hours away means we read the ride and the comparison rejected it
+      // — a tolerance or time-zone problem. A nearest match days away
+      // means Strava's answer simply didn't contain the ride, and the
+      // question is why we stopped reading where we did.
+      nearest(ms) {
+        let best = null;
+        for (const t of starts) {
+          if (best === null || Math.abs(t - ms) < Math.abs(best - ms)) best = t;
+        }
+        return best;
+      },
     };
   }
 
@@ -592,6 +654,14 @@
     const oldest = Math.min(...listed.map((a) => a.start).filter(Number.isFinite));
     const index = startIndex(await stravaStarts(Number.isFinite(oldest) ? oldest : Date.now()));
     const split = splitByStrava(listed, index);
+    for (const activity of split.fresh) {
+      const near = index.nearest(activity.start);
+      const gap = near === null ? null : Math.round((activity.start - near) / 1000);
+      console.log(TAG, `new: ${activity.id} ${iso(activity.start)} "${activity.name}" — ` +
+        (near === null
+          ? 'nothing read from Strava to compare against'
+          : `nearest Strava start ${iso(near)} (${gap > 0 ? '+' : ''}${gap}s)`));
+    }
     if (split.unjudged.length) {
       console.log(TAG, `${split.unjudged.length} Garmin ` +
         `${split.unjudged.length === 1 ? 'activity is' : 'activities are'} older than ` +
