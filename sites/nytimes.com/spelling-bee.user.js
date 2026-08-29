@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         NYTimes Spelling Bee: Word definitions and other tweaks
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.19
+// @version      1.0.24
 // @description  Shows definitions when you hover or click a word, adds a toolbar link to Spelling Bee Buddy, and closes the splash screens for you.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -20,6 +20,17 @@
   const WELCOME_CONTINUE_SELECTOR = '.pz-moment__welcome .pz-moment__button.primary';
   const CONGRATS_SELECTOR = '.pz-moment__congrats';
   const CONGRATS_KEEP_PLAYING_SELECTOR = '.pz-moment__congrats .pz-moment__close_text';
+  // Two different screens render under `.pz-moment__congrats`:
+  //   * the intermediate rank-up moment, which has a "Keep playing"
+  //     `.pz-moment__close_text` — this is the one we dismiss;
+  //   * the end-of-puzzle screen (Queen Bee / final stats), which has no
+  //     "Keep playing" at all, just an X plus "Share your achievement"
+  //     and "View all games".
+  // The final screen is a legitimate end state, not a broken selector, so
+  // we identify it by its own buttons and leave it alone silently.
+  const FINAL_MOMENT_BUTTON_SELECTOR =
+    '.pz-moment__congrats .pz-moment__button, .pz-moment__congrats .pz-moment__button-group';
+  const FINAL_MOMENT_BUTTON_TEXT = /view all games|share your achievement/i;
   const TOOLBAR_RIGHT_SELECTOR = '.pz-toolbar-right';
   const HINTS_BUTTON_SELECTOR = '.pz-toolbar-right .pz-toolbar-button__hints';
   const BUDDY_BUTTON_CLASS = 'pz-toolbar-button__buddy';
@@ -49,6 +60,20 @@
   // `/entries/en/colon` returned 502 indefinitely, `?_cb=…` returned 200.
   const DEFINITION_RETRIES = 2;
   const RETRY_DELAY_MS = 400;
+  // GM_xmlhttpRequest has no default timeout, so a stalled request never
+  // settles and the popup sits on "Looking up…" forever. When the API's
+  // origin is down, Cloudflare itself takes ~20s to give up and return a
+  // 522, so we cut it off long before that.
+  //
+  // 1.5s is generous for a healthy response: a cache hit measured 0.13s, and
+  // the API has no observed "slow but succeeds" regime — a lookup is
+  // either fast or it's a 522, whose ~19.5s is Cloudflare's fixed
+  // origin-connect timeout rather than a slow answer. So a longer timeout
+  // buys no extra successes, only a longer wait before giving up.
+  const REQUEST_TIMEOUT_MS = 1500;
+  // Whole-lookup budget across all attempts. Without it, retrying a slow
+  // failure multiplies the wait (3 x 20s was the observed freeze).
+  const LOOKUP_DEADLINE_MS = 3000;
   let cacheBustCounter = 0;
   const HOVER_DELAY_MS = 250;
   const HIDE_DELAY_MS = 200;
@@ -66,14 +91,32 @@
 
   let welcomeDismissed = false;
   let congratsDismissed = false;
+  // These dismissers run from the MutationObserver, so a missing button
+  // would otherwise log on every mutation for as long as the overlay is
+  // up. Warn once per appearance, and re-arm when the overlay goes away
+  // so a later failure is still reported.
+  let welcomeWarned = false;
+  let congratsWarned = false;
+  let finalMomentLogged = false;
+
+  // True for the end-of-puzzle screen, which shares the congrats class
+  // but has nothing to dismiss.
+  function isFinalMoment(moment) {
+    return Array.from(moment.querySelectorAll(FINAL_MOMENT_BUTTON_SELECTOR))
+      .some((el) => FINAL_MOMENT_BUTTON_TEXT.test(el.textContent || ''));
+  }
 
   function tryDismissWelcome() {
     if (welcomeDismissed) return;
     const moment = document.querySelector(WELCOME_SELECTOR);
-    if (!moment || !isVisible(moment)) return;
+    if (!moment || !isVisible(moment)) { welcomeWarned = false; return; }
     const btn = document.querySelector(WELCOME_CONTINUE_SELECTOR);
     if (!btn) {
-      console.warn(TAG, 'welcome screen visible but Continue button not found');
+      if (!welcomeWarned) {
+        welcomeWarned = true;
+        console.warn(TAG, 'welcome screen visible but Continue button not found',
+          '- selector:', WELCOME_CONTINUE_SELECTOR);
+      }
       return;
     }
     console.log(TAG, 'welcome screen detected — clicking Continue');
@@ -84,10 +127,28 @@
   function tryDismissCongrats() {
     if (congratsDismissed) return;
     const moment = document.querySelector(CONGRATS_SELECTOR);
-    if (!moment || !isVisible(moment)) return;
+    if (!moment || !isVisible(moment)) {
+      congratsWarned = false;
+      finalMomentLogged = false;
+      return;
+    }
+    if (isFinalMoment(moment)) {
+      if (!finalMomentLogged) {
+        finalMomentLogged = true;
+        console.log(TAG, 'end-of-puzzle screen — nothing to dismiss');
+      }
+      return;
+    }
     const btn = document.querySelector(CONGRATS_KEEP_PLAYING_SELECTOR);
     if (!btn) {
-      console.warn(TAG, 'congrats screen visible but Keep playing button not found');
+      if (!congratsWarned) {
+        congratsWarned = true;
+        console.warn(TAG, 'congrats screen visible but Keep playing button not found',
+          '- selector:', CONGRATS_KEEP_PLAYING_SELECTOR,
+          '- buttons present:',
+          Array.from(moment.querySelectorAll('button, [class*="button"], [class*="close"]'))
+            .map((e) => e.className + '|' + (e.textContent || '').trim().slice(0, 30)));
+      }
       return;
     }
     console.log(TAG, 'congrats screen detected — clicking Keep playing');
@@ -147,13 +208,14 @@
   const TRANSPORT_FAILURE = -1;
 
   // One HTTP round-trip. Resolves to { status, text } — never rejects.
-  function requestOnce(url) {
+  function requestOnce(url, timeoutMs) {
     return new Promise((resolve) => {
       try {
         GM_xmlhttpRequest({
           method: 'GET',
           url: url,
           headers: { 'Accept': 'application/json' },
+          timeout: timeoutMs,
           onload: (response) => {
             resolve({ status: response.status, text: response.responseText || '' });
           },
@@ -193,10 +255,21 @@
   async function fetchWithRetries(word) {
     const base = DEFINITION_API_URL + encodeURIComponent(word);
     let last = { status: TRANSPORT_FAILURE, text: '' };
+    const deadline = Date.now() + LOOKUP_DEADLINE_MS;
     for (let attempt = 0; attempt <= DEFINITION_RETRIES; attempt++) {
+      // Clamp each attempt to whatever is left of the budget, so
+      // LOOKUP_DEADLINE_MS is a real ceiling on the whole lookup rather
+      // than just a gate on starting another attempt. (Without this, an
+      // attempt begun just under the deadline still runs its full
+      // timeout past it.)
+      const remaining = deadline - Date.now() - (attempt > 0 ? RETRY_DELAY_MS : 0);
+      if (remaining <= 0) {
+        console.warn(TAG, 'lookup deadline reached for', word, '- not retrying');
+        break;
+      }
       const url = attempt === 0 ? base : base + '?_cb=' + (++cacheBustCounter) + '-' + Date.now();
       if (attempt > 0) await delay(RETRY_DELAY_MS);
-      last = await requestOnce(url);
+      last = await requestOnce(url, Math.min(REQUEST_TIMEOUT_MS, remaining));
       console.log(TAG, 'definition fetch', word, 'attempt', attempt,
         'status', last.status, 'len', last.text.length);
       if (!isRetryable(last.status)) return last;

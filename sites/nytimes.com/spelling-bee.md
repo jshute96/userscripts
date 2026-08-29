@@ -24,7 +24,8 @@ shown when the puzzle is only partly done.
 ## Visible changes
 
 * "Welcome Back" splash and the rank-up "Genius / Keep playing"
-  splash are auto-dismissed.
+  splash are auto-dismissed. The end-of-puzzle screen (Queen Bee
+  and friends) is left alone.
 * A **Buddy ↗** link is added after **Hints ↗** in the top
   toolbar, opening the Spelling Bee Buddy companion in a new tab.
 * Found words on the main page and Buddy page become interactive
@@ -57,6 +58,34 @@ for the welcome splash:
 - `.pz-moment__congrats .pz-moment__close_text` — a top-right
   button with text "Keep playing" inside it. A plain `.click()`
   dismisses the splash.
+
+**`.pz-moment__congrats` covers two different screens**, and only
+one of them should be dismissed:
+
+| | Rank-up splash | End-of-puzzle screen |
+|---|---|---|
+| When | crossing a rank threshold mid-game | puzzle complete (e.g. Queen Bee) |
+| Dismiss control | `.pz-moment__close_text` ("Keep playing") | `.pz-moment__close` (an X) |
+| Other buttons | — | "Share your achievement", "View all games" |
+| Script behavior | click it | leave it alone |
+
+Observed on 2026-08-28: the Queen Bee screen carried
+`class="pz-moment Congrats-module_moment__auGMZ pz-moment__congrats"`
+with **no** `.pz-moment__close_text` anywhere in its subtree. Before
+this was accounted for, that screen looked identical to "the Keep
+playing selector broke", and the dismisser warned about it on every
+mutation for as long as it was up.
+
+`isFinalMoment()` therefore identifies the end screen *positively*,
+by a `.pz-moment__button` / `.pz-moment__button-group` descendant
+whose text matches `/view all games|share your achievement/i` —
+rather than inferring it from the absence of "Keep playing", which
+would also swallow a genuine selector break. A congrats moment with
+neither marker is still reported as a break.
+
+Both dismissers warn at most **once per appearance** of their
+overlay, re-arming when it disappears; they run from the
+MutationObserver, so an unconditional warn fires continuously.
 
 The splash is rendered after the main puzzle scripts hydrate, so it
 isn't necessarily in the DOM at `document-idle`.
@@ -191,6 +220,48 @@ So `fetchWithRetries()` makes up to three attempts per word:
   didn't populate `response.status` — some userscript managers
   omit it, and that case has to fall through to the JSON parse
   rather than be treated as a failed lookup.
+
+#### Timeouts, when the origin is down rather than flaky
+
+The cache-busting retry above assumes the origin is *healthy* and
+only the cache entry is poisoned. When the origin itself is down,
+every cache-missing word instead returns **522 Connection timed
+out** — Cloudflare's code for "I couldn't reach the origin" — and
+it takes Cloudflare about 20 seconds to give up and say so.
+
+Observed on 2026-08-28: `vivid` returned 200 in 0.13 s (served
+from the edge cache) while `avail`, `avidity` and a nonsense word
+alike returned 522 after ~19.5 s. Because 522 is a 5xx, the retry
+loop fired all three attempts, so a hover froze on "Looking up…"
+for roughly a minute. `GM_xmlhttpRequest` has **no default
+timeout**, so nothing else would have cut it short.
+
+Two things bound that now:
+
+* `timeout: REQUEST_TIMEOUT_MS` (1.5 s) on every request, which is
+  what actually makes the existing `ontimeout` handler reachable.
+* `LOOKUP_DEADLINE_MS` (3 s) for the whole lookup. Each attempt's
+  timeout is **clamped to the remaining budget**, so this is a real
+  ceiling — checking the deadline only before starting a retry
+  isn't enough, since an attempt begun just under it still runs its
+  full timeout past it.
+
+Why 1.5 s is generous rather than tight: a cache hit measured
+0.13 s, and the API has no observed "slow but succeeds" regime.
+A lookup is either fast or it's a 522 — and that ~19.5 s is
+Cloudflare's fixed origin-connect timeout, not a slow answer. A
+longer timeout therefore buys no additional successes, only a
+longer wait before giving up.
+
+Resulting worst case, origin down: attempt 0 times out at 1.5 s,
+attempt 1 is clamped to 1.1 s and ends at 3.0 s, attempt 2 is
+skipped — 3 s total. The cached-502 case is unaffected, since its
+failures return fast and all three attempts still fit.
+
+The popup shows "Looking up <word>…" until the lookup resolves.
+At a 3 s ceiling that needs no intermediate "service is slow"
+state — an earlier version had one, and it was more code than the
+wait justified.
 
 Each attempt logs its status, so a persistent break is
 distinguishable from a one-off blip in the console.
