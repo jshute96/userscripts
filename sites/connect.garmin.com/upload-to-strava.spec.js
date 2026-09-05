@@ -143,9 +143,13 @@ test.describe('Garmin Connect → Strava: Upload new activities with one click',
     await page.goto(STRAVA_URL);
     await expect(page.locator('#' + STRAVA_ITEM_ID)).toHaveCount(1, { timeout: 10000 });
     await page.evaluate(() => {
-      window.GM_xmlhttpRequest = ({ onload }) => onload({
-        status: 200, finalUrl: 'https://connect.garmin.com/signin/', responseText: '',
-      });
+      window.__probes = [];
+      window.GM_xmlhttpRequest = ({ url, onload }) => {
+        window.__probes.push(url);
+        onload({
+          status: 200, finalUrl: 'https://connect.garmin.com/signin/', responseText: '',
+        });
+      };
     });
 
     let opened = 0;
@@ -158,6 +162,13 @@ test.describe('Garmin Connect → Strava: Upload new activities with one click',
 
     const status = page.locator('#jshute-garmin-strava-status');
     await expect(status).toContainText("not signed in to Garmin", { timeout: 10000 });
+    // Every probe failure gets a second look before we believe it —
+    // Garmin bounces the first request of a run to /signin often enough
+    // that one attempt is not evidence of a lapsed session.
+    expect(await page.evaluate(() => window.__probes)).toEqual([
+      'https://connect.garmin.com/app/activities',
+      'https://connect.garmin.com/app/activities',
+    ]);
     expect(page.url()).toBe(before);
     // The sign-in page is offered in a tab of its own — through
     // GM_openInTab, which the stubs record rather than open.

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Garmin Connect → Strava: Upload new activities with one click
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.4.7
+// @version      0.4.8
 // @description  Adds an Upload to Strava button to Garmin's toolbar and an Upload from Garmin item to Strava's upload menu. Either sends all new rides you haven't uploaded yet.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -330,23 +330,103 @@
   // the ?bust= query on its own asset URLs. Signed out, the same request
   // 302s to /signin/ and the token isn't there, which is how both sides
   // detect a lapsed Garmin session.
-  async function garminSession() {
+  //
+  // One attempt at that probe. Returns `{ session }` when it looks signed
+  // in, or `{ reason, detail }` — a short phrase and the evidence behind
+  // it — when it doesn't. The caller decides what to do about it, because
+  // "no token this time" and "definitely signed out" are not the same
+  // thing and the difference is only visible across attempts.
+  async function garminSessionAttempt() {
     // `GM_xmlhttpRequest` has no `cache` option, so ask for revalidation
     // the HTTP way. Garmin sends no caching headers on this page at all,
     // which leaves it open to heuristic caching — and a token read from
     // a cached copy would look perfectly valid while belonging to a
     // session the request never actually established.
-    const response = await gmFetch(ACTIVITIES_URL,
-      { headers: { 'Cache-Control': 'no-cache' } });
+    // 20s rather than gmFetch's two-minute default: this is an 8 KB
+    // shell, it is the first thing every run does, and it is now tried
+    // twice — waiting four minutes to be told Garmin never answered is
+    // worse than being told in forty seconds.
+    let response;
+    try {
+      response = await gmFetch(ACTIVITIES_URL,
+        { headers: { 'Cache-Control': 'no-cache' }, timeoutMs: 20000 });
+    } catch (err) {
+      // A timeout or a dead connection used to escape the probe entirely,
+      // skipping the retry and reporting a bare "took too long". It is a
+      // failure of the same request as the three below, so it is reported
+      // the same way and gets the same second look.
+      return {
+        reason: (err && err.message) || 'the request to Garmin failed',
+        detail: { transportError: true },
+      };
+    }
     const html = response.responseText || '';
+    const finalUrl = response.finalUrl || '';
+    // What came back, in the terms the three failure branches below are
+    // deciding on. `finalUrl` is the manager's, not the wire's — it can
+    // be empty even on a redirect, so an absent one is reported as such
+    // rather than silently read as "no redirect happened".
+    const detail = {
+      status: response.status,
+      finalUrl: finalUrl || '(not reported by the manager)',
+      htmlLength: html.length,
+      title: (html.match(/<title[^>]*>([^<]*)<\/title>/i) || [])[1] || '(none)',
+      // Only ever logged on a failure, and the one thing that tells a
+      // Garmin page missing its meta apart from an interstitial that
+      // isn't a Garmin page at all.
+      htmlStart: html.slice(0, 300),
+    };
+    if (/\/signin/.test(finalUrl)) {
+      return { reason: 'Garmin redirected the request to the sign-in page', detail };
+    }
+    // Checked after the redirect test and before the token: a 403 with a
+    // body (a Cloudflare challenge, say) parses as a page with no token,
+    // and reading that as "signed out" is how a blocked request ends up
+    // opening a sign-in tab the user doesn't need.
+    if (response.status !== 200) {
+      return { reason: `the Garmin activities page answered HTTP ${response.status}`, detail };
+    }
     const csrf = extractCsrf(html);
-    if (/\/signin/.test(response.finalUrl || '') || !csrf) {
-      console.log(TAG, 'Garmin sent us to the sign-in page');
-      throw signedOutError('Garmin');
+    if (!csrf) {
+      return { reason: 'the Garmin activities page carried no CSRF token', detail };
     }
     const bust = (html.match(/bust=([\d.]+)/) || [])[1];
-    console.log(TAG, `Garmin session ok (app version ${bust || 'unknown'})`);
-    return { csrf, bust };
+    return { session: { csrf, bust } };
+  }
+
+  // Garmin's answer to the first probe of a run is sometimes token-less,
+  // or a bounce to /signin, while the browser's own session is perfectly
+  // good — the sign-in tab that gets opened lands already signed in, and
+  // the same request a moment later succeeds. So every failure gets a
+  // second look before we believe it, including the redirect: the point
+  // of the probe is the session the *next* request will run under, and
+  // one extra 8 KB GET is cheaper than a sign-in tab nobody needed.
+  //
+  // Both attempts failing is still not proof of a lapsed session — a
+  // Cloudflare challenge fails identically — which is why the reason and
+  // the response that produced it are logged rather than flattened into
+  // one line about signing in.
+  async function garminSession(attempts = 2) {
+    let last = null;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      // Logged before the request, not after: a probe that hangs is
+      // otherwise indistinguishable from one that was never started,
+      // and this is the first request of every run.
+      console.log(TAG, `checking the Garmin session (attempt ${attempt} of ${attempts})`);
+      last = await garminSessionAttempt();
+      if (last.session) {
+        console.log(TAG, `Garmin session ok (app version ${last.session.bust || 'unknown'})` +
+          (attempt > 1 ? `, on attempt ${attempt}` : ''));
+        return last.session;
+      }
+      console.log(TAG, `Garmin session probe ${attempt} of ${attempts}: ${last.reason}`,
+        last.detail);
+      if (attempt < attempts) {
+        await new Promise((resolve) => setTimeout(resolve, 750));
+      }
+    }
+    console.log(TAG, `treating Garmin as signed out: ${last.reason}`);
+    throw signedOutError('Garmin');
   }
 
   // Connect-Csrf-Token is the one Garmin's own server enforces — without
@@ -705,10 +785,14 @@
     const { escalate = true } = options;
     const message = (err && err.message) || 'unknown error';
     const site = err && err.signedOutOf;
-    console.log(TAG, `${context}:`, message);
+    // The object as well as the message: for anything that isn't one of
+    // the errors this script raises deliberately, the stack is the only
+    // thing that says where it came from.
+    console.log(TAG, `${context}:`, message, err);
     if (site && SIGNIN_PAGES[site]) {
       setStatus(`${message}. Sign in on the ${site} tab, then try again.`, { error: true });
       if (!escalate) return;
+      console.log(TAG, `opening the ${site} sign-in page in a new tab`);
       GM_setValue(K_SIGNIN_HINT, {
         ts: Date.now(),
         message: `Sign in to ${site}, then start the upload again.`,

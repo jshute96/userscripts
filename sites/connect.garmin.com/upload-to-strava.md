@@ -726,9 +726,39 @@ a timeout is a slow and unhelpful way to learn that.
 **Garmin** is now checked directly, at the start of every run, from
 whichever side started it: the `GET /app/activities` that fetches the
 CSRF token 302s to `/signin/?service=…` when signed out, and the
-response carries no `csrf-token` meta. Either signal is enough. The
-error carries a `signedOutOf` marker, and `reportFailure()` opens
-Garmin's sign-in page in a foreground tab with a note on it.
+response carries no `csrf-token` meta. `garminSessionAttempt()` reads
+that response as one of four distinct failures — the request itself
+failing (timeout or dead connection), a redirect to `/signin`, a non-200
+status, or a 200 with no token — and returns the reason along with the
+status, final URL, body length, `<title>` and first 300 bytes that
+produced it. Three of the four used to log the same "sent us to the
+sign-in page" line, which said a redirect had happened whether or not one
+had; the fourth escaped the probe entirely.
+
+The probe logs before each attempt, so a hang is distinguishable from a
+request that was never made, and it uses a 20-second timeout rather than
+`gmFetch`'s two-minute default — it's an 8 KB shell, it's the first thing
+every run does, and it's now tried twice.
+
+None of the four is believed on the first try. **Garmin answers the
+first probe of a run with a token-less page, or a bounce to `/signin`,
+while the browser's own session is fine** — the sign-in tab it opens
+lands already signed in, and the run works on the second attempt. So
+`garminSession()` retries once after 750 ms, redirect included, and only
+then throws. The retry is one extra 8 KB GET; the false positive it
+replaces was a foreground sign-in tab and an abandoned run.
+
+`reportFailure()` logs the error object alongside its message, since for
+anything not raised deliberately by this script the stack is the only
+thing that says where it came from, and it logs when it opens a sign-in
+tab.
+
+Both attempts failing still isn't proof of a lapsed session — a
+Cloudflare challenge on the request looks the same from here — so the
+final log line names the reason and the detail rather than asserting a
+redirect. The error carries a `signedOutOf` marker, and
+`reportFailure()` opens Garmin's sign-in page in a foreground tab with a
+note on it.
 
 **Strava** now gets a direct check too, as a side effect of reading its
 activity list: signed out, `training_activities` serves a login page
