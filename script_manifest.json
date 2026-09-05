@@ -220,6 +220,9 @@
         "id": 592202,
         "url": "https://greasyfork.org/scripts/592202-washington-post-keyboard-comment-navigation"
       }
+    },
+    {
+      "path": "sites/www.trailforks.com/map-popup-star-rating.user.js"
     }
   ],
   "libraries": [
