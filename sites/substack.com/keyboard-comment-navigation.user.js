@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Substack: Keyboard comment navigation
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.6
+// @version      1.0.7
 // @description  Adds keyboard shortcuts for moving through the comments on a post — next and previous comment, parent, next thread, and jump to the comments section.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -59,6 +59,18 @@
     // exactly one Post UFI bar, belonging to the post itself. ("UFI" is
     // Substack's name for that row of post actions.)
     ufiComments:   '[aria-label="Post UFI"] .post-ufi-comment-button',
+    // Substack's reader app — `substack.com/@<author>/p-<id>`, which is
+    // where you land following a post from an author page on
+    // substack.com itself — renders the post in a modal with none of the
+    // publication page's comment markup: no `.comment`, no
+    // `#substack-comments`, no `Post UFI`. Its floating action bar
+    // carries a bare `aria-label="Comment"`, and so does every
+    // recommended-post and note card on the page behind it (13 on the
+    // post we measured). Only the post's own button has a `data-href`,
+    // naming the publication's `/p/<slug>/comments` — the ordinary
+    // comments page this script already handles, which is where
+    // clicking it goes.
+    readerComments: 'button[aria-label="Comment"][data-href*="/comments"]',
 
     // The publication bar across the top of every page. `.main-menu` is
     // the in-flow placeholder; the bar that actually paints is an inner
@@ -106,6 +118,27 @@
     const host = location.hostname;
     return host === SUBSTACK_HOST || host.endsWith('.' + SUBSTACK_HOST)
       || !!document.querySelector(SUBSTACK_MARKUP);
+  }
+
+  // What makes `readerComments` safe is that the post's own button is the
+  // only `aria-label="Comment"` on the page carrying a `data-href` — every
+  // recommended-post and note card around it has the label and no href.
+  // That's an assumption about Substack's markup, not something the selector
+  // enforces, and the cost of it going stale is not a no-op: `c` would
+  // silently navigate to whichever *other* post sorted first in the DOM.
+  //
+  // So require it to be the only match, and stand down when it isn't. That
+  // holds on every reader page rather than on one URL shape, which matters
+  // because the reader is reachable by more routes than the
+  // `/@<author>/p-<id>` one we've measured.
+  function readerCommentsButton() {
+    const found = document.querySelectorAll(SEL.readerComments);
+    if (found.length === 1) return found[0];
+    if (found.length > 1) {
+      console.warn(TAG, found.length, 'reader comment buttons on this page;',
+                   'expected exactly one, so not using them');
+    }
+    return null;
   }
 
   const COLLAPSED_PROBE_PX = 150;   // safely past the ~90px threshold
@@ -191,10 +224,13 @@
         || document.querySelector(SEL.postSection);
     },
 
-    // Two ways off a post and onto its comments page, tried in order.
+    // Three ways off a post and onto its comments page, tried in order.
     //
     // `a.more-comments` is the "N more comments..." link under a normal
     // post's inline preview.
+    //
+    // The reader app's action bar is the third, for posts opened from
+    // substack.com itself; see `readerComments` above.
     //
     // A cross-post — one publication republishing another's post, served
     // at `/cp/<id>` rather than `/p/<slug>` — renders no comment section
@@ -206,7 +242,8 @@
     open: (() => {
       const target = () => onSubstackPage()
         ? (document.querySelector(SEL.moreComments)
-           || document.querySelector(SEL.ufiComments))
+           || document.querySelector(SEL.ufiComments)
+           || readerCommentsButton())
         : null;
       return {
         canOpen: () => !!target(),

@@ -4,6 +4,9 @@
 
 Reading a Substack post means dismissing several interruptions:
 
+* A **welcome interstitial** filling the whole window on a
+  publication's home page, with its cover image, description,
+  subscriber count and an email field, hiding the page behind it.
 * A **"Discover more from ..." subscribe modal** that covers the text
   and dims the page behind it.
 * A **"*Someone* shared this with you" referral popup**, shown when you
@@ -13,7 +16,7 @@ Reading a Substack post means dismissing several interruptions:
   browser's address bar, offering to hand the blog your Substack name,
   email, and profile picture.
 
-This script gets rid of all three. The two in-page popups are closed as
+This script gets rid of all four. The three in-page popups are closed as
 soon as they appear, and the sign-in bubble never opens at all — it's
 browser UI rather than part of the page, so instead of closing it, the
 script declines the request that would have summoned it.
@@ -34,8 +37,9 @@ Third-party sign-in, i.e. `chrome://settings/content/federatedIdentityApi`.
 
 ## Visible changes
 
-* The subscribe modal, the referral popup, and their dimming overlay
-  disappear on their own, usually before you notice them.
+* The welcome interstitial, the subscribe modal, the referral popup,
+  and the dimming overlay disappear on their own, usually before you
+  notice them.
 * The sign-in bubble under the address bar never appears.
 
 ## Implementation
@@ -55,8 +59,16 @@ go unclosed there.
 Consequences:
 
 * A custom-domain blog's homepage, `/archive`, and `/about` aren't
-  covered — the popups can still appear there. On `*.substack.com`
-  domains every page is covered.
+  covered — the popups can still appear there, and the welcome
+  interstitial in particular is a *homepage* popup, so on a custom
+  domain it's never closed. On `*.substack.com` domains every page is
+  covered.
+
+  There is no path shape to match on: those pages are just `/`. The
+  only header that would reach them is `@match https://*/*`, loading
+  the script on every site on the web to catch a handful of blogs, and
+  that's a worse trade than leaving them uncovered. Considered and
+  declined — this is the reason the `/p/` matchers exist.
 * Instagram gives every post a `/p/<shortcode>` URL, which is a lot of
   pages to load on for nothing, so it's excluded outright:
   `@exclude https://*.instagram.com/*`. That's a deliberate one-off
@@ -162,7 +174,36 @@ component library Substack builds on — so its markup differs:
 - The same `button[aria-label="close"]` X in its header.
 
 Since the dialog names are what we match on, adding a further Substack
-popup means adding its accessible name to `POPUP_NAMES`.
+*dialog* means adding its accessible name to `POPUP_NAMES`.
+
+**The welcome interstitial** is not a dialog at all, and shares none of
+that markup. It's what a publication's home page shows on a first
+visit, and it's a `div.intro-popup` — a plain hand-written class, no
+build-hash suffix — `position: fixed; z-index: 999` at exactly the
+height of the viewport, holding `.intro-popup-page > .full-email-form`.
+It has no `role`, no accessible name, and its close button is
+`button[data-testid="close-welcome-modal"]`, labelled `Close`
+(capitalized, unlike the dialogs' `close`).
+
+The catch is what "closed" means. Clicking the X does not remove it,
+hide it, or fade it out: it stays in the DOM, `display: block`,
+`opacity: 1`, at full size, for the life of the page — Substack just
+**slides it downward out of the viewport**. Measured on three
+publications, `top` goes from `0` to `innerHeight + 80` and nothing
+else changes. So the `display` / `visibility` / `offsetParent` test the
+dialogs use reports it visible in both states, and the first version of
+this clicked the close button, succeeded, and then reported `click did
+not hide the popup` three times before giving up.
+
+`introShowing()` therefore asks where it sits — whether its bounding
+rect still overlaps the viewport — and nothing else. (`offsetParent` is
+no help either way: it's `position: fixed`, so that's null whether it's
+covering the page or parked below it.)
+
+The park is proportional, not a fixed pixel offset — `translateY(110%)`
+— so it's recomputed on resize and can't drift back into view when the
+window grows. Measured on one publication at three viewport heights,
+`top / innerHeight` held at 1.101 for 700px, 900px and 1200px.
 
 In practice the subscribe modal is already in the DOM by the time the
 document is parsed on a post page, so it's usually closed before it's
@@ -172,14 +213,26 @@ generally don't come back on later visits until that's cleared.
 
 What we assume:
 
-1. Every popup we want to close is a `div[role="dialog"]` whose
+1. Every *dialog* we want to close is a `div[role="dialog"]` whose
    accessible name — its `aria-label`, or the joined text of the
    elements its `aria-labelledby` points at — is one of the fixed
    strings in `POPUP_NAMES` (compared lowercased).
-2. The close button stays a descendant `<button>` with
+2. Their close button stays a descendant `<button>` with
    `aria-label="close"`, and responds to a plain `.click()`.
-3. Dismissal either removes the popup from the DOM or hides it via
-   `display` / `visibility` / `offsetParent`.
+3. Dialog dismissal either removes the popup from the DOM or hides it
+   via `display` / `visibility` / `offsetParent`. Each popup is
+   confirmed closed by re-testing *the element we clicked*, not by
+   asking whether any known popup is still up — Substack shows more
+   than one per page, and the coarser test scored a successful close as
+   a failure whenever a second popup was also present.
+4. The welcome interstitial keeps the class `intro-popup` and a close
+   button with `data-testid="close-welcome-modal"`, and closing it
+   moves it clear of the viewport rather than leaving it in place. If
+   Substack ever switched to hiding it instead, `introShowing()` would
+   keep reporting it open and the script would click three times and
+   give up — the same failure the current test was written to fix, so
+   the "close button did not work 3 times" log is the thing to look
+   for.
 
 What we change:
 

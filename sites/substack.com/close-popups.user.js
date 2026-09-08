@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Substack: Auto-close the subscribe, referral, and sign-in popups
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.1.1
-// @description  Closes the "Discover more from" subscribe popup and the "shared this with you" referral popup that cover a post, and stops the browser's sign-in bubble from appearing at all.
+// @version      1.2.0
+// @description  Closes the "Discover more from" subscribe popup, the "shared this with you" referral popup, and the full-page welcome interstitial, and stops the browser's sign-in bubble from appearing at all.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://*.substack.com/*
@@ -101,6 +101,19 @@
   const CLOSE_SELECTOR = 'button[aria-label="close"]';
   const POPUP_NAMES = ['subscribe modal', 'follow on substack'];
 
+  // The welcome interstitial is a different component from the dialogs above,
+  // and shares none of their markup: it fills the whole viewport rather than
+  // floating over a dimmed page, carries no `role="dialog"` and no accessible
+  // name, and its close button is labelled `Close` (capitalized) rather than
+  // `close`. It's what a publication's home page shows on a first visit —
+  // cover image, description, subscriber count and an email field.
+  //
+  // `.intro-popup` is a plain hand-written class with no build-hash suffix,
+  // and the close button carries the site's own `data-testid`, so both are
+  // about as stable as Substack markup gets.
+  const INTRO_SELECTOR = '.intro-popup';
+  const INTRO_CLOSE_SELECTOR = 'button[data-testid="close-welcome-modal"]';
+
   function accessibleName(el) {
     const label = el.getAttribute('aria-label');
     if (label) return label.trim().toLowerCase();
@@ -117,15 +130,40 @@
     return '';
   }
 
-  // Returns the first visible popup we recognize, or null. Deliberately
-  // name-based: closing every dialog on the page would also dismiss ones the
-  // user opened on purpose (share sheets, the comment composer).
+  // Returns the first visible popup we recognize as `{el, close, name}`, or
+  // null. The dialog half is deliberately name-based: closing every dialog on
+  // the page would also dismiss ones the user opened on purpose (share
+  // sheets, the comment composer).
   function findPopup() {
     for (const el of document.querySelectorAll(DIALOG_SELECTOR)) {
       if (!isVisible(el)) continue;
-      if (POPUP_NAMES.includes(accessibleName(el))) return el;
+      const name = accessibleName(el);
+      if (POPUP_NAMES.includes(name)) {
+        return { el, close: CLOSE_SELECTOR, name, showing: dialogShowing };
+      }
+    }
+    for (const el of document.querySelectorAll(INTRO_SELECTOR)) {
+      if (!introShowing(el)) continue;
+      return { el, close: INTRO_CLOSE_SELECTOR, name: 'welcome interstitial',
+               showing: introShowing };
     }
     return null;
+  }
+
+  // Closing the welcome interstitial does not remove it, hide it, or fade it
+  // out. It is `position: fixed; z-index: 999` at exactly the height of the
+  // viewport, and the close button slides it *downward* out of the way —
+  // measured on three publications, `top` goes from 0 to `innerHeight + 80`
+  // and the element stays in the DOM, painted, for the life of the page.
+  //
+  // So the display/visibility test below says "visible" whether it's covering
+  // the page or parked below it, and using it here made the script click the
+  // close button, succeed, and then report `click did not hide the popup`
+  // three times before giving up. Where it sits is the only thing that tells
+  // the two states apart.
+  function introShowing(el) {
+    const r = el.getBoundingClientRect();
+    return r.bottom > 0 && r.top < window.innerHeight;
   }
 
   function isVisible(el) {
@@ -133,6 +171,15 @@
     if (el.offsetParent !== null) return true;
     const cs = getComputedStyle(el);
     return cs.display !== 'none' && cs.visibility !== 'hidden';
+  }
+
+  // `isConnected` is the half that matters once the popup we're watching is
+  // the one we already clicked: React usually dismisses a dialog by removing
+  // it, and `getComputedStyle` on a detached node answers with empty strings,
+  // which `isVisible` would read as "not `none`, not `hidden`" — i.e. still
+  // up. Asking the document first avoids that.
+  function dialogShowing(el) {
+    return el.isConnected && isVisible(el);
   }
 
   let closedCount = 0;
@@ -146,13 +193,31 @@
   // of checking once, and don't re-click while a close is still settling.
   const SETTLE_POLL_MS = 200;
   const SETTLE_TIMEOUT_MS = 3000;
+  // A click that lands before React has hydrated the popup does nothing at
+  // all, and on a publication home page nothing else mutates afterwards — so
+  // waiting for the observer to fire again means waiting forever. Measured on
+  // one publication: the interstitial was clicked 0.75s after the document
+  // committed, the click was inert, and the page sat there with the popup
+  // still covering it for the remaining 11s of the trace. Retry on a timer
+  // instead; `MAX_FAILED_ATTEMPTS` still bounds it.
+  const RETRY_MS = 500;
 
-  function confirmClosed(waited) {
-    if (!findPopup()) {
+  // Watches the popup we actually clicked, not "is any popup still up".
+  // Substack shows more than one per page, and the two are independent: on
+  // the global test, closing the subscribe dialog while the welcome
+  // interstitial was also up would be scored as a *failed* close, hold
+  // `clickPending` for the full timeout, and count towards the shared
+  // `failedAttempts` — three of those and the script gives up on every popup
+  // for the rest of the page.
+  function confirmClosed(popup, waited) {
+    if (!popup.showing(popup.el)) {
       clickPending = false;
       failedAttempts = 0;
       closedCount += 1;
       console.log(TAG, 'popup closed (count:', closedCount + ')');
+      // Whatever else is up can be closed now; the observer would get there
+      // on its own only if closing this one happened to mutate the DOM.
+      scheduleTryClose();
       return;
     }
     if (waited >= SETTLE_TIMEOUT_MS) {
@@ -163,28 +228,34 @@
                       'times; giving up on this page');
       } else {
         console.warn(TAG, 'click did not hide the popup after',
-                     SETTLE_TIMEOUT_MS, 'ms');
+                     SETTLE_TIMEOUT_MS, 'ms; retrying');
+        setTimeout(tryClose, RETRY_MS);
       }
       return;
     }
-    setTimeout(() => confirmClosed(waited + SETTLE_POLL_MS), SETTLE_POLL_MS);
+    setTimeout(() => confirmClosed(popup, waited + SETTLE_POLL_MS),
+               SETTLE_POLL_MS);
   }
 
   function tryClose() {
     if (clickPending || failedAttempts >= MAX_FAILED_ATTEMPTS) return;
     const popup = findPopup();
     if (!popup) return;
-    const btn = popup.querySelector(CLOSE_SELECTOR);
+    const btn = popup.el.querySelector(popup.close);
     if (!btn) {
+      // Counts as a failure like any other. Without this the observer fires
+      // on every page mutation, finds the same unclosable popup, and logs
+      // again — several times a second, for the life of the page.
+      failedAttempts += 1;
+      const giveUp = failedAttempts >= MAX_FAILED_ATTEMPTS;
       console.warn(TAG, 'popup visible but close button not found:',
-                   accessibleName(popup));
+                   popup.name, giveUp ? '— giving up on this page' : '');
       return;
     }
-    console.log(TAG, 'popup detected — clicking close:',
-                accessibleName(popup));
+    console.log(TAG, 'popup detected — clicking close:', popup.name);
     clickPending = true;
     btn.click();
-    setTimeout(() => confirmClosed(SETTLE_POLL_MS), SETTLE_POLL_MS);
+    setTimeout(() => confirmClosed(popup, SETTLE_POLL_MS), SETTLE_POLL_MS);
   }
 
   // The dimming overlay animates its inline opacity, so mutations arrive once

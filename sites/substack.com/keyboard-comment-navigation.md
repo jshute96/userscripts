@@ -12,6 +12,9 @@ A Substack post only shows a couple of comments inline, with a
 follows that link; once you're on the comments page, `c` goes to the
 first comment.
 
+`c` also works on posts opened inside the reader on substack.com
+itself, which show no comments at all until you ask for them.
+
 Substack threads nest arbitrarily deep, so `p` (parent), `r` (thread
 root) and `n` (skip past this reply subtree) all do real work here.
 
@@ -33,7 +36,8 @@ Scripts adding the [same key bindings for several other sites are available here
 ## Visible changes
 
 * The keyboard shortcuts above, using smooth scrolling.
-* On a post page, `c` navigates to the post's comments page.
+* On a post page, or a post open in the substack.com reader, `c`
+  navigates to the post's comments page.
 * No visible markup changes — the script only attaches a `keydown`
   listener.
 
@@ -149,9 +153,17 @@ and in-flow, can't be perturbed by the animation at all.
    recommended-post card's comment button instead — a wrong-page
    navigation rather than a no-op, so it's worth re-checking that one
    deliberately.
-5. `#substack-comments` remains the id of the post page's comments
+5. In the reader app, the post's own comment button remains the only
+   `aria-label="Comment"` carrying a `data-href`. If Substack gave the
+   surrounding cards one too, the script logs `expected exactly one`
+   and leaves `c` unbound there rather than guessing — checked across
+   seven page captures (publication post and comments pages, two reader
+   posts, a publication home page, a Notes thread), where the count was
+   1 on reader posts and 0 everywhere else, including a Notes feed with
+   35 comment buttons.
+6. `#substack-comments` remains the id of the post page's comments
    section.
-6. The top bar is findable as `[data-testid="navbar"]` (or
+7. The top bar is findable as `[data-testid="navbar"]` (or
    `.main-menu`), and its height is the amount of the viewport it
    covers when shown.
 
@@ -179,7 +191,7 @@ prose.
   isn't (a post whose comments all fit inline) does it scroll to the
   first inline comment instead.
 
-**`open`** has two ways off a post and onto its comments page:
+**`open`** has three ways off a post and onto its comments page:
 
 * `a.more-comments` — the "N more comments..." link under an ordinary
   post's inline preview.
@@ -196,6 +208,31 @@ prose.
   recommended-post card further down the page (five on the cross-post
   we measured, with comment counts 9, 9, 0, 5 and 4). There is exactly
   one `[aria-label="Post UFI"]`, and it belongs to the post itself.
+
+* `button[aria-label="Comment"][data-href*="/comments"]` — the comment
+  button in the **reader app**. Following a post from an author page on
+  substack.com itself lands on `substack.com/@<author>/p-<id>`, which
+  renders the post in a modal with an entirely different DOM: no
+  `.comment`, no `.comment-list-container`, no `#substack-comments`, no
+  `Post UFI`. Nothing else in the script can work there, and there is
+  nothing to scroll to — the reader loads no comments at all — so `c`
+  is the whole of the support, and clicking that button navigates to
+  the publication's ordinary `/p/<slug>/comments`, where everything
+  works normally.
+
+  The `data-href` is what makes it findable. A bare
+  `aria-label="Comment"` matches every recommended-post and note card
+  on the page behind the modal — 13 of them on the post we measured,
+  and the post's own button is the last, not the first. Only the post's
+  button carries a `data-href`, and it names that comments page.
+
+  That uniqueness is an assumption about Substack's markup, and if it
+  broke, `c` wouldn't fall back to doing nothing — it would navigate to
+  whichever *other* post happened to sort first in the DOM. So the
+  script requires exactly one match and stands down (with a warning)
+  when there's more than one. Checking the count rather than the URL
+  keeps it working on every route into the reader, not just the
+  `/@<author>/p-<id>` one we've measured.
 
 **`headerOffset`** is the awkward one, and took three tries.
 
