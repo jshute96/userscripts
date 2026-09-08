@@ -11,17 +11,20 @@ The defaults are set at the top of the script:
 const SET_COMMUTE = true;
 const GEAR_NAME = 'Trek Domane';
 const VISIBILITY = 'only_me';
+const TITLE = 'Commute';
 ```
 
 `GEAR_NAME` is the bike as it's named in the upload page's Bike drop-down.
 `VISIBILITY` is one of `everyone`, `followers_only`, or `only_me`.
+`TITLE` replaces the name Strava derives from the file ("Morning Ride" and
+friends); set it to `null` to leave the title alone.
 
 ## Visible changes
 
 * A **Set** button appears beside the Commute tag on each activity form on the
   upload page (one form per uploaded file).
-* Clicking it ticks Commute, selects the configured bike, and selects the
-  configured privacy setting.
+* Clicking it sets the title, ticks Commute, selects the configured bike, and
+  selects the configured privacy setting.
 * Settings already at their target value are left untouched; the console logs
   which ones were changed and which were skipped.
 
@@ -37,6 +40,9 @@ sees it, so the script doesn't have to exclude it.
 
 Everything the script touches is scoped to one of those forms:
 
+* **Title** — `input[type="text"][name="name"]`. A plain form input, unlike
+  the Description beside it, which is a React component
+  (`data-react-class="ActivityDescriptionEdit"`).
 * **Commute tag** —
   `input[type="checkbox"][name="activity[tags][]"][value="Commute"]`.
   All the tag pills share that `name`; only `value` distinguishes them. Each
@@ -56,6 +62,9 @@ change per render, so nothing keys off them.
 
 * One `form.good` per uploaded activity, each self-contained — so scoping every
   lookup to the form is enough to keep two uploads from interfering.
+* The title input keeps `name="name"` and stays a plain input rather than
+  becoming a controlled React field — if it ever does, assigning `.value` will
+  stop sticking and it will need React's native setter instead.
 * The tag checkboxes keep `name="activity[tags][]"` with `value="Commute"`.
 * The bike drop-down keeps the `.drop-down-menu.bike` / `.selection` /
   `ul.options li a` structure, and clicking `.selection` then an option is what
@@ -103,6 +112,10 @@ differs from the target, per the repo's rule for option-setting scripts:
 * Checkbox and radio are driven by the page's own handlers — jQuery for the
   tags, React for the privacy radios — so the script calls `.click()` rather
   than assigning `.checked`, which would fire no event for either.
+* The title is a plain input, so the script assigns `.value` directly and then
+  dispatches `input` and `change`. Strava reads the field off the form on save
+  rather than tracking it live, so the events aren't strictly needed today;
+  they're there so a future listener isn't missed.
 * The bike drop-down needs the menu open before an option click registers, so
   the script clicks `.selection` first, then the matching `<a>`, then verifies
   `.selection` now reads the target name and logs a failure if it doesn't.
@@ -110,8 +123,14 @@ differs from the target, per the repo's rule for option-setting scripts:
 ### Testing
 
 The script was exercised against a saved HTML snapshot of a real upload page
-(two activity forms) loaded over CDP: both buttons were inserted, the commute
-checkbox and privacy radio were set on click, and an already-correct bike was
-correctly skipped. The bike *change* path can't be verified that way — the
+(two activity forms) loaded over CDP: both buttons were inserted, and on click
+the title went from "Morning Ride" to "Commute" and the commute checkbox and
+privacy radio were set. A second click reported every one of them already at
+its target and changed nothing.
+
+Note that such a snapshot still contains the Set button from the session it was
+captured in, with no listeners attached — it has to be stripped before
+injecting, or the test ends up clicking a dead button and reporting that
+nothing happened. The bike *change* path can't be verified that way — the
 snapshot has no live jQuery bound to the drop-down — that path has to be
 checked on the live site.

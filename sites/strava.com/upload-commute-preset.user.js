@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Strava Upload: One-click defaults for my preferred commute settings
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.1.0
-// @description  Adds a Set button beside the Commute tag on the upload page that tags the activity as a commute, with my usual bike, and makes it private.
+// @version      0.1.1
+// @description  Adds a Set button beside the Commute tag on the upload page that titles the activity, tags it as a commute, sets my usual bike, and makes it private.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://www.strava.com/upload/*
@@ -23,6 +23,9 @@
   const SET_COMMUTE = true;
   const GEAR_NAME = 'Trek Domane';
   const VISIBILITY = 'only_me';
+  // Title to write into the Title field. Set to null to leave whatever Strava
+  // derived from the file ("Morning Ride" and friends) alone.
+  const TITLE = 'Commute';
 
   const BUTTON_MARK = 'data-jshute-commute-preset';
   // Blue, so it reads as ours rather than as one of Strava's orange actions.
@@ -44,6 +47,32 @@
   // choice, plus a ul.options of li[data-value] > a items.
   function bikeMenu(form) {
     return form.querySelector('.drop-down-menu.bike');
+  }
+
+  // The Title field. Plain form input named `name` — no React wrapper, unlike
+  // the Description beside it — so its value can be assigned directly.
+  function titleInput(form) {
+    return form.querySelector('input[type="text"][name="name"]');
+  }
+
+  function setTitle(form, done) {
+    if (!TITLE) return;
+    const input = titleInput(form);
+    if (!input) {
+      console.log(TAG, 'could not find the title field');
+      return;
+    }
+    if (input.value.trim() === TITLE) {
+      console.log(TAG, `title already "${TITLE}", skipping`);
+      return;
+    }
+    input.value = TITLE;
+    // Assigning .value fires nothing on its own. Strava reads this field
+    // straight off the form on save, but emit the events a listener would
+    // expect in case that changes.
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    done.push(`title=${TITLE}`);
   }
 
   function visibilityInput(form) {
@@ -97,6 +126,7 @@
 
   function applyPreset(form) {
     const done = [];
+    setTitle(form, done);
     if (SET_COMMUTE) setChecked(commuteInput(form), 'commute', done);
     setBike(form, done);
     setChecked(visibilityInput(form), `visibility=${VISIBILITY}`, done);
@@ -130,7 +160,12 @@
     button.type = 'button';
     button.className = primaryButtonClasses();
     button.textContent = 'Set';
-    button.title = `Tag as commute, set bike to ${GEAR_NAME}, and set privacy to ${VISIBILITY}`;
+    button.title = [
+      TITLE && `Set title to ${TITLE}`,
+      'tag as commute',
+      `set bike to ${GEAR_NAME}`,
+      `set privacy to ${VISIBILITY}`,
+    ].filter(Boolean).join(', ');
     button.setAttribute(BUTTON_MARK, '1');
     Object.assign(button.style, {
       marginLeft: '10px',
