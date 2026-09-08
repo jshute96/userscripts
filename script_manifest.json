@@ -65,6 +65,9 @@
       "path": "sites/greasyfork.org/prefill-forms-from-hash.user.js"
     },
     {
+      "path": "sites/maps.google.com/correct-names.user.js"
+    },
+    {
       "path": "sites/members.onepeloton.com/classes-default-filters.user.js",
       "greasyfork": {
         "id": 591539,
