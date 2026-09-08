@@ -152,6 +152,33 @@ Nothing on disk changes: the checked-in scripts keep their GitHub
 
 **An `@require` with a relative path can't be published at all**.
 
+### When a `lib/` file has changed
+
+A library edit reaches users only when a new *version* of the library is
+posted and every script that needs it is re-posted pointing at that new
+version URL. None of it is automatic.
+
+`match` flags this: it compares the posted code with `lib/` on disk and
+marks a library whose local file has changes that were never published
+(ignoring trailing-newline differences, which Greasy Fork introduces on
+every library).
+
+```
+  * 592124  posted v0.0.1…  lib/keyboard-comment-nav.js   [local file has
+      unpublished changes; post a new library version]
+```
+
+Publish the library first, then `link` to record its new version URL, and
+only then build the script's form — `--code-file` reads that URL from the
+manifest, so a form built earlier pins the old version and the script ships
+without the change.
+
+Watch for it when one commit touches both a library and a script, which is
+the usual shape, since the library changes *because* the new script needs it.
+
+Already-published scripts stay pinned to whatever version they were posted
+with. They keep working, so re-post them only when they need the change.
+
 ### The `@require` check
 
 `import`, `--code-upload` and `--code-file` all refuse to build a URL

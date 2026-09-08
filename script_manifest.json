@@ -21,7 +21,11 @@
       }
     },
     {
-      "path": "sites/connect.garmin.com/upload-to-strava.user.js"
+      "path": "sites/connect.garmin.com/upload-to-strava.user.js",
+      "greasyfork": {
+        "id": 594858,
+        "url": "https://greasyfork.org/scripts/594858-garmin-connect-strava-upload-new-activities-with-one-click"
+      }
     },
     {
       "path": "sites/example.com/bold-on-hover.user.js",
@@ -65,7 +69,11 @@
       "path": "sites/greasyfork.org/prefill-forms-from-hash.user.js"
     },
     {
-      "path": "sites/maps.google.com/correct-names.user.js"
+      "path": "sites/maps.google.com/correct-names.user.js",
+      "greasyfork": {
+        "id": 594854,
+        "url": "https://greasyfork.org/scripts/594854-google-maps-correct-names-lake-ontario-gulf-of-mexico"
+      }
     },
     {
       "path": "sites/members.onepeloton.com/classes-default-filters.user.js",
@@ -157,7 +165,11 @@
       }
     },
     {
-      "path": "sites/strava.com/rescale-recent-efforts.user.js"
+      "path": "sites/strava.com/rescale-recent-efforts.user.js",
+      "greasyfork": {
+        "id": 594855,
+        "url": "https://greasyfork.org/scripts/594855-strava-rescale-segment-my-efforts-graph-to-handle-outliers-better"
+      }
     },
     {
       "path": "sites/strava.com/segment-leaderboard-ranks.user.js"
@@ -180,11 +192,19 @@
       "path": "sites/strava.com/upload-commute-preset.user.js"
     },
     {
-      "path": "sites/substack.com/close-popups.user.js"
+      "path": "sites/substack.com/close-popups.user.js",
+      "greasyfork": {
+        "id": 594856,
+        "url": "https://greasyfork.org/scripts/594856-substack-auto-close-the-subscribe-referral-and-sign-in-popups"
+      }
     },
     {
       "path": "sites/substack.com/keyboard-comment-navigation.user.js",
-      "category": "keyboard-comments"
+      "category": "keyboard-comments",
+      "greasyfork": {
+        "id": 594859,
+        "url": "https://greasyfork.org/scripts/594859-substack-keyboard-comment-navigation"
+      }
     },
     {
       "path": "sites/techcrunch.com/close-newsletter-popup.user.js",
@@ -225,7 +245,11 @@
       }
     },
     {
-      "path": "sites/www.trailforks.com/map-popup-star-rating.user.js"
+      "path": "sites/www.trailforks.com/map-popup-star-rating.user.js",
+      "greasyfork": {
+        "id": 594857,
+        "url": "https://greasyfork.org/scripts/594857-trailforks-map-show-star-rating-in-trail-popups"
+      }
     }
   ],
   "libraries": [
@@ -235,7 +259,7 @@
       "greasyfork": {
         "id": 592124,
         "url": "https://greasyfork.org/scripts/592124-keyboard-comment-nav",
-        "latest_version_url": "https://update.greasyfork.org/scripts/592124/1907421/keyboard-comment-nav.js"
+        "latest_version_url": "https://update.greasyfork.org/scripts/592124/1925213/keyboard-comment-nav.js"
       }
     },
     {

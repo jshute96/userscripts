@@ -17,7 +17,8 @@ Subcommands:
   match     Print how they pair with the local `.user.js` files, and
             what's on only one side. Pairs by the id in
             `script_manifest.json`, falling back to the `@name` header.
-            Also checks each library's recorded URLs against Greasy Fork.
+            Also checks each library's recorded URLs against Greasy Fork,
+            and whether its posted code still matches the local `lib/` file.
   link      Match, then record each pair's id and URL in the manifest,
             and refresh each library's URLs — the only thing here that
             writes anything (`--dry-run` to preview).
@@ -39,6 +40,7 @@ import subprocess
 import sys
 import urllib.error
 import urllib.request
+import http.client
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -317,6 +319,54 @@ def fetch_json(url: str, missing_ok: bool = False):
     raise SystemExit(f"error: could not read {url}: {error}")
 
 
+def fetch_text(url: str):
+  """The text at `url`, or None if it can't be read.
+
+  Unlike `fetch_json` this never exits: it backs the library content check,
+  which is a nice-to-have on top of `match` rather than its job. A network
+  problem should leave that one line unknown, not kill the whole report.
+  """
+  request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+  try:
+    with urllib.request.urlopen(request, timeout=30) as response:
+      return response.read().decode("utf-8", "replace")
+  # The timeout covers reading the body too, and a stall there raises
+  # TimeoutError, which is an OSError but not a URLError. OSError covers
+  # both, and HTTPException covers a connection dropped mid-response.
+  except (OSError, ValueError, http.client.HTTPException):
+    return None
+
+
+def same_code(posted: str, local: str) -> bool:
+  """Whether posted and local code differ in anything that matters.
+
+  Greasy Fork serves the code back without the file's trailing newline, and
+  may normalize line endings, so a byte comparison reports every library as
+  differing. Those two are the only differences allowed through here — a
+  check that cries wolf on every run is one nobody reads.
+  """
+  def normalized(text):
+    return text.replace("\r\n", "\n").replace("\r", "\n").rstrip("\n")
+  return normalized(posted) == normalized(local)
+
+
+def library_code_differs(entry: dict, remote: dict):
+  """True/False for 'posted code differs from lib/ on disk', or None if unknown.
+
+  A library edited locally and never published is the trap this catches:
+  every URL the manifest records is still correct, so nothing else in
+  `match` notices, and the next script posted against it silently pins a
+  library version without the change.
+  """
+  local_path = REPO_ROOT / entry["path"]
+  if not local_path.is_file():
+    return None
+  posted = fetch_text(remote["code_url"])
+  if posted is None:
+    return None
+  return not same_code(posted, local_path.read_text(encoding="utf-8", errors="replace"))
+
+
 def published(api_base: str, user: str) -> list:
   """Every script on the user's Greasy Fork page, newest id last."""
   data = fetch_json(f"{api_base.rstrip('/')}/en/users/{user}.json")
@@ -434,13 +484,32 @@ def cmd_match(args) -> None:
       print(f"    {remote['id']}  {remote['name']}")
   stale = [(entry, remote) for entry, remote in libraries
            if remote and entry.get("greasyfork") != library_record(remote)]
+  library_is_behind = False
+  library_flagged = False
   if libraries:
     posted = [(entry, remote) for entry, remote in libraries if remote]
     print(f"\nlibraries published and matched ({len(posted)}):")
     for entry, remote in posted:
-      mark = "* " if (entry, remote) in stale else "  "
-      note = "   [manifest URLs out of date; run link]" if (entry, remote) in stale else ""
-      print(f"  {mark}{remote['id']}  posted v{remote['version']}  {entry['path']}{note}")
+      is_stale = (entry, remote) in stale
+      # The recorded URLs being current says nothing about whether the code
+      # behind them is: a library edited locally and never published looks
+      # perfectly matched. Compare the posted code with lib/ on disk.
+      differs = library_code_differs(entry, remote)
+      notes = ""
+      if is_stale:
+        notes += "   [manifest URLs out of date; run link]"
+      if differs:
+        notes += "   [local file has unpublished changes; post a new library version]"
+        library_is_behind = True
+      elif differs is None:
+        notes += "   [could not compare posted code]"
+      # `differs is None` means the comparison couldn't run. Mark that as
+      # well: an unknown here can be hiding a real "unpublished changes".
+      needs_attention = is_stale or differs or differs is None
+      if needs_attention:
+        library_flagged = True
+      mark = "* " if needs_attention else "  "
+      print(f"  {mark}{remote['id']}  posted v{remote['version']}  {entry['path']}{notes}")
     missing = [(entry, recorded) for entry, remote in libraries if not remote
                for recorded in [entry.get("greasyfork", {}).get("id")]]
     if missing:
@@ -450,11 +519,11 @@ def cmd_match(args) -> None:
         # deleted on Greasy Fork, or the hand-typed id is wrong.
         note = f"   [id {recorded} not found on Greasy Fork!]" if recorded is not None else ""
         print(f"    {entry['path']}{note}")
-  if out_of_sync or stale:
-    print("\n('*' marks anything published that's out of step with what Greasy "
-          "Fork reports: a local @version that differs from the posted one, a "
-          "note in brackets on the same line, or a library whose recorded URLs "
-          "are out of date.)")
+  if out_of_sync or stale or library_flagged:
+    print("\n('*' marks anything published that's out of sync.)")
+  if library_is_behind:
+    print("\nPublish the library first. A script posted before that pins "
+          "the old code.")
 
 
 def cmd_link(args) -> None:

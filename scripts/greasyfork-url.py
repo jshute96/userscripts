@@ -62,9 +62,12 @@ Local files:
 """
 import argparse
 import importlib.util
+import json
+import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import textwrap
 from pathlib import Path
 from urllib.parse import quote
@@ -492,16 +495,70 @@ def main() -> int:
     print(url)
     return 0
   print(url, file=sys.stderr)
+  open_in_browser(url, args.browser)
+  return 0
+
+
+# Chrome silently ignores a URL passed on the command line beyond roughly this
+# length -- no error, no tab, and a zero exit status. A standalone copy inlines
+# the whole script into the hash and lands well past it (25k+ for a script that
+# @requires a lib/ helper), while an import or a description update stays around
+# 1-2k. Measured empirically; keep well under where it starts failing.
+BROWSER_URL_ARG_LIMIT = 8000
+
+
+def open_in_browser(url, browser):
+  """Open `url`, routing over-long URLs through a local launcher page.
+
+  Chrome accepts any length once it is *running*, so for a long URL we write a
+  tiny file:// page that redirects itself, and pass that short path instead.
+  """
+  target = url
+  if len(url) > BROWSER_URL_ARG_LIMIT:
+    target = write_launcher(url)
+    print(
+      f"note: URL is {len(url)} chars, too long to pass to {browser} directly; "
+      f"opening via {target}",
+      file=sys.stderr,
+    )
   try:
     subprocess.Popen(
-      [args.browser, url],
+      [browser, target],
       stdout=subprocess.DEVNULL,
       stderr=subprocess.DEVNULL,
       start_new_session=True,
     )
   except FileNotFoundError:
-    raise SystemExit(f"error: browser command not found: {args.browser}")
-  return 0
+    raise SystemExit(f"error: browser command not found: {browser}")
+
+
+def write_launcher(url):
+  """Write a self-redirecting page for `url` and return a file:// URL for it.
+
+  Each of these holds a whole inlined script, so they are not small. The
+  browser reads the file asynchronously, so this one can't be deleted on the
+  way out — instead every run clears out the ones left by earlier runs.
+  """
+  for old_file in Path(tempfile.gettempdir()).glob("greasyfork-launch-*.html"):
+    try:
+      old_file.unlink()
+    except OSError:
+      pass
+  html = (
+    "<!doctype html><meta charset=utf-8><title>Opening Greasy Fork\u2026</title>\n"
+    "<body style=\"font:15px system-ui;padding:2rem\">\n"
+    "<p>Sending you to the Greasy Fork form\u2026</p>\n"
+    "<p><a id=a href=\"#\">Click here if it does not go automatically.</a></p>\n"
+    "<script>\nvar u = " + json.dumps(url) + ";\n"
+    "document.getElementById('a').href = u;\nlocation.replace(u);\n</script>\n"
+  )
+  handle, path = tempfile.mkstemp(prefix="greasyfork-launch-", suffix=".html")
+  with os.fdopen(handle, "w", encoding="utf-8") as f:
+    f.write(html)
+  # as_uri() rather than "file://" + path: a temp dir with a space or a
+  # non-ASCII character in it otherwise yields a malformed argument, which
+  # the browser drops as silently as the over-long URL this is working around.
+  return Path(path).as_uri()
 
 
 if __name__ == "__main__":
