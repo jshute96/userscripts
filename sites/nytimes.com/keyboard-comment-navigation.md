@@ -45,8 +45,9 @@ in the DOM but collapsed to zero width until opened.
   matching on `overflow-y`, not by class).
 * Inside the panel the comment list (`data-testid="comment-list"`)
   contains:
-  - A sticky header row with the "N comments on …" title, search
-    box, and three tabs ("Reader Picks", "From NYT", "All").
+  - A `<header>` with the "N comments on …" title, which scrolls
+    away, followed by a sticky bar holding the search box and the
+    tabs ("Reader Picks", "From NYT", "All").
   - A flat stream of top-level comments, each
     `<div data-testid="comment-container" role="article">` with an
     `id` of the form `comment-container-<numericId>`.
@@ -176,13 +177,43 @@ depth, and `r` correspondingly stops being a synonym for `p`.
 
 ### Sticky-header offset
 
-The panel has a `position: sticky` header — close button, search box,
-tab strip, about 73px — overlaying the top of its scroll viewport.
-Aligning to the panel top leaves the target's first line behind it.
+The panel has a `position: sticky` bar — search box and tab strip,
+about 73px — that pins to the top of its scroll viewport and overlays
+whatever scrolls under it. Aligning to the panel top leaves the
+target's first lines behind it.
 
 The element is another CSS-module hash, so instead of a selector we
-measure whatever is sticky and pinned at the top of the panel. That
-walks every node in the panel, and the library asks for the offset
+look for `position: sticky` among the panel's nodes. We measure where
+the bar *will* be once pinned — its resolved `top` plus its height,
+both relative to the scroll container — rather than where its rect
+happens to be. At `scrollTop` 0 the bar is still parked below the "N
+comments on…" header, so measuring its current rect reported no offset
+at all, and `j` from the top of the list scrolled the first comment to
+y=0, straight under the bar as it pinned. Later jumps measured a
+pinned bar and were fine, so only the first one was off.
+
+Guessing the pinned position means we can't lean on where the element
+currently is, the way the previous test did, so two filters stand in
+for that: sticky nodes at or after the first comment are ignored (only
+panel chrome above the list can end up over a comment), as is a `top`
+of `auto`, which means the element sticks to some other edge rather
+than meaning zero.
+
+The measurement also assumes the bar stays pinned for the whole list.
+Sticky elements only stick within their containing block, and here one
+wrapper holds the title header, the bar, and every comment, so it
+does. If NYT ever moves the bar into a wrapper that ends sooner, it
+will unpin partway down the list while we keep reserving 73px.
+
+The library gates its current-comment test on the same offset, where
+it deliberately wants what is covered *right now* so that a show/hide
+header reports reality. Always answering with the pinned height
+overstates that gate by 73px at `scrollTop` 0. That is safe rather
+than an oversight: only the title header is above the pinned position
+at that scroll, with the first comment about 314px down, so no comment
+is ever inside the region we wrongly call covered.
+
+That walks every node in the panel, and the library asks for the offset
 more than once per keypress, so the result is cached for 100ms — long
 enough to cover one keypress, short enough that a resize or a
 collapsing header is picked up immediately.

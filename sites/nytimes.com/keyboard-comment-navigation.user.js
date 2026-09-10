@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         NYTimes: Keyboard comment navigation
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.1.1
+// @version      1.1.2
 // @description  Adds keyboard shortcuts for moving through the comments panel on an article — next and previous comment, parent, next thread, and open or jump to the panel.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -57,17 +57,19 @@
     return null;
   }
 
-  // The panel has a position:sticky header (close button, search box,
-  // tab strip — about 73px) overlaying the top of the scroll viewport.
-  // Aligning to the panel top would leave the target's first line
-  // hidden behind it. The element is another CSS-module hash, so
-  // measure whatever is sticky at the top of the panel.
+  // The panel has a position:sticky bar (search box + tab strip,
+  // about 73px) pinned over the top of its scroll viewport, so a
+  // comment aligned to the panel top has its first lines hidden
+  // behind it. The bar is a CSS-module hash, so find it by computed
+  // position, and measure where it sits *once pinned* (its resolved
+  // `top` plus its height) rather than where its rect is now — at
+  // scrollTop 0 it's still parked below the title header, and reading
+  // its current rect there is what made the first `j` land short.
+  // Result cached for a beat, since the walk isn't cheap and the
+  // library asks more than once per keypress.
   //
-  // This walks every node in the panel, and the library asks for the
-  // offset more than once per keypress (current-comment test, then the
-  // scroll), which is slow on a long thread. Cache it for a beat —
-  // long enough to cover one keypress, short enough that resizing or
-  // a collapsing header is picked up immediately.
+  // See "Sticky-header offset" in the sibling .md for the filters
+  // below and what they assume about the panel's layout.
   const HEADER_CACHE_MS = 100;
   let cached = { at: -Infinity, value: 0 };
 
@@ -77,17 +79,20 @@
     const p = panel();
     let value = 0;
     if (p) {
-      const pr = p.getBoundingClientRect();
-      let bottom = pr.top;
+      const first = p.querySelector(BOTH_SEL);
       for (const el of p.querySelectorAll('*')) {
-        if (getComputedStyle(el).position !== 'sticky') continue;
+        const cs = getComputedStyle(el);
+        if (cs.position !== 'sticky') continue;
+        if (first && (el.contains(first)
+            || !(el.compareDocumentPosition(first)
+                 & Node.DOCUMENT_POSITION_FOLLOWING))) continue;
         const r = el.getBoundingClientRect();
-        if (r.top <= pr.top + 5 && r.bottom > pr.top && r.width > 10
-            && r.bottom > bottom) {
-          bottom = r.bottom;
-        }
+        if (r.width <= 10 || r.height <= 0) continue;
+        const stickyTop = parseFloat(cs.top);
+        if (!Number.isFinite(stickyTop)) continue;  // not top-sticky
+        const bottom = stickyTop + r.height;
+        if (bottom > value) value = bottom;
       }
-      value = bottom - pr.top;
     }
     cached = { at: now, value };
     return value;
