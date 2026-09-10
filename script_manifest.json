@@ -76,6 +76,10 @@
       }
     },
     {
+      "path": "sites/medium.com/keyboard-comment-navigation.user.js",
+      "category": "keyboard-comments"
+    },
+    {
       "path": "sites/members.onepeloton.com/classes-default-filters.user.js",
       "greasyfork": {
         "id": 591539,
