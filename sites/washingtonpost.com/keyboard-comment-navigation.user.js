@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Washington Post: Keyboard comment navigation
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.1.1
+// @version      1.2.0
 // @description  Adds keyboard shortcuts for moving through the comments drawer on an article — next and previous comment, parent, next thread, and open or jump to the drawer.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -26,150 +26,140 @@
 
   console.log(TAG, 'initializing');
 
-  // Comments live inside an open shadow DOM hosted by
-  // #coral-shadow-root. The host only exists while the drawer is open,
-  // so its presence doubles as the "drawer is open" gate.
-  const shadowRoot = () =>
-    document.getElementById('coral-shadow-root')?.shadowRoot || null;
+  // Exists only while the drawer is open, so it doubles as the gate.
+  function drawer() {
+    const d = document.getElementById('conversations-drawer');
+    if (!d || d.getAttribute('data-state') === 'closed') return null;
+    return d;
+  }
 
-  // Real comment containers are data-testid="comment-<uuid>". Other
-  // elements share the "comment-" prefix (sentiment buttons,
-  // comment-reply-button…), so filter to UUID-shaped ids.
-  const IS_COMMENT = /^comment-[0-9a-f]{8}-/;
-
-  // The reply list wrapping a comment's replies. Matched by *prefix*:
-  // the id carries a per-thread suffix, and it is reused across
-  // threads rather than being unique, so this can never be a
-  // getElementById lookup.
-  //
-  // Deliberately not falling back to [class*="ReplyList"]: Coral also
-  // uses ReplyListCommentContainer on individual replies, and matching
-  // that would resolve a reply's parent to its previous sibling.
-  const REPLY_LIST_SEL = '[id^="coral-comments-replyList"]';
-
+  // One <article> per comment, top-level and reply alike.
   function comments() {
-    const sr = shadowRoot();
-    if (!sr) return [];
-    return [...sr.querySelectorAll('[data-testid^="comment-"]')]
-      .filter(c => IS_COMMENT.test(c.getAttribute('data-testid')));
+    const d = drawer();
+    if (!d) return [];
+    return [...d.querySelectorAll('article[data-comment-id]')];
   }
 
-  // Coral renders a sticky tab bar (Featured / Top / All / Newest
-  // first) that pins to the top of the drawer once scrolled past,
-  // about 56px. Its class is `StickyNav-root-<hash>` — CSS-modules, so
-  // the hash rotates and only the prefix is safe to match.
-  function headerOffset() {
-    const sr = shadowRoot();
-    const sticky = sr?.querySelector('[class*="StickyNav-root"]');
-    if (!sticky) return 0;
-    const pos = getComputedStyle(sticky).position;
-    if (pos !== 'sticky' && pos !== 'fixed') return 0;
-    return sticky.offsetHeight;
-  }
+  // Replies sit inside a thread wrapper that is a *sibling* of the card
+  // being replied to, so a reply has no ancestor card to walk up to.
+  const THREAD_SEL = '[data-name="thread-wrapper"]';
 
-  // Walk composed ancestors (crossing shadow boundaries) until we hit
-  // something that actually scrolls.
-  function scrollContainer() {
-    let cur = comments()[0] || shadowRoot()?.firstElementChild;
-    while (cur) {
-      const parent = cur.parentNode;
-      const host = parent instanceof ShadowRoot ? parent.host : parent;
-      if (!host || host.nodeType !== 1) break;
-      const oy = getComputedStyle(host).overflowY;
-      if ((oy === 'auto' || oy === 'scroll')
-          && host.scrollHeight > host.clientHeight + 1) {
-        return host;
-      }
-      cur = host;
+  // The comment text, as one block. Falling back to the whole card is
+  // right for a comment with no text, but is also what a rename of the
+  // class would look like, so say once if no card has it.
+  let warnedNoBody = false;
+  function bodyOf(c) {
+    const p = c.querySelector('p.nodeToHtml');
+    if (p) return p.parentElement || c;
+    if (!warnedNoBody && !drawer()?.querySelector('p.nodeToHtml')) {
+      warnedNoBody = true;
+      console.log(TAG, 'no p.nodeToHtml anywhere in the drawer;'
+        + ' the comment-text selector has changed');
     }
-    return null;
+    return c;
+  }
+
+  // Still returns the drawer when it doesn't scroll — a window scroll
+  // would be worse — but a silent no-op deserves a log.
+  let warnedNoScroll = false;
+  function scrollContainer() {
+    const d = drawer();
+    if (!d) return null;
+    if (!warnedNoScroll
+        && d.scrollHeight <= d.clientHeight + 1
+        && comments().length > 3) {
+      warnedNoScroll = true;
+      console.log(TAG, 'drawer is no longer the scrolling element;'
+        + ' jumps will not move it');
+    }
+    return d;
+  }
+
+  // Height of the sticky filter bar, read fresh each keypress: it
+  // varies with what else has pinned. An implausible measurement means
+  // the walk found the wrong element, so reserve nothing.
+  const MAX_HEADER_PX = 200;
+  let warnedTallHeader = false;
+  function headerOffset() {
+    const d = drawer();
+    const group = d?.querySelector('[aria-label="Comment filters"]');
+    for (let cur = group; cur && cur !== d; cur = cur.parentElement) {
+      const pos = getComputedStyle(cur).position;
+      if (pos !== 'sticky' && pos !== 'fixed') continue;
+      const h = cur.offsetHeight;
+      if (h <= MAX_HEADER_PX) return h;
+      if (!warnedTallHeader) {
+        warnedTallHeader = true;
+        console.log(TAG, `sticky header measured ${h}px, which is too tall`
+          + ' to be the filter bar; reserving no offset');
+      }
+      return 0;
+    }
+    return 0;
   }
 
   CommentNav.create({
     tag: TAG,
 
     // Everything but `c` waits for the drawer.
-    enabled: () => !!shadowRoot(),
+    enabled: () => !!drawer(),
 
     comments,
 
-    // The comment text wrapper. Coral hashes the rest of the class on
-    // every build, so the prefix match is mandatory. Scrolling still
-    // targets the whole container (the library scrolls the comment and
-    // measures the body), which keeps the ~42px avatar/username row
-    // above the text from ending up behind the sticky tab bar.
-    body: c => c.querySelector('[class*="HTMLContent-root"]') || c,
+    body: bodyOf,
 
-    id: c => c.getAttribute('data-testid'),
+    id: c => c.getAttribute('data-comment-id'),
 
-    // Coral nests replies, but *not* inside the parent's card — the
-    // parent card and the reply list are siblings under a shared
-    // wrapper:
-    //
-    //   div#<parentUuid>.AllCommentsTabCommentContainer
-    //   |- div#comment-<parentUuid>.CommentContainer      <- parent card
-    //   `- div#coral-comments-replyList
-    //        `- div#comment-<replyUuid>.CommentContainer  <- reply card
-    //
-    // So walking up from a reply looking for an ancestor card finds
-    // nothing, however far it goes. What identifies the parent is the
-    // reply list: the last card *before* the list, in document order,
-    // is the comment being replied to. That holds at any depth.
-    //
-    // Derived in one left-to-right pass rather than by scanning
-    // backwards per comment, which would be O(n) inside the library's
-    // O(n) sibling scan. `stack` holds the reply lists currently open,
-    // innermost last, each paired with the card that owns it.
+    // The parent is the last card before the enclosing thread wrapper.
+    // Derived in one left-to-right pass, keeping a stack of the
+    // wrappers currently open (innermost last) paired with their owner;
+    // a backward scan per comment would be O(n) inside the library's
+    // O(n) sibling scan.
     parentOf: CommentNav.parentMapper(all => {
       const map = new Map();
       const stack = [];
       all.forEach((c, i) => {
-        // Leave any lists this card sits outside of.
-        while (stack.length && !stack[stack.length - 1].list.contains(c)) {
+        // Leave any wrappers this card sits outside of.
+        while (stack.length && !stack[stack.length - 1].wrap.contains(c)) {
           stack.pop();
         }
-        const list = c.parentElement
-          && c.parentElement.closest(REPLY_LIST_SEL);
-        if (!list) {                   // top-level comment
+        const wrap = c.parentElement && c.parentElement.closest(THREAD_SEL);
+        if (!wrap) {                   // top-level comment
           map.set(c, null);
           return;
         }
-        // First card seen inside this list, so the card just before it
-        // is outside the list and is the one being replied to.
-        if (!stack.length || stack[stack.length - 1].list !== list) {
-          stack.push({ list, parent: all[i - 1] || null });
+        // First card seen inside this wrapper, so the card just before
+        // it is outside the wrapper and is the one being replied to.
+        if (!stack.length || stack[stack.length - 1].wrap !== wrap) {
+          stack.push({ wrap, parent: all[i - 1] || null });
         }
         map.set(c, stack[stack.length - 1].parent);
       });
       return map;
     }),
 
-    // The Coral drawer is a fixed-position overflow container with
-    // scrollbar-gutter: stable, and both scrollIntoView and scrollTo
-    // silently no-op on it in Chrome. Direct scrollTop assignment is
-    // the only thing that moves it — that's what the 'raf' strategy
-    // does.
+    // scrollIntoView and scrollTo both no-op on the drawer in Chrome;
+    // 'raf' writes scrollTop directly, which is all that moves it.
     container: scrollContainer,
     strategy: 'raf',
+
     headerOffset,
 
+    // The "N comments" header, which scrolls with the content.
     commentsTop: () => {
-      const sr = shadowRoot();
-      if (!sr) return null;
-      // The "N comments" prompt banner, falling back to the comments
-      // tab pane if Coral renames it.
-      return sr.querySelector('.comment-prompt')
-        || sr.querySelector('#tabPane-COMMENTS');
+      const d = drawer();
+      if (!d) return null;
+      return d.querySelector('header')
+        || d.querySelector('section[aria-label="Comment list"]');
     },
 
     open: {
       canOpen: () => !!document.querySelector('[data-qa="comments-btn"]'),
       click: () => {
         const btn = document.querySelector('[data-qa="comments-btn"]');
-        // Clicking focuses the button, and the browser's
-        // scroll-the-focused-element-into-view yanks the article up or
-        // down. Pin the page scroll for a few frames to absorb that
-        // and any layout shift from mounting the drawer's portal.
+        // Clicking focuses the button, and the browser scrolls it into
+        // view, yanking the article. Pin the page scroll for a few
+        // frames to absorb that and the drawer's layout shift.
         const scroller = document.scrollingElement || document.documentElement;
         const savedTop = scroller.scrollTop;
         const restore = () => {
