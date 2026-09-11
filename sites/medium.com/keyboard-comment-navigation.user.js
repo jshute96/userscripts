@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Medium: Keyboard comment navigation
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.8
+// @version      1.0.9
 // @description  Adds keyboard shortcuts for moving through the responses on a story — next and previous response, parent, next thread, and open or jump to the responses drawer.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT

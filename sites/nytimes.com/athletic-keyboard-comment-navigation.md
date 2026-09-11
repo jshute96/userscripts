@@ -29,7 +29,9 @@ Keys work anywhere on the article page.
 * The keyboard shortcuts above, using smooth scrolling.
 * `c` on a page whose comments haven't been lazy-loaded yet clicks the
   "Open Comments" pill in the article toolbar, so the site loads and
-  scrolls there itself.
+  scrolls there itself — then, once the comments banner appears, `c`
+  scrolls to it properly. One press, whatever state the article
+  loaded in.
 * No other visible markup changes — the script only attaches a
   `keydown` listener.
 
@@ -76,6 +78,26 @@ Threads are flat — exactly one level of replies:
   class="Pill_Pill__…">` whose own click handler scrolls the page
   to the comments and triggers the lazy load. When neither anchor
   is present, `c` clicks that button instead of scrolling.
+- **Where the pill leaves you is unreliable, and not ours to
+  control.** Its scroll runs while the page is still growing — a
+  sponsored puzzle tile and a "What did you think of this story?"
+  module both render above the banner — so it overshoots or
+  undershoots by hundreds of pixels. Measured on one article the
+  document grew 9417px → 15350px during the press and the banner
+  finished 651px *above* the viewport; on another it ended up ~800px
+  *below*. Because the library never scrolled on that press, no
+  scroll strategy could fix it.
+
+  So the script sets `open.anchorAfterOpen`, which has the library
+  poll for `commentsTop()` after clicking (up to 5s) and then scroll
+  to it. It also sets `strategy: 'settle'`, without which the
+  re-anchor inherits the same growth problem — settle reports
+  corrections of 271px and 797px on that first jump. A single `c`
+  then lands the banner at the header offset (measured 119.5 and
+  119.7 against a 120px `scroll-padding-top`).
+
+  A pending re-anchor is cancelled if the reader moves the viewport
+  or presses a nav key while it waits.
 
 Comments don't carry stable per-item ids in the DOM, so log lines
 identify them by index in the flat list (`#3 (reply)`) rather than

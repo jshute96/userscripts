@@ -154,6 +154,58 @@ A comment must have `MIN_VISIBLE_PX` (30) of its body visible *below*
 been scrolled past still has a sliver bleeding behind the sticky
 header, so a naive `bottom > 0` test re-picks it and `j` stalls.
 
+#### Above the list, there is no current comment
+
+Before any of that, `findCurrent` asks whether a jump to the first
+comment would still carry us *downward*: if `jumpDistance(all[0])`
+exceeds `ANCHOR_SLOP_PX` (4), it returns `null`.
+
+This is the rule to get right on a new site, because the case is the
+one every reader hits first. A comments pane or section that opens at
+its top shows the first comment straight away, some way down the
+viewport — under a heading, a tab strip, a "share your thoughts"
+composer. Intersection alone calls that first comment "current", so
+`j` steps *past* it to the second and the first one is skipped unless
+the reader thinks to press `k`. Reporting no current comment instead
+makes the downward keys (`j`, `h`, `n`, `m`) land on the first
+comment, which is what "next" plainly means from above the list. The
+upward keys report nowhere to go, which is also right.
+
+**Ask it as a scroll distance, not as a position.** `jumpDistance`
+mirrors `scrollToEl`'s arithmetic and clamps the destination to the
+scrollable range, so it answers for the scroll that would really
+happen. Two things go wrong when the question is asked geometrically
+("is the first comment below the header line?"), and both were shipped
+and reported before the distance form replaced them:
+
+* **A jump parks the comment, not its body.** Every scroll strategy
+  takes `el`; `findCurrent`'s visibility gate takes `bodyOf(el)`, and a
+  body starts 20-30px below its comment's top — avatar, name,
+  timestamp sit above it. Measuring the body therefore read a comment
+  we had just landed on as still unreached, and the next key re-jumped
+  to it instead of advancing. `j` after `j` hid this behind
+  `lastJumpTarget`; `c` clears that deliberately, so the visible
+  symptom was that the first `j` after `c` did nothing at all.
+* **The scroll may not be able to reach the anchor.** The Verge's
+  drawer scrolls 144px in total, and on a short thread its first
+  comment sits ~500px down and simply cannot come up. A geometric test
+  stays true there forever, so every `j` after a `c` costs a wasted
+  press, permanently. Clamping catches it: a jump that cannot move
+  reads as no jump, and the comment counts as reached.
+
+The `ANCHOR_SLOP_PX` tolerance is what keeps the rule from firing on a
+comment we *have* arrived at: a smooth scroll settles a pixel or so off
+its target and `headerOffset()` is a fractional measurement, so an
+exact comparison would read a landed comment as not yet reached. It is
+the same idea and the same value as the settle scroller's
+`DRIFT_TOLERANCE_PX`.
+
+The rule is deliberately scoped to the first comment rather than
+generalized to "any comment we haven't reached". Mid-list, the comment
+you have scrolled into is genuinely current even when a jump to it
+would still move the page a little, and treating it as "not arrived"
+would make `k` ambiguous.
+
 `lastJumpTarget` holds the comment we most recently scrolled to and is
 treated as "current" on the next keypress. With smooth scrolling the
 viewport hasn't caught up when the next key arrives, so a pure
@@ -244,14 +296,49 @@ provides `open`, it clicks the button that renders the comments
 instead. If neither is available its `when` predicate returns false, so
 the keystroke passes through to the site rather than being swallowed.
 
+#### `open.anchorAfterOpen`
+
+Opening normally ends the press: most `open` controls reveal a panel
+that is already at its top, so `c` opens and the *next* `c` anchors.
+Set `open.anchorAfterOpen` when the site's own control **scrolls the
+page itself**, because then where the press ends is decided by the
+site, not by us, and no scroll strategy can help — the library never
+scrolled.
+
+The Athletic's "Open Comments" pill is the case this exists for. On a
+fresh article neither anchor is rendered yet, so `c` clicks the pill;
+the pill scrolls, and lazily-loaded content lands above the comments
+banner while it does. Measured on one article, the document grew from
+9417px to 15350px and the banner finished 651px *above* the viewport;
+on another the reader saw it ~800px *below*. Either way `c` looked like
+it missed.
+
+With the flag, once `commentsTop()` appears (polled for up to 5s) we
+scroll to it ourselves, and a single `c` lands the banner at the header
+offset. Pair it with `strategy: 'settle'` where the page is still
+growing, or the re-anchor inherits the very undershoot it's correcting
+— on The Athletic settle then reports corrections of 271px and 797px on
+that first jump.
+
+The pending re-anchor is cancelled by anything that invalidates
+`lastJumpTarget` (wheel, touchmove, an unbound key) and by any nav key,
+since a scroll arriving seconds later on a reader who has since moved
+is worse than not finishing the job.
+
 It deliberately does **not** set `lastJumpTarget`: `c` means "go to the
 top of the section", and the next `j` should advance from whatever
 comment the viewport actually lands on.
 
-That relies on the site landing `c` somewhere the viewport test agrees
-with. It's worth checking on a site with a sticky header: if `c` leaves
-the first comment's body above `headerOffset() + MIN_VISIBLE_PX`, the
-next `j` starts from the *second* comment and looks like it skipped
-one. The fix belongs in the site's landing position, not here — see
+Where `c` lands therefore decides what the next `j` does, and both
+landings are fine. If `c` stops above the first comment (Pinkbike,
+Reddit, The Athletic, WaPo anchor on the section or drawer header),
+"above the list, there is no current comment" above means the next `j`
+goes *to* the first comment. If `c` lands *on* the first comment
+(Hacker News, Substack, Medium, The Verge, The Atlantic all anchor
+there), the next `j` advances to the second. What still needs checking
+on a site with a sticky header is the opposite error: if `c` leaves the first comment's body above
+`headerOffset() + MIN_VISIBLE_PX`, it's scrolled past rather than
+short of, and the next `j` starts from the *second* comment. The fix
+belongs in the site's landing position, not here — see
 `sites/substack.com/keyboard-comment-navigation.md`, where the header's
 own animation was making the landing and the gate disagree.

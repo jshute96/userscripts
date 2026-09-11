@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Substack: Keyboard comment navigation
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.7
+// @version      1.0.8
 // @description  Adds keyboard shortcuts for moving through the comments on a post — next and previous comment, parent, next thread, and jump to the comments section.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT

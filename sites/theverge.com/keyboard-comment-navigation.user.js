@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The Verge: Keyboard comment navigation
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.6
+// @version      1.0.7
 // @description  Adds keyboard shortcuts for moving through an article's comments drawer — next and previous comment, parent, next thread. Also closes the pill that obscures comments.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT

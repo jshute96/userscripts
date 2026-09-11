@@ -67,6 +67,10 @@ Copying any of this into a site config is a bug, not thoroughness:
   wheel / touchmove / any unbound key.
 * Requiring 30px of a comment's body to be visible below the header
   before it counts as "current".
+* Reporting **no** current comment while the viewport sits above the
+  whole list, so `j` lands *on* the first comment instead of stepping
+  past it. See below — this is the case a new site is most likely to
+  get wrong, but the fix is in the library, not the config.
 * The `?` overlay, and swallowing Esc so the site doesn't also act on
   it.
 
@@ -261,7 +265,39 @@ corrections in flight and get plausible-looking wrong numbers.
     once `c` lands the comment's top at the header's bottom, the gate
     (30px below the header) sits well inside the comment's own body.
     This one is invisible until you hit a page whose first comment is
-    short.
+    short. (Landing *short* of the first comment is a different matter
+    and is fine — see "Opening above the first comment" below.)
+
+**Opening above the first comment.** Whatever renders the comments —
+a drawer, a tab pane, an in-page section reached with `c` — usually
+opens at *its* top, with the first comment visible but some way down
+the viewport, under a heading, a tab strip, or a composer. Press `j`
+there. It must land on the **first** comment.
+
+The library handles this: `findCurrent` reports no current comment
+while a jump to the first comment would still carry the page downward,
+and the downward keys treat "no current" as "go to the first one". So
+there is nothing to add to the config.
+
+Do check both halves on the real site, though, and check them with the
+logs rather than by eye — press the key, then compare the
+`-> <target>` id against `comments()[0]`. Each failure is one comment
+wide and easy to miss on a page where the first two look alike:
+
+1. **Comments opened at their top, no `c`** — `j` must land on the
+   first comment.
+2. **`c` then `j`** — if the site's `commentsTop()` is the first
+   comment, `j` must *advance* to the second. A `j` that re-targets
+   the comment you're already on is the symptom of the rule
+   misfiring, and it shows up here rather than in (1) because `c`
+   clears `lastJumpTarget` on purpose.
+
+`headerOffset()` reading too small is the site-side way to break (1):
+the anchor sits above where a jump really parks a comment, the first
+one looks already-reached, and `j` skips to the second. Measuring a
+sticky element's *current* rect is the usual cause — at scroll top it
+may not be pinned yet and measures as no offset at all, so measure
+where it will be once pinned.
 
 **Sticky headers.** If anything overlays the top of the scroll area,
 supply `headerOffset()`. Prefer a value the site declares over
@@ -292,6 +328,15 @@ short. Use `strategy: 'settle'`.
 `open: { canOpen(), click() }`. Make `commentsTop()` return null while
 they're closed — otherwise `c` scrolls to a hidden panel instead of
 opening it. Everything but `c` should be gated by `enabled()`.
+
+Check what the site's own control does to the viewport. If it just
+reveals a panel, opening is the whole press and the next `c` anchors.
+If it *scrolls the page itself* — The Athletic's "Open Comments" pill
+does — the press ends wherever the site decided, which on a page still
+loading content above the comments is nowhere useful, and no scroll
+strategy helps because the library never scrolled. Add
+`anchorAfterOpen: true` to re-anchor once the anchor appears, and
+`strategy: 'settle'` alongside it if the page is still growing.
 
 **SPA sites.** Broaden `@match` to the site root and gate with
 `enabled()` reading `location.pathname`. The gate is evaluated per

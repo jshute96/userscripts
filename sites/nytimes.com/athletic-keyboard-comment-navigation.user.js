@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The Athletic: Keyboard comment navigation
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.1.1
+// @version      1.1.3
 // @description  Adds keyboard shortcuts for moving through the comments on an article — next and previous comment, parent, next thread, and jump to the comments section.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -47,6 +47,13 @@
   CommentNav.create({
     tag: TAG,
 
+    // The comments render lazily and the page keeps growing while the
+    // scroll runs — a sponsored puzzle tile and a "What did you think
+    // of this story?" module both land above the banner — so a
+    // single-shot scroll lands short. `settle` re-measures and
+    // re-issues until the banner rests at the offset.
+    strategy: 'settle',
+
     comments: () => [...document.querySelectorAll(SEL.comment)],
 
     body: el => el.querySelector(SEL.bodyContainer) || el,
@@ -90,6 +97,11 @@
     open: {
       canOpen: () => !!document.querySelector(SEL.openButton),
       click: () => document.querySelector(SEL.openButton).click(),
+      // The pill scrolls the page itself, and lands wherever the
+      // still-loading content leaves it, so `c` on a fresh article
+      // finished nowhere near the comments. Re-anchor once the banner
+      // exists rather than making the reader press `c` a second time.
+      anchorAfterOpen: true,
     },
   });
 })();

@@ -347,9 +347,17 @@ n, m (down) top= 0  barBottom= 0  gap=0
 `c` was also checked to land identically on repeat presses from both
 entry states — from the page top (`y=544`, first comment at 0, bar
 away) and from far below (`y=472`, first comment at 72, bar shown,
-which is correct because getting there means scrolling up). The `j`
-straight after `c` was confirmed to reach the *second* comment, in both
-the downward and upward `c` cases.
+which is correct because getting there means scrolling up).
+
+The `j` straight after `c` was confirmed to reach the *second* comment,
+in both the downward and upward `c` cases. That was the expectation at
+the time; it since changed. The library now reports no current comment
+while the viewport sits above the first one, so `j` after `c` lands on
+the **first** comment whenever `c` stops short of it — see "Above the
+list, there is no current comment" in `lib/keyboard-comment-nav.md`.
+Reaching the second is still right when `c` lands the first comment
+squarely at the header's bottom, which is what the landing fix below
+was for.
 
 That last one had a bug of its own for a while, worth recording because
 the fix ended up being somewhere else entirely. `j` after `c` was

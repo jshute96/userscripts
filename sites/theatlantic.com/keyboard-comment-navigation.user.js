@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         The Atlantic: Keyboard comment navigation
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.3
+// @version      1.0.4
 // @description  Adds keyboard shortcuts for moving through the discussion drawer on an article — next and previous comment, parent, next thread, and open or jump to the drawer.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
