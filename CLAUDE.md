@@ -152,12 +152,15 @@ script's GitHub `@require`s to Greasy Fork ones as it posts them — see
 the `@require` notes below.
 
 `scripts/greasyfork-scripts.py match` reports whether each recorded
-`latest_version_url` is still the newest, and `link` refreshes it. It
-can't *discover* a library's id, though — Greasy Fork keeps libraries
-off the user page's script list, so a library's id is looked up by hand
-once (its page's JSON twin is
-`https://api.greasyfork.org/en/scripts/<id>-<slug>.json`) and written
-into the manifest; everything else is synced from there.
+`latest_version_url` is still the newest, and `link` refreshes it. A
+library's id takes one extra step to find: Greasy Fork leaves libraries
+out of the user page's JSON, so it's read from the "Libraries" section
+of the HTML user page instead, where each entry carries it in a
+`data-script-id` attribute. `match` and `link` do that for any library
+with no id recorded yet, pairing by name — our libraries are published
+under their filename without `.js`. Everything else is synced from the
+id, via the library's own JSON page
+(`https://api.greasyfork.org/en/scripts/<id>.json`).
 
 **`README.md`, under "My userscripts"** — generated. Run
 `scripts/update_readme.py` after adding or removing a script or
@@ -462,12 +465,16 @@ if it's missing; it makes the next break diagnose itself.
     on `import` and `--code-upload`, which hand Greasy Fork the file
     as-is, and on `--code-file` after its rewrite. A script it stops
     on is one that would have been published broken.
-  - Publishing a library itself is manual too: the new/update forms are
-    the same URLs as for scripts, but you pick `library` and the fields
-    differ. There's no import-from-GitHub for libraries at all.
+  - A library is published on the same forms as a script, choosing the
+    `library` script type, which adds Name and Description fields — a
+    `lib/` file has no metadata block to fill them from.
+    `greasyfork-url.py --library lib/<name>.js` derives both from the
+    file (basename, and its first `//` line) along with Additional info
+    from the sibling `.md`. There's no import-from-GitHub for libraries
+    at all, so every version is posted this way.
   - Existing libraries: `lib/keyboard-shortcuts.js` (key registration
     + a cross-script `?` help overlay) and `lib/keyboard-comment-nav.js`
-    (the comment-navigation behavior for all six sites).
+    (the comment-navigation behavior shared by every site that has it).
 
 * `@require` for shared helpers within a single site: drop a plain
   `.js` file (no UserScript header) next to the scripts that need it

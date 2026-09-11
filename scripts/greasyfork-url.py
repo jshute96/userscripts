@@ -25,6 +25,11 @@ Examples:
       --extract-from-doc sites/strava.com/fix-climb-slider.md \\
       --changelog-text 'Update description.'
 
+  # Post a new version of a lib/ library. The name, the description and
+  # Additional info all come from the file and its sibling .md.
+  greasyfork-url.py update 592124 --library lib/keyboard-comment-nav.js \\
+      --changelog-text 'Land `j` on the first comment.'
+
   # Import from a web URL, so the script keeps syncing from that URL.
   # Local paths are converted to a GitHub URL; a full URL works too.
   greasyfork-url.py import sites/strava.com/fix-climb-slider.user.js \\
@@ -69,6 +74,7 @@ import subprocess
 import sys
 import tempfile
 import textwrap
+import time
 from pathlib import Path
 from urllib.parse import quote
 
@@ -138,6 +144,35 @@ def code_for_greasyfork(path_str: str, rewrite: bool) -> str:
   return source
 
 
+def library_fields(path_str: str) -> tuple[str, str, str | None]:
+  """A library's Greasy Fork name, description, and doc path.
+
+  A `lib/` helper has no metadata block, so the form's Name and
+  Description fields have nothing to read them from. The conventions the
+  published libraries already follow are what's used here: the name is
+  the file's basename without `.js` (which is also the slug in its
+  Greasy Fork URL), and the description is the file's first `//` comment
+  line, which every one of them opens with a one-line summary. The
+  sibling `.md` supplies Additional info, if it exists.
+  """
+  path = Path(path_str)
+  name = path.stem
+  description = ""
+  for line in read_text(path_str).splitlines():
+    stripped = line.strip()
+    if not stripped:
+      continue
+    if stripped.startswith("//"):
+      description = stripped.lstrip("/").strip()
+    break
+  if not description:
+    raise SystemExit(
+      f"error: {path_str} doesn't open with a `// one-line summary` comment, "
+      "so there's no description to post; pass --description")
+  doc = path.with_suffix(".md")
+  return name, description, str(doc) if doc.is_file() else None
+
+
 def check_requires_of(path_str: str, what: str, repo_relative: bool = False) -> None:
   """Check a file we're handing to Greasy Fork whole, without rewriting.
 
@@ -204,9 +239,50 @@ def build_hash(params: list[tuple[str, str]]) -> str:
   return "&".join(f"{key}={quote(value, safe='')}" for key, value in params)
 
 
+def apply_library_defaults(args) -> None:
+  """Turn `--library lib/foo.js` into the fields the library form wants.
+
+  The form has a Name and a Description of its own, in place of the
+  @name/@description a library file hasn't got, and the script type has
+  to be set to Library or the code is posted as an installable
+  userscript. All three are derivable from the file, so this fills them
+  in and leaves the rest of `script_params` to treat it as an ordinary
+  --code-file. Anything given explicitly wins, so a one-off name or
+  description doesn't mean giving up the flag.
+  """
+  if not args.library:
+    return
+  name, description, doc = library_fields(args.library)
+  args.code_file = args.library
+  derived = []
+  if not args.script_type:
+    args.script_type = "library"
+    derived.append("script type 'library'")
+  if not args.name:
+    args.name = name
+    derived.append(f"name {name!r}")
+  if not args.description:
+    args.description = description
+    derived.append(f"description {description!r}")
+  # The sibling .md is the library's Additional info, the same way a
+  # script's doc is. Only defaulted: any explicit info flag means the
+  # caller has said what to post, and --extract-from-doc rejects being
+  # combined with those anyway.
+  if doc and not (args.extract_from_doc or args.info_file or args.info_text
+                  or args.image_files):
+    args.extract_from_doc = doc
+    derived.append(f"Additional info from {doc}")
+  if derived:
+    print(f"library {args.library}: using " + ", ".join(derived), file=sys.stderr)
+
+
 def script_params(args) -> list[tuple[str, str]]:
   params: list[tuple[str, str]] = []
 
+  if args.library and (args.code_file or args.code_url or args.code_upload):
+    raise SystemExit("error: --library is the code to post; don't also pass "
+                     "--code-file, --code-url or --code-upload")
+  apply_library_defaults(args)
   code_sources = [bool(args.code_file), bool(args.code_url), bool(args.code_upload)]
   if sum(code_sources) > 1:
     raise SystemExit("error: pass only one of --code-file, --code-url, --code-upload")
@@ -405,6 +481,9 @@ def main() -> int:
   def add_script_options(sub):
     sub.add_argument("--extract-from-doc", metavar="FILE",
                      help="extract description and image-files from the script's .md doc")
+    sub.add_argument("--library", metavar="FILE",
+                     help="post FILE, a lib/ helper, as a library: its code, plus "
+                          "the name, description and Additional info derived from it")
     sub.add_argument("--code-file", metavar="FILE", help="read the code from FILE and inline it")
     sub.add_argument("--rewrite-requires", action=argparse.BooleanOptionalAction, default=True,
                      help="point --code-file's lib/ @requires at Greasy Fork (default: on)")
@@ -506,6 +585,11 @@ def main() -> int:
 # 1-2k. Measured empirically; keep well under where it starts failing.
 BROWSER_URL_ARG_LIMIT = 8000
 
+# How long a launcher page is left on disk before a later run may clear it
+# out. Only has to outlast the browser's read of it, which is immediate;
+# the margin is for a browser that has to start up first.
+LAUNCHER_KEEP_SECONDS = 600
+
 
 def open_in_browser(url, browser):
   """Open `url`, routing over-long URLs through a local launcher page.
@@ -537,11 +621,17 @@ def write_launcher(url):
 
   Each of these holds a whole inlined script, so they are not small. The
   browser reads the file asynchronously, so this one can't be deleted on the
-  way out — instead every run clears out the ones left by earlier runs.
+  way out — instead every run clears out the ones left by earlier runs, but
+  only those old enough that no browser can still be opening them. Deleting
+  every launcher outright breaks the case this is most used for: several
+  forms opened back to back, where the next run would pull the file out from
+  under the tab the last one just launched.
   """
+  stale_before = time.time() - LAUNCHER_KEEP_SECONDS
   for old_file in Path(tempfile.gettempdir()).glob("greasyfork-launch-*.html"):
     try:
-      old_file.unlink()
+      if old_file.stat().st_mtime < stale_before:
+        old_file.unlink()
     except OSError:
       pass
   html = (

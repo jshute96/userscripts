@@ -6,11 +6,12 @@ publish to. What's published there is read from our user page's JSON twin
 (https://api.greasyfork.org/en/users/<id>-<slug>.json), which needs no
 login and gives each script's id, name, version and URL.
 
-The user page lists only userscripts. The shared `@require` libraries
-in `lib/` are published as scripts too, but Greasy Fork keeps them off
-that list, so each one is looked up by id at
-https://api.greasyfork.org/en/scripts/<id>.json instead — which means a
-library's id has to be written into the manifest by hand.
+That JSON lists only userscripts. The shared `@require` libraries in
+`lib/` are published as scripts too, but Greasy Fork leaves them out of
+it, listing them in a "Libraries" section of the *HTML* user page
+instead — which is where their ids are read from, each one sitting in a
+data- attribute. Everything else about a library comes from its own
+JSON page, https://api.greasyfork.org/en/scripts/<id>.json.
 
 Subcommands:
   list      Print the published scripts (`--json` for the raw entries).
@@ -19,6 +20,7 @@ Subcommands:
             `script_manifest.json`, falling back to the `@name` header.
             Also checks each library's recorded URLs against Greasy Fork,
             and whether its posted code still matches the local `lib/` file.
+            A library with no id recorded yet is looked up by name.
   link      Match, then record each pair's id and URL in the manifest,
             and refresh each library's URLs — the only thing here that
             writes anything (`--dry-run` to preview).
@@ -50,6 +52,9 @@ DEFAULT_USER = "1604620-jeff-shute"
 # The site 308-redirects .json requests to its API host, and Python 3.10's
 # urllib doesn't follow 308 — so ask the API host in the first place.
 DEFAULT_API_BASE = "https://api.greasyfork.org"
+# The site itself, for the one thing the API doesn't serve: the Libraries
+# section of the user page.
+DEFAULT_SITE_BASE = "https://greasyfork.org"
 # Greasy Fork 403s an unadorned urllib request.
 USER_AGENT = "Mozilla/5.0 (userscripts repo tooling)"
 
@@ -377,8 +382,9 @@ def published_one(api_base: str, script_id) -> dict:
   """One published script, by id, from its own JSON page — or None.
 
   This is how libraries are looked up: they're published as scripts, but
-  Greasy Fork leaves them off the user page's `scripts` list, so nothing
-  can discover them and their ids are recorded by hand. `code_url` in
+  Greasy Fork leaves them off the user page's `scripts` list, so there's
+  nothing to read but their own page — see `discovered_library_ids` for
+  where an id that isn't in the manifest yet comes from. `code_url` in
   what comes back is the URL of the newest *version*, which is what a
   script's `@require` line has to name — Greasy Fork mints a new one per
   version, and a `@require` pointing at an old one stays on that old
@@ -387,17 +393,73 @@ def published_one(api_base: str, script_id) -> dict:
   return fetch_json(f"{api_base.rstrip('/')}/en/scripts/{script_id}.json", missing_ok=True)
 
 
+# The user page's Libraries section. Every field is on the <li> as a
+# data- attribute, so the ids can be read without an HTML parser — but it
+# is page markup, not an API, so treat a shape change as "found nothing"
+# and fall back to the recorded ids.
+LIBRARY_LIST = re.compile(r'<ol id="user-library-script-list".*?</ol>', re.S)
+LIBRARY_ITEM = re.compile(r'<li\s([^>]*\bdata-script-id="[^"]*"[^>]*)>')
+DATA_ATTRIBUTE = re.compile(r'data-([a-z-]+)="([^"]*)"')
+
+
+def discovered_library_ids(site_base: str, user: str) -> dict:
+  """name -> id for the libraries on the user's Greasy Fork page.
+
+  The JSON twin of that page lists only userscripts, which is why a
+  library's id used to be recorded by hand. The HTML page does list them,
+  in a "Libraries" section below the scripts, and each entry carries its
+  id in a data- attribute — so this reads that, and the id is then used to
+  fetch the library from the JSON API like any other.
+
+  Only the id is taken from here. Everything recorded in the manifest
+  still comes from the API, so scraped markup can't put a wrong URL in the
+  manifest — at worst it points the lookup at the wrong script, which
+  shows up as a name mismatch.
+
+  Matching is by name, and our libraries are published under their
+  filename without `.js`. A library named something else needs
+  `link --library-id`.
+  """
+  page = fetch_text(f"{site_base.rstrip('/')}/en/users/{user}")
+  if page is None:
+    print(f"warning: could not read {site_base}/en/users/{user}, so no library "
+          "ids could be looked up", file=sys.stderr)
+    return {}
+  section = LIBRARY_LIST.search(page)
+  if not section:
+    return {}
+  found = {}
+  for item in LIBRARY_ITEM.finditer(section.group(0)):
+    attributes = dict(DATA_ATTRIBUTE.findall(item.group(1)))
+    name, script_id = attributes.get("script-name"), attributes.get("script-id")
+    if name and script_id and script_id.isdigit():
+      found[name] = int(script_id)
+  return found
+
+
 def library_record(remote: dict) -> dict:
   """What we keep in a library's manifest entry, from its API entry."""
   return {"id": remote["id"], "url": remote["url"],
           "latest_version_url": remote["code_url"]}
 
 
-def match_libraries(api_base: str, libraries: list) -> list:
-  """(entry, published entry or None) for each library, by recorded id."""
+def match_libraries(api_base: str, libraries: list, site_base: str, user: str) -> list:
+  """(entry, published entry or None) for each library.
+
+  The id recorded in the manifest is what's used when there is one: it
+  survives a rename, which name matching can't. An entry with no id yet
+  — a library just published for the first time — is looked up by name
+  on the user page instead, so `link` can record it.
+  """
   paired = []
+  discovered = None
   for entry in libraries:
     recorded = entry.get("greasyfork", {}).get("id")
+    if recorded is None:
+      # Fetched once, and only if some library actually needs it.
+      if discovered is None:
+        discovered = discovered_library_ids(site_base, user)
+      recorded = discovered.get(Path(entry["path"]).stem)
     paired.append((entry, published_one(api_base, recorded) if recorded is not None else None))
   return paired
 
@@ -454,7 +516,8 @@ def cmd_match(args) -> None:
   scripts, library_entries = selected(manifest, args.paths)
   pairs, unpublished, orphans = match_up(
       local_scripts(scripts), published(args.api_base, args.user))
-  libraries = match_libraries(args.api_base, library_entries)
+  libraries = match_libraries(args.api_base, library_entries,
+                              args.site_base, args.user)
 
   print(f"published and matched ({len(pairs)}):")
   out_of_sync = False
@@ -496,7 +559,10 @@ def cmd_match(args) -> None:
       # perfectly matched. Compare the posted code with lib/ on disk.
       differs = library_code_differs(entry, remote)
       notes = ""
-      if is_stale:
+      if entry.get("greasyfork", {}).get("id") is None:
+        # Found by name on the user page rather than by a recorded id.
+        notes += "   [id found on the user page; run link to record it]"
+      elif is_stale:
         notes += "   [manifest URLs out of date; run link]"
       if differs:
         notes += "   [local file has unpublished changes; post a new library version]"
@@ -526,8 +592,59 @@ def cmd_match(args) -> None:
           "the old code.")
 
 
+def library_id_of(value: str) -> int:
+  """A library id, from a bare number or from a URL containing one.
+
+  Takes the segment after "scripts" rather than the first number in the
+  URL, so a host with a port in it isn't read as the id, and strips the
+  slug Greasy Fork appends to it ("592124-keyboard-comment-nav").
+  """
+  segment = value
+  if "/" in value:
+    parts = value.split("/")
+    if "scripts" not in parts or parts.index("scripts") + 1 >= len(parts):
+      raise SystemExit(f"error: could not find a script id in {value}")
+    segment = parts[parts.index("scripts") + 1]
+  digits = segment.split("-")[0]
+  if not digits.isdigit():
+    raise SystemExit(f"error: could not find a script id in {value}")
+  return int(digits)
+
+
+def record_library_ids(manifest: "Manifest", pairs: list, dry_run: bool) -> bool:
+  """Write hand-supplied ids onto library entries.
+
+  The override for a library `match` can't pair up by itself: one
+  published under a name that isn't its filename, which is what the
+  user-page lookup matches on. `link` then fills in the URL and
+  `latest_version_url` from the id, the same as for any library already
+  recorded.
+  """
+  wrote = False
+  by_path = {entry["path"]: entry for entry in manifest.libraries}
+  for path, value in pairs:
+    path = relative_path(path)
+    entry = by_path.get(path)
+    if entry is None:
+      raise SystemExit(
+        f"error: {path} is not in {manifest.path.name}'s 'libraries' list; add it "
+        "there first, with its path and its github_url")
+    script_id = library_id_of(value)
+    recorded = entry.get("greasyfork", {})
+    if recorded.get("id") == script_id:
+      continue
+    # Only the id: the URLs that go with it are fetched below, and
+    # keeping a previous library's URLs beside a new id would be worse
+    # than having none.
+    entry["greasyfork"] = {"id": script_id}
+    wrote = True
+    print(("would record  " if dry_run else "recorded  ") + f"id {script_id} for {path}")
+  return wrote
+
+
 def cmd_link(args) -> None:
   manifest = Manifest(args.manifest)
+  ids_recorded = record_library_ids(manifest, args.library_id or [], args.dry_run)
   scripts, library_entries = selected(manifest, args.paths)
   pairs, _, _ = match_up(local_scripts(scripts), published(args.api_base, args.user))
   changed = []
@@ -540,13 +657,20 @@ def cmd_link(args) -> None:
     if entry.get("greasyfork") != recorded:
       entry["greasyfork"] = recorded
       changed.append(f"{remote['id']}  {entry['path']}")
-  # Libraries are matched only by the id already in the manifest, so
-  # this refreshes their URLs — above all `latest_version_url`, which
-  # changes every time a new version is posted — and never adds one.
-  for entry, remote in match_libraries(args.api_base, library_entries):
+  # This is where a library's `latest_version_url` is refreshed, which
+  # changes every time a new version is posted. It also records the
+  # whole entry for a library matched by name rather than by a recorded
+  # id — a first publish, whose id nothing knew until now.
+  for entry, remote in match_libraries(args.api_base, library_entries,
+                                       args.site_base, args.user):
     if remote and entry.get("greasyfork") != library_record(remote):
       entry["greasyfork"] = library_record(remote)
       changed.append(f"{remote['id']}  {entry['path']}")
+  # An id written above is a change even when the refresh found nothing
+  # more to add — which is what happens when the new version's URLs
+  # aren't served yet.
+  if ids_recorded and not changed:
+    changed = ["the ids recorded above"]
   if not changed:
     print("manifest already up to date")
     return
@@ -568,6 +692,8 @@ def main() -> int:
                       help=f"Greasy Fork user, id-slug form (default {DEFAULT_USER})")
   parser.add_argument("--api-base", default=DEFAULT_API_BASE,
                       help=f"host serving the JSON API (default {DEFAULT_API_BASE})")
+  parser.add_argument("--site-base", default=DEFAULT_SITE_BASE,
+                      help=f"host serving the site's pages (default {DEFAULT_SITE_BASE})")
   parser.add_argument("--manifest", type=Path, default=MANIFEST,
                       help="script manifest to read and record ids in")
   # Not required: with no subcommand, show the full help — the bare
@@ -591,6 +717,11 @@ def main() -> int:
                   "'greasyfork' field. SourceMonkey ignores that field; it's "
                   "how the publishing tools remember which script is which.")
   link_parser.add_argument("paths", nargs="*", help="scripts to record (default: all in the manifest)")
+  link_parser.add_argument("--library-id", nargs=2, action="append",
+                           metavar=("PATH", "ID"),
+                           help="record a library's Greasy Fork id (a number, or a URL "
+                                "containing one) by hand, for one whose published name "
+                                "isn't its filename; repeatable")
   link_parser.add_argument("--dry-run", action="store_true", help="show what would change")
   link_parser.set_defaults(func=cmd_link)
 

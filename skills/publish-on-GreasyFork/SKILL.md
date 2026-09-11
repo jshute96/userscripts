@@ -82,13 +82,18 @@ below), and a hand-typed id that's wrong is worse than a missing one.
 ### Libraries are the exception
 
 The `libraries` list holds the shared `@require` helpers in `lib/`.
-They're published as Greasy Fork scripts too, but Greasy Fork keeps
-them off the user page's script list, so **nothing can discover a
-library's id** — `list` won't show it and `match` can't find it. Write
-the id in by hand, once, after publishing: the library's page has a
-JSON twin at
-`https://api.greasyfork.org/en/scripts/<id>-<slug>.json`. From then on
-`match` and `link` work from that id like any other entry.
+They're published as Greasy Fork scripts too, but Greasy Fork leaves
+them out of the user page's JSON, so `list` won't show one. They *are*
+on the HTML user page, in a "Libraries" section under the scripts, with
+each one's id in a data- attribute — so `match` and `link` read the ids
+from there for any library that hasn't got one recorded yet, pairing by
+name (our libraries are published under their filename without `.js`).
+Only the id comes from that page; what gets recorded still comes from
+the library's own JSON page,
+`https://api.greasyfork.org/en/scripts/<id>.json`.
+
+A library published under some other name won't pair, and takes the id
+by hand once: `link --library-id <path> <id or URL>`.
 
 Libraries carry two extra fields. `github_url` is the raw URL our
 scripts `@require` — hand-written, and the left-hand side of the
@@ -122,13 +127,58 @@ rename; the ID in the manifest is what keeps it straight.
 
 ### Publishing a library
 
-Not automated, and not covered by anything below. The new-script and
-new-version forms are the same URLs as for a script, but you choose
-`library` on them and the fields differ. There's no import-from-GitHub
-option for libraries at all, so each version is posted by hand.
+A library goes on the same two forms as a script — you pick the
+`Library` script type, and it then shows a Name and a Description of its
+own, since a `lib/` file has no metadata block to read them from.
+`--library` fills all of it from the file:
 
-Then hand-record the id in the manifest's `libraries` list (see above)
-and run `link` to fill in the rest.
+```bash
+# First version.
+scripts/greasyfork-url.py new --library lib/keyboard-comment-nav.js
+
+# A later version.
+scripts/greasyfork-url.py update 592124 \
+    --library lib/keyboard-comment-nav.js \
+    --changelog-text 'Land `j` on the first comment.'
+```
+
+What it derives, and the conventions the published libraries follow:
+
+| Field | From |
+| --- | --- |
+| Script type | `Library` |
+| Name | the file's basename without `.js` — also the slug in its URL |
+| Description | the file's first `//` comment line |
+| Additional info | the sibling `.md`, via `--extract-from-doc` |
+| Code | the file, `@require`-checked the way `--code-file` is |
+
+Each is only a default: pass `--name`, `--description` or an explicit
+info flag to override one. It prints what it derived, so check that line
+before submitting.
+
+There's **no import-from-GitHub for libraries**, so every version is
+posted this way — a library never auto-updates from the repo.
+
+Then run `link`, whether it was a first publish or a new version:
+
+```bash
+scripts/greasyfork-scripts.py link
+```
+
+It finds a first-time library's id on the user page and records it,
+along with the URLs; for a new version it refreshes
+`latest_version_url`. Either way, do it before building any script's
+form — see "When a `lib/` file has changed" below.
+
+The library has to be in the manifest's `libraries` list already, with
+its `github_url`; `link` won't add the entry itself. And the pairing is
+by name, so a library published as something other than its filename
+takes its id by hand, once:
+
+```bash
+scripts/greasyfork-scripts.py link \
+    --library-id lib/keyboard-comment-nav.js 592124
+```
 
 ### Scripts that `@require` a `lib/` file
 

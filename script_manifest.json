@@ -77,7 +77,11 @@
     },
     {
       "path": "sites/medium.com/keyboard-comment-navigation.user.js",
-      "category": "keyboard-comments"
+      "category": "keyboard-comments",
+      "greasyfork": {
+        "id": 595304,
+        "url": "https://greasyfork.org/scripts/595304-medium-keyboard-comment-navigation"
+      }
     },
     {
       "path": "sites/members.onepeloton.com/classes-default-filters.user.js",
@@ -263,7 +267,7 @@
       "greasyfork": {
         "id": 592124,
         "url": "https://greasyfork.org/scripts/592124-keyboard-comment-nav",
-        "latest_version_url": "https://update.greasyfork.org/scripts/592124/1925213/keyboard-comment-nav.js"
+        "latest_version_url": "https://update.greasyfork.org/scripts/592124/1928150/keyboard-comment-nav.js"
       }
     },
     {
