@@ -27,6 +27,14 @@ is what the panel shows — and what it fills into Strava's own `–` display, s
 the two agree. When that effort is among the rows on screen, its row is
 highlighted the same bold way your name is highlighted in the other views.
 
+**Known problem: this can get you rate-limited.** Every segment you expand
+costs several extra leaderboard requests, and Strava's leaderboard endpoint
+throttles at a low, undocumented threshold. Looking through a handful of
+segments on a long activity, at an ordinary pace, has been enough to trip it.
+Once tripped, every segment leaderboard on the site
+shows "Leaderboard unavailable" for about **24 hours**, and the segment pages
+themselves fail too.
+
 ## Visible changes
 
 * A stack of `label` / `rank/total` rows appears to the right of the "Your PR"
@@ -204,7 +212,11 @@ The endpoint meters access, and the throttle is worth understanding before
 adding rows to `DIMENSIONS`, because each row is another request per segment.
 
 A 126-request benchmark tripped it, and it stayed tripped for **at least 24
-hours**. What it covers, measured while blocked:
+hours**. It has since tripped from ordinary interactive use as well: expanding
+several segments in a row on a long activity with many segments, at a normal
+browsing pace, with no benchmark involved. The symptom is "Leaderboard
+unavailable" in every expanded segment, with HTTP 429 on the leaderboard
+requests in the network tab. What it covers, measured while blocked:
 
 | Request | Result |
 |---|---|
@@ -227,15 +239,42 @@ matters: the block is wide, it is long, and nothing available here reliably
 routes around it. Measure the throttle only if you are prepared to lose the
 account's segment access for a day.
 
+**What the script sends.** Each expanded segment fires one request per
+`inPanel` dimension — four at present (All-time, This Year, This Month, My
+Results) — all at once, on top of Strava's own leaderboard request for the same
+expansion. My Results can add up to `MAX_PAGES` (5) sequential page requests
+when the current effort isn't in your first ten results. So each expansion is
+typically 4 and at most 9 extra requests, and a dozen segments looked at in a
+minute is 50–100 requests in that minute. Results are cached per segment and
+dimension, so re-renders and filter changes don't refetch; the only driver is
+how many distinct segments are expanded, and how quickly.
+
+Nothing found online documents the threshold. Strava publishes limits only for
+its public API (100 requests per 15 minutes per athlete), not for the website's
+own endpoints, and the leaderboard endpoint was removed from the public API
+entirely. Browser extensions that fetch leaderboards the same way report the
+same thing: Elevate's PR comparisons tripped a block lasting 15–30 minutes, worse
+on activities with more segments (marked wontfix); a kudos script saw 24-hour
+blocks at 500ms spacing and none at 5s. The consistent lesson is that the
+request *rate* is what matters.
+
 Three consequences:
 
 * **Failed lookups are never cached.** A cached rejection would leave a segment
   permanently blank rather than retrying on the next render.
 * **But a 429 opens a cooldown** (`RATE_LIMIT_COOLDOWN_MS`). Without one, "don't
   cache failures" would mean every re-render fires another burst into a throttle
-  that may well extend itself.
+  that may well extend itself. The cooldown is a fixed 60s and lives in memory,
+  so a reload — or the cooldown lapsing — sends the next burst straight back
+  into a throttle that is still active. There is no `Retry-After` to honor.
 * Adding a dimension costs a request per segment expanded, which matters more
   than the latency of any single request.
+
+Not yet done, but the obvious mitigations: send requests through one queue with
+a gap between them instead of four in parallel; back off exponentially rather
+than retrying after a fixed minute; and persist the cooldown across reloads
+(which would mean `GM_setValue`, and so giving up `@grant none` — see
+"Extending Strava's dropdown" for why page-context access matters).
 
 ### Filling in Strava's own rank
 
@@ -312,4 +351,5 @@ so the observer's own mutations don't loop.
 
 Fetches are cached per segment and dimension, so a re-render repaints from cache
 rather than refetching. Requests only happen once a segment is expanded, which
-keeps this to two per segment looked at rather than one per segment on the page.
+keeps this to one per panel row per segment looked at, rather than anything
+for segments never opened — see "Rate limiting" for the count.
