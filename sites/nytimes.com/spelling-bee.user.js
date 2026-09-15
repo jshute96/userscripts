@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         NYTimes Spelling Bee: Word definitions and other tweaks
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.24
+// @version      1.0.25
 // @description  Shows definitions when you hover or click a word, adds a toolbar link to Spelling Bee Buddy, and closes the splash screens for you.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -20,14 +20,18 @@
   const WELCOME_CONTINUE_SELECTOR = '.pz-moment__welcome .pz-moment__button.primary';
   const CONGRATS_SELECTOR = '.pz-moment__congrats';
   const CONGRATS_KEEP_PLAYING_SELECTOR = '.pz-moment__congrats .pz-moment__close_text';
-  // Two different screens render under `.pz-moment__congrats`:
+  // Three different screens render under `.pz-moment__congrats`:
   //   * the intermediate rank-up moment, which has a "Keep playing"
   //     `.pz-moment__close_text` — this is the one we dismiss;
   //   * the end-of-puzzle screen (Queen Bee / final stats), which has no
   //     "Keep playing" at all, just an X plus "Share your achievement"
-  //     and "View all games".
-  // The final screen is a legitimate end state, not a broken selector, so
-  // we identify it by its own buttons and leave it alone silently.
+  //     and "View all games";
+  //   * the "welcome back" version of the rank screen, shown on returning
+  //     to a puzzle already at Genius, which has "Keep playing" *and* the
+  //     share / view-all buttons. We dismiss it too.
+  // So "Keep playing" wins whenever it's present. Only without it do we
+  // check for the final screen, which is a legitimate end state rather
+  // than a broken selector, and leave it alone silently.
   const FINAL_MOMENT_BUTTON_SELECTOR =
     '.pz-moment__congrats .pz-moment__button, .pz-moment__congrats .pz-moment__button-group';
   const FINAL_MOMENT_BUTTON_TEXT = /view all games|share your achievement/i;
@@ -132,15 +136,15 @@
       finalMomentLogged = false;
       return;
     }
-    if (isFinalMoment(moment)) {
-      if (!finalMomentLogged) {
-        finalMomentLogged = true;
-        console.log(TAG, 'end-of-puzzle screen — nothing to dismiss');
-      }
-      return;
-    }
     const btn = document.querySelector(CONGRATS_KEEP_PLAYING_SELECTOR);
     if (!btn) {
+      if (isFinalMoment(moment)) {
+        if (!finalMomentLogged) {
+          finalMomentLogged = true;
+          console.log(TAG, 'end-of-puzzle screen — nothing to dismiss');
+        }
+        return;
+      }
       if (!congratsWarned) {
         congratsWarned = true;
         console.warn(TAG, 'congrats screen visible but Keep playing button not found',

@@ -59,15 +59,20 @@ for the welcome splash:
   button with text "Keep playing" inside it. A plain `.click()`
   dismisses the splash.
 
-**`.pz-moment__congrats` covers two different screens**, and only
-one of them should be dismissed:
+**`.pz-moment__congrats` covers three different screens**, and only
+two of them should be dismissed:
 
-| | Rank-up splash | End-of-puzzle screen |
-|---|---|---|
-| When | crossing a rank threshold mid-game | puzzle complete (e.g. Queen Bee) |
-| Dismiss control | `.pz-moment__close_text` ("Keep playing") | `.pz-moment__close` (an X) |
-| Other buttons | — | "Share your achievement", "View all games" |
-| Script behavior | click it | leave it alone |
+| | Rank-up splash | Welcome-back rank splash | End-of-puzzle screen |
+|---|---|---|---|
+| When | crossing a rank threshold mid-game | returning to a puzzle already at Genius | puzzle complete (e.g. Queen Bee) |
+| Dismiss control | `.pz-moment__close_text` ("Keep playing") | `.pz-moment__close_text` ("Keep playing") | `.pz-moment__close` (an X) |
+| Other buttons | — | "Share your achievement", "View all games" | "Share your achievement", "View all games" |
+| Script behavior | click Keep playing | click Keep playing | leave it alone |
+
+The welcome-back variant (observed 2026-09-14) is the trap: it has
+the end-of-puzzle buttons too, so checking for those *first*
+misclassified it as the end screen. The dismisser now looks for
+"Keep playing" first and clicks it whenever it exists.
 
 Observed on 2026-08-28: the Queen Bee screen carried
 `class="pz-moment Congrats-module_moment__auGMZ pz-moment__congrats"`
@@ -76,7 +81,7 @@ this was accounted for, that screen looked identical to "the Keep
 playing selector broke", and the dismisser warned about it on every
 mutation for as long as it was up.
 
-`isFinalMoment()` therefore identifies the end screen *positively*,
+When "Keep playing" is absent, `isFinalMoment()` identifies the end screen *positively*,
 by a `.pz-moment__button` / `.pz-moment__button-group` descendant
 whose text matches `/view all games|share your achievement/i` —
 rather than inferring it from the absence of "Keep playing", which
