@@ -629,6 +629,16 @@ in `test/fixtures.js`.
   await loadUserscript(SCRIPT_PATH);   // stubs must exist first
   ```
 
+  It also fakes `GM_xmlhttpRequest` with the page's own `fetch`, so a
+  script's network path can run — but only against hosts that allow
+  CORS from the page's origin (the real manager request has no such
+  limit; `curl -D - -H 'Origin: https://<site>' <url>` shows whether
+  a host does). `failHosts: ['api.example.com']` makes a host answer
+  503 instead, to force a script down its fallback path, and every
+  request URL lands in `window.__gmStubs.requests`. A spec that uses
+  this hits the live service, so say so at the top of the file: a red
+  test may mean the service is down, not the script.
+
   Stub only where the fake is **an obvious no-op or an obvious, simple
   mock** — a plain object standing in for key/value storage, a recorder
   standing in for "open a tab". Anything needing real semantics to be

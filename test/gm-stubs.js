@@ -27,15 +27,23 @@
 // it is faking the manager, so nobody mistakes a green suite for
 // end-to-end coverage.
 
+// `GM_xmlhttpRequest` is faked with the page's own `fetch`, so it only
+// reaches hosts that allow CORS from the page's origin — the manager's
+// real request is cross-origin by design and has no such limit. Every
+// request URL is appended to `window.__gmStubs.requests`, in order.
+// `options.failHosts` lists hostnames that get a synthetic 503 instead
+// of a request, for forcing a script down its fallback path.
+//
 // Recorded calls are readable from the test via
 // `page.evaluate(() => window.__gmStubs.openedTabs)`.
 async function injectGmStubs(page, options = {}) {
   const initial = options.values || {};
-  await page.addInitScript((seed) => {
+  const failHosts = options.failHosts || [];
+  await page.addInitScript(({ seed, failHosts }) => {
     const store = Object.assign({}, seed);
     const listeners = [];
     let nextId = 0;
-    const record = { openedTabs: [], menuCommands: [], notifications: [] };
+    const record = { openedTabs: [], menuCommands: [], notifications: [], requests: [] };
 
     const fire = (key, oldValue, newValue) => {
       // `remote` is false: a same-page write is a local one. Nothing
@@ -76,9 +84,43 @@ async function injectGmStubs(page, options = {}) {
     window.GM_unregisterMenuCommand = () => {};
     window.GM_notification = (opts) => { record.notifications.push(opts); };
 
+    window.GM_xmlhttpRequest = (details) => {
+      record.requests.push(details.url);
+      const host = new URL(details.url).hostname;
+      if (failHosts.includes(host)) {
+        // Deliver asynchronously, like a real response would be.
+        setTimeout(() => details.onload && details.onload(
+          { status: 503, statusText: 'Service Unavailable', responseText: '' }), 0);
+        return;
+      }
+      const controller = new AbortController();
+      const timer = details.timeout
+        ? setTimeout(() => controller.abort(), details.timeout) : null;
+      fetch(details.url, {
+        method: details.method || 'GET',
+        headers: details.headers || {},
+        body: details.data,
+        signal: controller.signal,
+      }).then(async (response) => {
+        const responseText = await response.text();
+        if (details.onload) details.onload({
+          status: response.status,
+          statusText: response.statusText,
+          responseText,
+          responseHeaders: Array.from(response.headers, ([k, v]) => k + ': ' + v).join('\r\n'),
+        });
+      }).catch((err) => {
+        if (err && err.name === 'AbortError') {
+          if (details.ontimeout) details.ontimeout(err);
+        } else if (details.onerror) {
+          details.onerror(err);
+        }
+      }).finally(() => { if (timer) clearTimeout(timer); });
+    };
+
     record.store = store;
     window.__gmStubs = record;
-  }, initial);
+  }, { seed: initial, failHosts });
 }
 
 module.exports = { injectGmStubs };
