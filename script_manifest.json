@@ -258,6 +258,13 @@
         "id": 594857,
         "url": "https://greasyfork.org/scripts/594857-trailforks-map-show-star-rating-in-trail-popups"
       }
+    },
+    {
+      "path": "sites/www.trailforks.com/strava-map-crosslink.user.js",
+      "greasyfork": {
+        "id": 596136,
+        "url": "https://greasyfork.org/scripts/596136-trailforks-strava-cross-link-maps"
+      }
     }
   ],
   "libraries": [

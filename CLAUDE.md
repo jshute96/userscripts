@@ -425,6 +425,12 @@ if it's missing; it makes the next break diagnose itself.
   toolbar you're attaching to), have your `MutationObserver`
   *upgrade* the className when a better reference appears.
 
+* **Reading React internals (`__reactFiber$…` expandos on DOM nodes)
+  needs `@grant none`.** The expando lives in the page's world; from an
+  isolated world it's simply `undefined`, with no error, so the script
+  silently finds nothing. Worked example of the fiber walk itself:
+  `sites/www.trailforks.com/strava-map-crosslink.md`.
+
 * React menu items often render as plain `<div>`s with `onClick`
   handlers, not `<button>`/`<a>`. From in-page JS (i.e. inside the
   userscript), calling `.click()` on the element reliably fires
@@ -692,6 +698,12 @@ in `test/fixtures.js`.
   `Page.createIsolatedWorld` — page-level CDP doesn't go through
   Playwright's per-frame attach dance, so the same iframe that
   hung Playwright was perfectly accessible directly.
+
+  Two raw-CDP gotchas: a `Runtime.evaluate` that navigates the page
+  never gets its reply (the session dies with the document), so wrap
+  the navigation in `setTimeout` or use `Page.navigate`; and
+  `Page.captureScreenshot` of a *background* tab renders WebGL canvases
+  (maps) blank — hit `GET /json/activate/<id>` first.
 
 ## Iterating on DOM-heavy userscripts
 
