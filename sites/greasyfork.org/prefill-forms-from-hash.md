@@ -13,6 +13,11 @@ This covers three pages — **Post a new script**
 It never submits the form: you get a filled-in page, check it, and
 click the button yourself.
 
+Greasy Fork has a prefill endpoint of its own, but it fills only the
+Code field, and only from a POST request, not a URL parameter.
+This script covers all fields on the forms: descriptions and
+changelogs, images, library fields, etc.
+
 ### Parameters
 
 All parameters go in the URL **hash** (after `#`), as
@@ -339,6 +344,44 @@ Every form also carries a Rails `authenticity_token` hidden field.
 Because the page's own already-rendered form is what gets posted, that
 token comes along untouched — which is also why this is a userscript
 and not a `curl` script.
+
+### Greasy Fork's own prefill endpoint
+
+Greasy Fork already has a prefill mechanism, so it's worth being clear
+about why this script exists alongside it. From its source
+(`app/controllers/script_versions_controller.rb`, `config/routes.rb`):
+
+* `POST /script_versions/prefill` and
+  `POST /scripts/<id>/versions/prefill` render the normal form with the
+  **Code textarea** filled from a `script_version[code]` form field.
+  The comment in the controller calls it the "externally open prefill
+  URL used by script managers" — it's what a manager's "publish to
+  Greasy Fork" button posts to, and the route skips the CSRF check so
+  an outside page can reach it. The new-script variant alternatively
+  takes `import_url` (plus `sync_type`) and fetches the code
+  server-side. That's the whole interface: no additional info,
+  changelog, attachments, library name/description, or adult flag.
+* A plain `GET …/new` reads only `script[script_type]` (`1`/`2`/`3`)
+  and `language` (`js`/`css`). Code is ignored on GET — that branch
+  is gated on the POST route.
+* `GET /import` reads nothing; `sync-urls`, `sync-language` and
+  `sync-type` are only consumed by the `POST /import/add` submission.
+
+So the site covers one field, and only via POST — which can't be
+launched from a command line as a URL. It *could* be reached with the
+same bounce we use for over-long URLs (`write_launcher` in
+`scripts/greasyfork-url.py`): a local `file://` page containing a
+`<form method="post">` with the code in a hidden field, submitted from
+its own script. Untested; one open question is whether the session
+cookie survives a cross-site top-level POST (Rails defaults to
+`SameSite=Lax`, which withholds cookies on those), in which case the
+bounce would land on the login page.
+
+Everything else this script fills — additional info and changelog
+from files, ordered image attachments, `remove_images`, the code
+upload input, library fields, locale, the source-editor toggle, the
+import form — has no server-side equivalent, and those are the parts
+that make the publishing flow worth automating.
 
 ### What we assume stays stable
 
