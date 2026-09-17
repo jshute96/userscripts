@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trailforks ↔ Strava: Cross-link maps
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.1.0
+// @version      0.1.1
 // @description  Adds a button on each site's maps that opens the other site's map at the same location and zoom level.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -22,7 +22,9 @@
   // Both maps are Mapbox-style: zoom N means the same scale on either
   // site, so a view carries across as the same three numbers.
   const STRAVA_MAP_URL = 'https://www.strava.com/maps/global-heatmap/personal-heatmap';
-  const TRAILFORKS_MAP_URL = 'https://www.trailforks.com/trails/map/';
+  // /map/ rather than /trails/map/: the latter is a landing page that
+  // auto-opens the Discover panel over half the map.
+  const TRAILFORKS_MAP_URL = 'https://www.trailforks.com/map/';
 
   // Strava's own "S" chevron mark.
   const STRAVA_ICON =

@@ -34,9 +34,12 @@ link just reformats them:
   The hash is how Strava's own map page keeps its position, and the page
   reads it on load. Query parameters (sport, colors, etc.) are left off;
   Strava restores its own last-used settings.
-* Trailforks: `https://www.trailforks.com/trails/map/?z=<zoom>&lat=<lat>&lon=<lon>`.
+* Trailforks: `https://www.trailforks.com/map/?z=<zoom>&lat=<lat>&lon=<lon>`.
   The same query parameters Trailforks uses in its own "view on map"
   links. `activitytype` is left off, so the user's default applies.
+  Not `/trails/map/`: the page's inline config (`window.__tfMapPanelEntry`)
+  marks that as a landing path that auto-opens the Discover panel over
+  the map, and it collapses to `/map/` on the first pan anyway.
 
 ### Reading the current view
 
