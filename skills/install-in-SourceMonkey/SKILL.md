@@ -5,23 +5,29 @@ description: Interact with the SourceMonkey chrome extension for installing or e
 
 ## Target page
 
-SourceMonkey's control page is available at
-`chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/collections.html`
+SourceMonkey's control page is at the URL below. Every command in this
+skill is written against `$SM`, so set it first in the same shell:
 
-The site name is a hash of the extension ID and should be consistent for any installation from unpacked files.
+```sh
+SM=chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/collections.html
+```
+
+The host is the extension ID and should be consistent for any
+installation from unpacked files. If it ever changes, this one line is
+the only place to update.
 
 ## Available actions
 
 * `dashboard`: List existing scripts
-  - Run `google-chrome chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/collections.html`
+  - Run `google-chrome "$SM"`
 
 * `install`: Add a new script, pointing at an individual script's file.
-  - Run `google-chrome chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/collections.html?add_source=/path/file.user.js`
+  - Run `google-chrome "$SM?add_source=/path/file.user.js"`
   - Point the filename at the absolute path.
   - Update the manifest file if it exists (see below).
 
 * `install-directory`: Add a directory source. SourceMonkey will add all scripts under that directory (up to two levels down).
-  - Run `google-chrome chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/collections.html?add_source=/path/directory`
+  - Run `google-chrome "$SM?add_source=/path/directory"`
   - Point the filename at the absolute path.
   - Typically, we'd run this once, for the `userscripts` directory covering this repo.
   - After adding or removing scripts under this directory, use the
@@ -30,7 +36,7 @@ The site name is a hash of the extension ID and should be consistent for any ins
 
 * `refresh-file`: Re-scan only what covers one file or directory —
   **the default refresh for this repo.**
-  - Run `google-chrome 'chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/collections.html?refresh_file=/abs/path'`
+  - Run `google-chrome "$SM?refresh_file=/abs/path"`
   - The path is a file or a directory, as an absolute path.
   - It refreshes every local collection whose scanned directory overlaps
     the path, plus any individually-added local script pointing at it.
@@ -38,13 +44,13 @@ The site name is a hash of the extension ID and should be consistent for any ins
     added, renamed, or deleted.
 
 * `refresh-local`: Re-scan every local collection, skipping the web ones.
-  - Run `google-chrome chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/collections.html?refresh_local`
+  - Run `google-chrome "$SM?refresh_local"`
   - Use when the change spans several unrelated local directories and
     naming one path wouldn't cover it.
 
 * `refresh`: Re-scan **everything**, including every http(s) and GitHub
   collection.
-  - Run `google-chrome chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/collections.html?refresh`
+  - Run `google-chrome "$SM?refresh"`
   - Only when you actually want remote collections re-fetched.
 
 All three open a browser tab, so don't fire them speculatively — one
