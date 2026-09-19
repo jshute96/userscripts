@@ -265,6 +265,9 @@
         "id": 596136,
         "url": "https://greasyfork.org/scripts/596136-trailforks-strava-cross-link-maps"
       }
+    },
+    {
+      "path": "sites/www.youtube.com/zoom-pan.user.js"
     }
   ],
   "libraries": [

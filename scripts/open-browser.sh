@@ -61,10 +61,14 @@ echo ""
 # respond to createIsolatedWorld synchronously, so the hang
 # disappears. Acceptable for a test browser we control; we wouldn't
 # want this in a regular browsing profile.
+#
+# --mute-audio: tests play videos (YouTube), and nobody needs to hear
+# them.
 exec "$CHROME" \
   --user-data-dir="$PROFILE_DIR" \
   --no-first-run \
   --no-default-browser-check \
+  --mute-audio \
   --disable-features=IsolateOrigins,site-per-process \
   --remote-debugging-port="$DEBUG_PORT" \
   "$URL"
