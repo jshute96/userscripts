@@ -51,7 +51,7 @@ Scripts uploaded to Greasy Fork have a `GF` link.
 | [The Atlantic Games: Link to today's puzzle](sites/theatlantic.com/games-todays-puzzle-link.user.js) | [doc](sites/theatlantic.com/games-todays-puzzle-link.md) | [GF](https://greasyfork.org/scripts/591544-the-atlantic-games-link-to-today-s-puzzle) | Adds a Today's Puzzle link to the puzzle-completed screen, so you can get to the new puzzle instead of back to the previous one you solved. |
 | [Trailforks Map: Show star rating in trail popups](sites/www.trailforks.com/map-popup-star-rating.user.js) | [doc](sites/www.trailforks.com/map-popup-star-rating.md) | [GF](https://greasyfork.org/scripts/594857-trailforks-map-show-star-rating-in-trail-popups) | The trail summary popup on maps lists several things, but leaves out the star rating. This adds it. |
 | [Trailforks ↔ Strava: Cross-link maps](sites/www.trailforks.com/strava-map-crosslink.user.js) | [doc](sites/www.trailforks.com/strava-map-crosslink.md) | [GF](https://greasyfork.org/scripts/596136-trailforks-strava-cross-link-maps) | Adds a button on each site's maps that opens the other site's map at the same location and zoom level. |
-| [YouTube: Simple zoom and pan](sites/www.youtube.com/zoom-pan.user.js) | [doc](sites/www.youtube.com/zoom-pan.md) |  | Zoom and pan the video with the mouse, trackpad or keyboard. Drag a box and zoom to that region. |
+| [YouTube: Simple zoom and pan](sites/www.youtube.com/zoom-pan.user.js) | [doc](sites/www.youtube.com/zoom-pan.md) | [GF](https://greasyfork.org/scripts/596511-youtube-simple-zoom-and-pan) | Zoom and pan the video with the mouse, trackpad or keyboard. Drag a box and zoom to that region. |
 
 ### Keyboard comment navigation
 
