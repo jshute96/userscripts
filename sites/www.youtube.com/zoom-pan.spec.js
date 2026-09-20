@@ -293,14 +293,54 @@ test('works on Shorts, whose player root is #shorts-player', async ({ page }) =>
   await expect.poll(() => page.evaluate(() =>
     document.querySelector('#shorts-player video').offsetWidth)).toBeGreaterThan(0);
   await page.evaluate(() => { document.querySelector('#shorts-player video').muted = true; });
+  // The player opens at the default 9:16 and is re-fit to the video's
+  // own ratio a moment later; wait for its size to settle.
+  await page.evaluate(() => new Promise((resolve) => {
+    const p = document.querySelector('#shorts-player');
+    let last = p.offsetWidth;
+    let quiet = 0;
+    const tick = () => {
+      quiet = p.offsetWidth === last ? quiet + 1 : 0;
+      last = p.offsetWidth;
+      if (quiet >= 10) resolve(); else setTimeout(tick, 100);
+    };
+    tick();
+  }));
   const box = await page.locator('#shorts-player').boundingBox();
+  const guideOpen = () => page.evaluate(() =>
+    document.querySelector('ytd-app').hasAttribute('guide-persistent-and-visible'));
+  const hadGuide = await guideOpen();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.keyboard.down('Control');
   await page.mouse.wheel(0, -100);
   await page.keyboard.up('Control');
-  await expect.poll(async () => (await readView(page)).s).toBeCloseTo(Math.exp(0.25), 2);
+  const s = Math.exp(0.25);
+  await expect.poll(async () => (await readView(page)).s).toBeCloseTo(s, 2);
+  // Zoomed, the player widens toward the zoomed video's width (capped
+  // by the page's free width) so the picture isn't clipped to its
+  // column.
+  const wide = await page.locator('#shorts-player').boundingBox();
+  expect(wide.width).toBeGreaterThan(box.width * 1.1);
+  expect(wide.width).toBeLessThanOrEqual(box.width * s + 1);
+  expect(wide.x).toBeLessThan(box.x);
+  // Once the zoomed video wants more than the free width, the full
+  // guide (left sidebar) is collapsed to its icon strip for room, and
+  // the player reaches the arrow column at the right edge.
+  await page.keyboard.press('Equal');
+  await page.keyboard.press('Equal');
+  await expect.poll(async () => (await readView(page)).s).toBeCloseTo(s * 4, 2);
+  await expect.poll(guideOpen).toBe(false);
+  const arrows = await page.locator('ytd-shorts .navigation-container').boundingBox();
+  await expect.poll(async () => {
+    const b = await page.locator('#shorts-player').boundingBox();
+    return Math.round(b.x + b.width);
+  }).toBe(Math.round(arrows.x));
   await page.keyboard.press('x');
   expect((await readView(page)).s).toBe(1);
+  await expect.poll(guideOpen).toBe(hadGuide);
+  const narrow = await page.locator('#shorts-player').boundingBox();
+  expect(narrow.width).toBeCloseTo(box.width, 0);
+  expect(narrow.x).toBeCloseTo(box.x, 0);
   // Shorts loop forever; stop it (the fixture closes the tab anyway).
   await page.evaluate(() => document.querySelector('#shorts-player video').pause());
 });

@@ -13,6 +13,9 @@ This adds simple zooming and panning in the video player, similar to maps.
 | **Zoom** to a region | <kbd>Shift</kbd> + draw a box | <kbd>Shift</kbd> + draw a box | |
 | **Toggle** between default and zoomed view | | | <kbd>x</kbd> |
 
+On Shorts, the player widens as you zoom in, so the zoomed vertical video can
+spread to full-page or full-screen width.
+
 Controls are inactive on 360° videos. YouTube supports zooming and panning inside spherical video content natively.
 
 ## Visible changes
@@ -30,6 +33,11 @@ Controls are inactive on 360° videos. YouTube supports zooming and panning insi
   adjust volume).
 * A dashed rectangle while drawing a zoom box, and a transient "2.5×"
   badge in the player's top-left corner after each zoom change.
+* On Shorts, the player grows to the zoomed video's width (up to the
+  up/down arrows at the right edge) while zoomed, and snaps back at 1×.
+  The like/comment/share column moves right with it. If the full
+  sidebar is in the way, it's collapsed to its icon strip — the same as
+  clicking ☰ — and reopened at 1×.
 
 ## Implementation
 
@@ -43,10 +51,15 @@ transform: translate(ox%, oy%) scale(s);
 The player root (`.html5-video-player`) is `overflow: hidden`, so the
 scaled video is clipped to the player. Percentages in `translate()` refer to the element's own
 box, so the view survives resizes (theater mode, fullscreen) without
-recomputation. `ox`/`oy` are kept in `[1 − s, 0]`, meaning the zoomed
-video always covers its own unzoomed box — no gaps at the edges. (For
-letterboxed videos this box is the video, not the player, so a modest
-zoom fills the player's black bars.)
+recomputation. `ox`/`oy` are clamped against the *player's* box, per
+axis: where the zoomed video is at least as big as the player it must
+cover it (no gaps at the edges), and where it's smaller it's centered.
+A video letterboxed at 1× (the `<video>` element is sized to the
+picture and centered in the player) therefore spreads over the bars as
+it zooms, and can be panned across the whole player once it's big
+enough. One exception: while a Short is cued, YouTube parks its
+`<video>` above the player; a video that doesn't overlap the player at
+all is clamped to its own box instead, so it isn't dragged into view.
 
 Zoom-about-a-point math: the transformed rect comes from
 `getBoundingClientRect()`, the untransformed size from
@@ -114,9 +127,73 @@ Gestures:
   text field.
 
 A `MutationObserver` on the video's `style` attribute reapplies the
-transform if the page ever clears it. YouTube currently sets
+transform if the page clears it. The watch page sets
 `width`/`height`/`left`/`top` individually on resize, which leaves
-`transform` alone, so this is insurance only.
+`transform` alone; the Shorts player replaces the whole inline style
+(see below), so there it matters.
+
+**Shorts: widening the player.** YouTube sizes the Shorts player from
+CSS custom properties: `--ytd-shorts-player-width` is
+`min(height × --ytd-shorts-player-ratio, 100vw − --ytd-current-guide-width − 52px)`,
+declared on `ytd-shorts`, `.reel-video-in-sequence-new` (which also
+carries the per-video ratio inline) and `ytd-reel-video-renderer`. The
+up/down navigation arrows sit in a 96px absolutely positioned column
+at the right edge of `ytd-shorts`. The action bar (like/comment/share)
+has two layouts: when `ytd-reel-video-renderer` has
+`extract-action-bar` it's a 72px column to the player's right (the
+overlay is `player width + 72px`); otherwise it's overlaid on the
+player. YouTube switches between them by how much room the player
+leaves, so widening the player flips it to the overlaid form.
+
+While zoomed, `syncWide` sets `data-jshute-yt-zoom-wide` on `<html>`
+plus `--jshute-yt-zoom-wide-width` = `min(natural width × s,
+innerWidth − guide − 96px [− 72px if extracted])`, and a rule under
+that attribute overrides `--ytd-shorts-player-width` on the same three
+elements with it (`!important`). The reel stays centered by YouTube's
+own layout, so zooming out narrows it in place with no jump at 1×;
+YouTube moves the action bar to the overlaid form before the centered
+reel would push it into the arrow column. The guide width is measured as `ytd-shorts`'s left edge:
+`--ytd-current-guide-width` stays at 240px even when the guide is
+collapsed to the icon strip, so it can't be used. The natural width
+is derived, not measured: the player's height times
+`--ytd-shorts-player-ratio`, which YouTube sets inline on the
+`.reel-video-in-sequence-new` item per video. (Once widened, the
+natural width is no longer on show, and while a Short is cued even
+the `<video>` is sized to the player, so measuring either would feed
+the widening back into itself.) The width tracks the zoom so no black
+bars appear at modest zooms; at 1× the attribute comes off and the
+layout is YouTube's own again.
+
+Early in a page load the player exists and plays before `ytd-shorts`
+exists to hold it; YouTube moves it in later. So "is this a Short" is
+answered by the URL when the player has no `ytd-shorts` ancestor, the
+wide attribute and width are set anyway (the player's own width is
+still natural then, and serves as the base), and a `MutationObserver`
+on the document waits for the player to be placed, then re-fits.
+
+If the zoomed width wants more than the free width with the full guide
+open (`ytd-app[guide-persistent-and-visible]`), the script clicks
+`#guide-button` (☰), which collapses the guide to the 72px icon strip
+(`ytd-app[mini-guide-visible]`), and remembers that it did so to click
+it again at 1× — only if the guide is still collapsed then, so a user
+who reopened it meanwhile isn't overridden. The collapse lands a task
+after the click, not synchronously, and the action-bar flip and window
+resizes also change the free width, so a `MutationObserver` on
+`ytd-app` (attributes `guide-persistent-and-visible`,
+`mini-guide-visible`, `extract-action-bar`, subtree) and a listener for
+trusted `resize` events schedule a re-fit: recompute the width,
+re-clamp the view, reapply.
+
+YouTube only re-lays-out the `<video>` (its inline `width`/`left`,
+centering the picture in the player) on a window `resize` event, so
+the script dispatches a synthetic one after each width change. That
+handler runs synchronously, and it rewrites the video's whole inline
+style, dropping our transform; `syncWide` puts it straight back so the
+anchor math that follows (which backs the current transform out of
+the rect) stays consistent. Zoom anchors are read in video fractions
+*before* the width change and re-resolved after it, since the video
+moves when the player resizes; center zooms re-read the player's
+center for the same reason.
 
 **Spherical (360°) videos.** The player root carries
 `ytp-webgl-spherical`, the picture is rendered into a `<canvas>` under
@@ -138,6 +215,12 @@ untouched, and one console line per video says so.
 * Pointer events over the picture land on the `<video>` (or another
   descendant of the player root), not on some overlay outside it.
 * `ytp-webgl-spherical` on the player root marks a 360° video.
+* Shorts: the player is inside `ytd-shorts`; its width comes from
+  `--ytd-shorts-player-width` on the three elements above; the action
+  bar column is 72px and the navigation column 96px; a window `resize`
+  event makes the player re-fit the video synchronously; `ytd-app`
+  carries `guide-persistent-and-visible` while the full guide is open
+  and `#guide-button` toggles it.
 * YouTube doesn't bind `x` or Ctrl+arrows. It does bind `+`/`-` (caption
   size), which we deliberately take over. Ctrl+plus/minus was tried and
   dropped: it interacted awkwardly with the browser's own page zoom.
@@ -150,3 +233,6 @@ untouched, and one console line per video says so.
   easy addition if it bothers anyone.
 * Captions, the progress-bar preview, and other player chrome are not
   scaled, by design.
+* If the tab is closed or reloaded while a Short is zoomed far enough
+  to have collapsed the guide, the guide stays collapsed (YouTube
+  remembers the ☰ state); one click on ☰ restores it.

@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         YouTube: Simple zoom and pan
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.1.0
-// @description  Zoom and pan the video with the mouse, trackpad or keyboard. Drag a box and zoom to that region.
+// @version      0.2.0
+// @description  Zoom and pan the video with the mouse, trackpad or keyboard. Drag a box and zoom to that region. Zoom Shorts to full width.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://www.youtube.com/*
@@ -42,6 +42,21 @@
   const STYLE_MARK = 'data-jshute-yt-zoom-style';
   const BOX_ID = 'jshute-yt-zoom-box';
   const HUD_ID = 'jshute-yt-zoom-hud';
+  // Set on <html> while a Short is zoomed; the stylesheet widens the
+  // Shorts player under it, to the width in this custom property.
+  const WIDE_ATTR = 'data-jshute-yt-zoom-wide';
+  const WIDE_WIDTH_VAR = '--jshute-yt-zoom-wide-width';
+  // Shorts page furniture the widened player has to leave room for:
+  // the up/down navigation-arrow column at the right edge, and the
+  // action bar (like/comment/share) when YouTube "extracts" it into
+  // its own column beside the player (in wide windows; otherwise it's
+  // overlaid on the player).
+  const SHORTS_NAV_WIDTH = 96;
+  const SHORTS_ACTIONS_WIDTH = 72;
+  const ACTIONS_EXTRACTED_SEL = 'ytd-reel-video-renderer[extract-action-bar]';
+  // ytd-app carries this while the full guide (left sidebar, with
+  // labels) is open; the ☰ button toggles it against the icon strip.
+  const GUIDE_OPEN_ATTR = 'guide-persistent-and-visible';
 
   const MIN_SCALE = 1;
   const MAX_SCALE = 32;
@@ -78,8 +93,9 @@
   // with transform-origin at the top-left.  ox/oy are fractions of the
   // video's own (unzoomed) width/height, so the view survives the
   // player being resized (theater mode, fullscreen) without recomputing.
-  // Both are ≤ 0: the zoomed video is always at least as big as its
-  // box, and never shows a gap.
+  // They're clamped so the zoomed video covers the player's box wherever
+  // it's big enough to, and sits centered where it isn't — so a video
+  // that's letterboxed at 1× spreads over the bars as it zooms.
   let view = { s: 1, ox: 0, oy: 0 };
   // The view `x` will return to.
   let savedView = null;
@@ -91,6 +107,12 @@
   let hudTimer = null;
   let styleObserver = null;
   let observedVideo = null;
+  // Whether we collapsed the guide to make room for a zoomed Short;
+  // it's reopened at 1×.
+  let collapsedGuide = false;
+  let placementObserver = null;
+  let layoutObserver = null;
+  let relayoutTimer = null;
   // Whether Ctrl/Cmd is physically held.  A pinch's wheel event says
   // ctrlKey=true with no key down, and that's the only reliable way
   // to tell the two apart: high-resolution wheels emit the same small
@@ -108,17 +130,35 @@
     return v.s !== 1 || v.ox !== 0 || v.oy !== 0;
   }
 
-  function clampView(v) {
+  // One axis of the clamp.  The video's unzoomed edge is at `start`
+  // with size `size`; zoomed it spans `size * s` from `start + o * size`.
+  // The player's box runs `lo..hi`.
+  function clampAxis(o, s, start, size, lo, hi) {
+    if (hi <= start || lo >= start + size) {
+      // The video isn't over the player at all — YouTube parks a
+      // Short's <video> above the player until it starts.  Don't
+      // drag it into view; clamp it to its own box instead.
+      lo = start;
+      hi = start + size;
+    }
+    if (s * size <= hi - lo) return ((lo + hi) / 2 - start) / size - s / 2;
+    return Math.min((lo - start) / size, Math.max((hi - start) / size - s, o));
+  }
+
+  function clampView(video, v) {
     const s = Math.min(MAX_SCALE, Math.max(MIN_SCALE, v.s));
+    const f = videoFrame(video);
+    const p = video.closest(PLAYER_SEL).getBoundingClientRect();
     return {
       s,
-      ox: Math.min(0, Math.max(1 - s, v.ox)),
-      oy: Math.min(0, Math.max(1 - s, v.oy)),
+      ox: clampAxis(v.ox, s, f.x0, f.w, p.left, p.right),
+      oy: clampAxis(v.oy, s, f.y0, f.h, p.top, p.bottom),
     };
   }
 
   function setView(video, next) {
-    view = clampView(next);
+    syncWide(video, next.s);
+    view = clampView(video, next);
     if (view.s === 1) view = { s: 1, ox: 0, oy: 0 };
     applyView(video);
     showHud(video);
@@ -160,8 +200,11 @@
   function zoomAt(video, factor, clientX, clientY) {
     const s = Math.min(MAX_SCALE, Math.max(MIN_SCALE, view.s * factor));
     if (s === view.s) return;
-    const f = videoFrame(video);
+    // Read the anchor before the layout can change under it: on Shorts
+    // a zoom resizes the player, which moves the video.
     const { u, v } = toVideoFraction(video, clientX, clientY);
+    syncWide(video, s);
+    const f = videoFrame(video);
     setView(video, {
       s,
       ox: (clientX - f.x0) / f.w - u * s,
@@ -169,20 +212,40 @@
     });
   }
 
+  // Zoom by `factor` around the player's center; the same point of the
+  // video stays centered even if the player resizes.
   function zoomAtCenter(video, factor) {
-    const r = video.closest(PLAYER_SEL).getBoundingClientRect();
-    zoomAt(video, factor, r.left + r.width / 2, r.top + r.height / 2);
+    const s = Math.min(MAX_SCALE, Math.max(MIN_SCALE, view.s * factor));
+    if (s === view.s) return;
+    const c = playerCenter(video);
+    const { u, v } = toVideoFraction(video, c.x, c.y);
+    syncWide(video, s);
+    const f = videoFrame(video);
+    const c2 = playerCenter(video);
+    setView(video, {
+      s,
+      ox: (c2.x - f.x0) / f.w - u * s,
+      oy: (c2.y - f.y0) / f.h - v * s,
+    });
   }
 
-  // Zoom so the client-coordinate box fills the video's frame, centered.
+  function playerCenter(video) {
+    const r = video.closest(PLAYER_SEL).getBoundingClientRect();
+    return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+  }
+
+  // Zoom so the client-coordinate box fills the player, centered.
   function zoomToBox(video, x1, y1, x2, y2) {
     const a = toVideoFraction(video, Math.min(x1, x2), Math.min(y1, y2));
     const b = toVideoFraction(video, Math.max(x1, x2), Math.max(y1, y2));
     const s = Math.min(MAX_SCALE, 1 / (b.u - a.u), 1 / (b.v - a.v));
+    syncWide(video, s);
+    const f = videoFrame(video);
+    const c = playerCenter(video);
     setView(video, {
       s,
-      ox: 0.5 - s * (a.u + b.u) / 2,
-      oy: 0.5 - s * (a.v + b.v) / 2,
+      ox: (c.x - f.x0) / f.w - s * (a.u + b.u) / 2,
+      oy: (c.y - f.y0) / f.h - s * (a.v + b.v) / 2,
     });
   }
 
@@ -257,8 +320,127 @@
         opacity: 0; transition: opacity .2s;
       }
       #${HUD_ID}.visible { opacity: 1; transition: none; }
+      /* Shorts, zoomed: the player takes the width syncWide computed
+         (the zoomed video's, capped by the free width).  YouTube sets
+         --ytd-shorts-player-width on these three elements; this
+         overrides it there. */
+      html[${WIDE_ATTR}] ytd-shorts,
+      html[${WIDE_ATTR}] .reel-video-in-sequence-new.ytd-shorts,
+      html[${WIDE_ATTR}] ytd-reel-video-renderer {
+        --ytd-shorts-player-width: var(${WIDE_WIDTH_VAR}) !important;
+      }
     `;
     document.head.appendChild(style);
+  }
+
+  // On Shorts the player is sized to the 9:16 video and the page around
+  // it is empty.  While zoomed, widen it to the zoomed video's width,
+  // up to the space between the guide and the navigation arrows (see
+  // the stylesheet), so the picture has room and no bars show.  If the
+  // full guide is what's in the way, collapse it to the icon strip, as
+  // the ☰ button does; it's reopened at 1×.
+  // YouTube only re-lays-out the <video> on a window resize, so fake
+  // one; that's synchronous, so callers can measure right after.
+  function syncWide(video, s) {
+    const html = document.documentElement;
+    const shorts = video.closest('ytd-shorts');
+    const app = document.querySelector('ytd-app');
+    // Early in a page load the player is created before the Shorts page
+    // exists to hold it, and is moved into `ytd-shorts` later.  Go by
+    // the URL then, and re-fit once it's placed.
+    const on = s > 1 && (shorts !== null || location.pathname.startsWith('/shorts/'));
+    let width = '';
+    if (on) {
+      if (!shorts) watchPlacement(video);
+      const guide = shorts ? shorts.getBoundingClientRect().left : 0;
+      const side = SHORTS_NAV_WIDTH +
+        (document.querySelector(ACTIONS_EXTRACTED_SEL) ? SHORTS_ACTIONS_WIDTH : 0);
+      const want = Math.round(naturalShortsWidth(video) * s);
+      if (want > innerWidth - guide - side && app?.hasAttribute(GUIDE_OPEN_ATTR)) {
+        toggleGuide();
+        collapsedGuide = true;
+      }
+      width = `${Math.min(want, Math.round(innerWidth - guide - side))}px`;
+      watchLayout();
+    } else {
+      placementObserver?.disconnect();
+      placementObserver = null;
+      if (collapsedGuide) {
+        collapsedGuide = false;
+        if (app && !app.hasAttribute(GUIDE_OPEN_ATTR)) toggleGuide();
+      }
+    }
+    if (html.hasAttribute(WIDE_ATTR) === on && html.style.getPropertyValue(WIDE_WIDTH_VAR) === width) return;
+    ensureStyles();
+    html.toggleAttribute(WIDE_ATTR, on);
+    if (on) html.style.setProperty(WIDE_WIDTH_VAR, width);
+    else html.style.removeProperty(WIDE_WIDTH_VAR);
+    window.dispatchEvent(new Event('resize'));
+    // The Shorts player rewrites the video's whole inline style on
+    // resize, transform included.  Put it back now, so measurements
+    // made by the caller (which back the transform out of the rect)
+    // are consistent.
+    if (isZoomed(view)) applyView(video);
+  }
+
+  // The width YouTube would give the Shorts player: its height times
+  // the video's aspect ratio, which the page puts in
+  // --ytd-shorts-player-ratio on the reel item.  Derived rather than
+  // measured because once we've widened the player its natural width
+  // is no longer on show (and while a Short is cued even its <video> is
+  // sized to the player).  Before the player is placed in the page
+  // there's no ratio yet, and nothing of ours has touched its width.
+  function naturalShortsWidth(video) {
+    const player = video.closest(PLAYER_SEL);
+    const item = player.closest('.reel-video-in-sequence-new');
+    const ratio = item && parseFloat(getComputedStyle(item).getPropertyValue('--ytd-shorts-player-ratio'));
+    return ratio > 0 ? player.offsetHeight * ratio : player.offsetWidth;
+  }
+
+  // Re-fit once the player has been moved into the Shorts page.
+  function watchPlacement(video) {
+    if (placementObserver) return;
+    placementObserver = new MutationObserver(() => {
+      if (!video.closest('ytd-shorts')) return;
+      placementObserver.disconnect();
+      placementObserver = null;
+      scheduleRelayout();
+    });
+    placementObserver.observe(document.documentElement, { childList: true, subtree: true });
+  }
+
+  function toggleGuide() {
+    const button = document.querySelector('#guide-button');
+    if (button) button.click();
+    else console.log(`${TAG} guide button not found; can't collapse the guide`);
+  }
+
+  // The free width changes under a zoomed Short: the guide collapses a
+  // task after it's clicked, YouTube moves the action bar in or out of
+  // its own column as the player's width changes, and the window can
+  // be resized.  Re-fit the player and re-clamp the view when any of
+  // those happens.
+  function watchLayout() {
+    if (layoutObserver) return;
+    const app = document.querySelector('ytd-app');
+    if (!app) return;
+    layoutObserver = new MutationObserver(scheduleRelayout);
+    layoutObserver.observe(app, {
+      attributes: true, subtree: true,
+      attributeFilter: [GUIDE_OPEN_ATTR, 'mini-guide-visible', 'extract-action-bar'],
+    });
+    window.addEventListener('resize', (e) => { if (e.isTrusted) scheduleRelayout(); });
+  }
+
+  function scheduleRelayout() {
+    clearTimeout(relayoutTimer);
+    relayoutTimer = setTimeout(() => {
+      const video = observedVideo;
+      if (!video || !isZoomed(view)) return;
+      syncWide(video, view.s);
+      view = clampView(video, view);
+      applyView(video);
+    }, 0);
   }
 
   function showHud(video) {
@@ -278,8 +460,9 @@
   }
 
   // YouTube rewrites the video's inline width/height/left/top on
-  // resize.  It sets them individually today, so our transform
-  // survives, but put it back if that ever changes.
+  // resize.  The watch page sets them individually, so our transform
+  // survives; the Shorts player replaces the whole style (see
+  // syncWide).  Put it back whenever it goes.
   function watchStyle(video) {
     if (observedVideo === video) return;
     styleObserver?.disconnect();
@@ -375,7 +558,7 @@
     e.stopPropagation();
     if (drag.mode === 'pan') {
       const f = videoFrame(drag.video);
-      view = clampView({
+      view = clampView(drag.video, {
         s: view.s,
         ox: view.ox + (e.clientX - drag.lastX) / f.w,
         oy: view.oy + (e.clientY - drag.lastY) / f.h,
@@ -446,7 +629,7 @@
       e.stopImmediatePropagation();
       if (!isZoomed(view)) return;
       // Moving the view right means the content slides left.
-      view = clampView({ s: view.s, ox: view.ox - pan[0] * KEY_PAN_STEP, oy: view.oy - pan[1] * KEY_PAN_STEP });
+      view = clampView(video, { s: view.s, ox: view.ox - pan[0] * KEY_PAN_STEP, oy: view.oy - pan[1] * KEY_PAN_STEP });
       applyView(video);
     }
   }
