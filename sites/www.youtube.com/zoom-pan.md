@@ -9,14 +9,14 @@ This adds simple zooming and panning in the video player, similar to maps.
 | Action | Mouse | Trackpad | Keyboard |
 | --- | --- | --- | --- |
 | **Zoom** in / out | <kbd>Ctrl</kbd> + wheel | Pinch-zoom, or<br><kbd>Ctrl</kbd> + two-finger drag up/down | <kbd>+</kbd> / <kbd>-</kbd> |
-| **Pan** | <kbd>Ctrl</kbd> + drag | <kbd>Ctrl</kbd> + drag | <kbd>Ctrl</kbd> + arrow keys |
+| **Pan** | <kbd>Ctrl</kbd> + drag, or<br>middle-button drag | <kbd>Ctrl</kbd> + drag | <kbd>Ctrl</kbd> + arrow keys |
 | **Zoom** to a region | <kbd>Shift</kbd> + draw a box | <kbd>Shift</kbd> + draw a box | |
 | **Toggle** between default and zoomed view | | | <kbd>x</kbd> |
 
-On Shorts, the player widens as you zoom in, so the zoomed vertical video can
+In Shorts, the player widens as you zoom in, so the zoomed vertical video can
 spread to full-page or full-screen width.
 
-On Shorts in their initial state, <kbd>x</kbd> zooms to the full width of
+For Shorts in their initial state, <kbd>x</kbd> zooms to the full width of
 the window, vertically centered.
 
 Controls are inactive on 360° videos. YouTube supports zooming and panning inside spherical video content natively.
@@ -130,8 +130,10 @@ Gestures:
   autoscroll. The browser still synthesizes a `click` (and possibly
   `dblclick`) when the drag ends; YouTube toggles play/pause and
   fullscreen on those, so for 500 ms after a drag ends, clicks inside
-  the player are swallowed in the capture phase. A ctrl+drag at 1×
-  isn't claimed at all, so ctrl+click stays a normal click.
+  the player are swallowed in the capture phase. The middle button
+  pans with or without Ctrl. A pan drag at 1× isn't claimed at all, so
+  ctrl+click stays a normal click and a middle-button press still
+  autoscrolls.
 * **Zoom box**: an absolutely positioned `div` appended to
   the player root (which is `position: relative`), `pointer-events:
   none`, sized in player-relative pixels on each move. A box under

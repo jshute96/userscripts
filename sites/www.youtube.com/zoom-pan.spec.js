@@ -179,21 +179,22 @@ test('ctrl+drag pans, stays within the frame, and does not toggle playback', asy
   const start = await readView(page);
   const paused = await page.evaluate((sel) => document.querySelector(sel).paused, VIDEO);
 
-  for (const button of ['left', 'middle']) {
-    await page.keyboard.down('Control');
+  // Ctrl+left, ctrl+middle, and plain middle drags all pan.
+  for (const [button, ctrl] of [['left', true], ['middle', true], ['middle', false]]) {
+    if (ctrl) await page.keyboard.down('Control');
     await page.mouse.move(cx, cy);
     await page.mouse.down({ button });
     await page.mouse.move(cx - 60, cy - 40, { steps: 4 });
     await page.mouse.up({ button });
-    await page.keyboard.up('Control');
+    if (ctrl) await page.keyboard.up('Control');
   }
   const view = await readView(page);
   expect(view.s).toBe(start.s);
-  // Two drags of 60px left / 40px up, as fractions of the video box.
+  // Three drags of 60px left / 40px up, as fractions of the video box.
   const vw = await page.evaluate((sel) => document.querySelector(sel).offsetWidth, VIDEO);
   const vh = await page.evaluate((sel) => document.querySelector(sel).offsetHeight, VIDEO);
-  expect(view.ox).toBeCloseTo(start.ox - 120 / vw, 2);
-  expect(view.oy).toBeCloseTo(start.oy - 80 / vh, 2);
+  expect(view.ox).toBeCloseTo(start.ox - 180 / vw, 2);
+  expect(view.oy).toBeCloseTo(start.oy - 120 / vh, 2);
 
   // Drag far past the edge: the offset clamps so no gap opens up.
   await page.keyboard.down('Control');
@@ -202,9 +203,11 @@ test('ctrl+drag pans, stays within the frame, and does not toggle playback', asy
   await page.mouse.move(cx + 3000, cy + 3000, { steps: 4 });
   await page.mouse.up();
   await page.keyboard.up('Control');
+  // (Precision 2: the clamp is against the player's box, whose width
+  // can differ from the video's integer offsetWidth by a fraction.)
   const clamped = await readView(page);
-  expect(clamped.ox).toBeCloseTo(0, 3);
-  expect(clamped.oy).toBeCloseTo(0, 3);
+  expect(clamped.ox).toBeCloseTo(0, 2);
+  expect(clamped.oy).toBeCloseTo(0, 2);
 
   // The synthesized click after each drag was swallowed.
   await page.waitForTimeout(600);
@@ -388,7 +391,8 @@ test('works on Shorts, whose player root is #shorts-player', async ({ page }) =>
   // the next item, then changes the URL.  The view resets when the
   // player moves, so the next Short never shows zoomed or widened.
   await page.locator('#navigation-button-down button').click();
-  await expect.poll(() => page.url()).not.toBe(SHORTS_URL_2);
+  // (YouTube is sometimes slow to act on the click right after a resize.)
+  await expect.poll(() => page.url(), { timeout: 15000 }).not.toBe(SHORTS_URL_2);
   expect((await readView(page)).s).toBe(1);
   expect(new Set(await thumbWidths()).size).toBe(1);
   // Shorts loop forever; stop it (the fixture closes the tab anyway).

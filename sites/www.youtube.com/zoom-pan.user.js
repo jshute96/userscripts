@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube: Simple zoom and pan
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.2.2
+// @version      0.2.3
 // @description  Zoom and pan the video with the mouse, trackpad or keyboard. Drag a box and zoom to that region. Zoom Shorts to full width.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -12,21 +12,22 @@
 // ==/UserScript==
 
 // Mouse controls:
-//   Ctrl + mouse wheel                   Zoom in / out
-//   Ctrl + drag (left or middle button)  Pan
-//   Shift + drag                         Draw a box, then zoom to it
+//   Ctrl + mouse wheel              Zoom in / out
+//   Ctrl + drag                     Pan
+//   Middle-button drag              Pan
+//   Shift + drag                    Draw a box, then zoom to it
 //
 // Trackpad controls:
-//   Pinch-zoom                           Zoom in / out
-//   Ctrl + two-finger drag up/down       Zoom in / out
-//   Ctrl + drag                          Pan
-//   Shift + drag                         Draw a box, then zoom to it
+//   Pinch-zoom                      Zoom in / out
+//   Ctrl + two-finger drag up/down  Zoom in / out
+//   Ctrl + drag                     Pan
+//   Shift + drag                    Draw a box, then zoom to it
 //
 // Keyboard controls:
-//   Plus / minus                         Zoom in / out by 2x
-//   Ctrl + arrow keys                    Pan
-//   x                                    Toggle between default and zoomed view
-//                                        (on Shorts, initial toggle is to full width)
+//   Plus / minus                    Zoom in / out by 2x
+//   Ctrl + arrow keys               Pan
+//   x                               Toggle between default and zoomed view
+//                                   (In Shorts, first toggle is to full width)
 
 (function () {
   'use strict';
@@ -631,11 +632,14 @@
     if (!pv) return;
     let mode = null;
     // Shift wins when both are held, so ctrl+shift+drag draws a box too.
+    // The middle button pans with or without Ctrl.
     if (e.shiftKey && e.button === 0) mode = 'box';
-    else if (e.ctrlKey && !e.shiftKey && (e.button === 0 || e.button === 1)) mode = 'pan';
+    else if (e.button === 1 && !e.shiftKey) mode = 'pan';
+    else if (e.ctrlKey && !e.shiftKey && e.button === 0) mode = 'pan';
     if (!mode) return;
     if (mode === 'pan' && !isZoomed(view)) {
-      // Nothing to pan at 1×; let the click through untouched.
+      // Nothing to pan at 1×; let the click (or middle-button
+      // autoscroll) through untouched.
       return;
     }
     // preventDefault on pointerdown also suppresses the compatibility
