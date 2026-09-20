@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube: Simple zoom and pan
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.2.0
+// @version      0.2.1
 // @description  Zoom and pan the video with the mouse, trackpad or keyboard. Drag a box and zoom to that region. Zoom Shorts to full width.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -26,6 +26,7 @@
 //   Plus / minus                         Zoom in / out by 2x
 //   Ctrl + arrow keys                    Pan
 //   x                                    Toggle between default and zoomed view
+//                                        (on Shorts, initial toggle is to full width)
 
 (function () {
   'use strict';
@@ -53,6 +54,8 @@
   // overlaid on the player).
   const SHORTS_NAV_WIDTH = 96;
   const SHORTS_ACTIONS_WIDTH = 72;
+  // The guide's width once collapsed to its icon strip.
+  const MINI_GUIDE_WIDTH = 72;
   const ACTIONS_EXTRACTED_SEL = 'ytd-reel-video-renderer[extract-action-bar]';
   // ytd-app carries this while the full guide (left sidebar, with
   // labels) is open; the ☰ button toggles it against the icon strip.
@@ -255,14 +258,42 @@
   }
 
   // `x`: zoomed → remember the view and show the full frame; full
-  // frame → go back to the remembered view, if any.
+  // frame → go back to the remembered view.  On a Short with nothing
+  // remembered yet, the alternate is the video at the full width the
+  // page allows, centered vertically.
   function toggleReset(video) {
     if (isZoomed(view)) {
       savedView = view;
       setView(video, { s: 1, ox: 0, oy: 0 });
     } else if (savedView) {
       setView(video, savedView);
+    } else if (isShort(video)) {
+      zoomToFullWidth(video);
     }
+  }
+
+  function isShort(video) {
+    return video.closest('ytd-shorts') !== null || location.pathname.startsWith('/shorts/');
+  }
+
+  // Zoom a Short so its video spans the width the page can give the
+  // player, with the guide collapsed to its icon strip, and center it
+  // vertically.
+  function zoomToFullWidth(video) {
+    const shorts = video.closest('ytd-shorts');
+    const guide = Math.min(MINI_GUIDE_WIDTH, shorts ? shorts.getBoundingClientRect().left : 0);
+    // A couple of pixels over, so rounding can't leave a hairline bar
+    // at either side; the clamp absorbs the excess.
+    const s = Math.min(MAX_SCALE, (innerWidth - guide - SHORTS_NAV_WIDTH + 2) / naturalShortsWidth(video));
+    if (s <= 1) return;
+    syncWide(video, s);
+    const f = videoFrame(video);
+    const c = playerCenter(video);
+    setView(video, {
+      s,
+      ox: (c.x - f.x0) / f.w - s / 2,
+      oy: (c.y - f.y0) / f.h - s / 2,
+    });
   }
 
   // ---------- DOM helpers ----------
@@ -348,7 +379,7 @@
     // Early in a page load the player is created before the Shorts page
     // exists to hold it, and is moved into `ytd-shorts` later.  Go by
     // the URL then, and re-fit once it's placed.
-    const on = s > 1 && (shorts !== null || location.pathname.startsWith('/shorts/'));
+    const on = s > 1 && isShort(video);
     let width = '';
     if (on) {
       if (!shorts) watchPlacement(video);
@@ -468,8 +499,16 @@
     styleObserver?.disconnect();
     observedVideo = video;
     styleObserver = new MutationObserver(() => {
-      if (isZoomed(view) && !video.style.transform) {
+      if (!isZoomed(view)) return;
+      if (!video.style.transform) {
         console.log(`${TAG} transform was cleared by the page; reapplying`);
+        applyView(video);
+      }
+      // The page moved or resized the video (a cued Short being placed
+      // in the player, say); keep the view within the player.
+      const clamped = clampView(video, view);
+      if (clamped.ox !== view.ox || clamped.oy !== view.oy) {
+        view = clamped;
         applyView(video);
       }
     });

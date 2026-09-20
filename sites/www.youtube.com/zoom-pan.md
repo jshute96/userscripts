@@ -16,6 +16,9 @@ This adds simple zooming and panning in the video player, similar to maps.
 On Shorts, the player widens as you zoom in, so the zoomed vertical video can
 spread to full-page or full-screen width.
 
+On Shorts in their initial state, <kbd>x</kbd> zooms to the full width of
+the window, vertically centered.
+
 Controls are inactive on 360° videos. YouTube supports zooming and panning inside spherical video content natively.
 
 ## Visible changes
@@ -30,7 +33,8 @@ Controls are inactive on 360° videos. YouTube supports zooming and panning insi
 * The `x` key is taken over while a video is on the page (YouTube
   itself doesn't use it), as are `+`/`-`, which YouTube uses for
   caption text size. Ctrl+arrows likewise (plain arrows still seek and
-  adjust volume).
+  adjust volume). On a Short with no remembered zoom, `x` goes to a
+  full-width, vertically centered view instead of doing nothing.
 * A dashed rectangle while drawing a zoom box, and a transient "2.5×"
   badge in the player's top-left corner after each zoom change.
 * On Shorts, the player grows to the zoomed video's width (up to the
@@ -183,6 +187,13 @@ resizes also change the free width, so a `MutationObserver` on
 `mini-guide-visible`, `extract-action-bar`, subtree) and a listener for
 trusted `resize` events schedule a re-fit: recompute the width,
 re-clamp the view, reapply.
+
+`x` with nothing remembered on a Short (`zoomToFullWidth`) picks
+`s = (innerWidth − min(guide, 72px) − 96px) / natural width` — the
+width the player can reach once the guide is collapsed, plus 2px so
+rounding can't leave a hairline bar — and centers the video on the
+player's center in both axes; the clamp then holds it against the
+player's edges horizontally.
 
 YouTube only re-lays-out the `<video>` (its inline `width`/`left`,
 centering the picture in the player) on a window `resize` event, so

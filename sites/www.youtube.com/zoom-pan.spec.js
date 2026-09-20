@@ -18,6 +18,7 @@ const SPHERICAL_URL = 'https://www.youtube.com/watch?v=CaswdIbc2UA';
 // both after in-page navigation, so the live one is the laid-out one.
 const VIDEO = '.html5-video-player video.html5-main-video';
 const SHORTS_URL = 'https://www.youtube.com/shorts/j7G4rAhQ5P4';
+const SHORTS_URL_2 = 'https://www.youtube.com/shorts/ej0tF4NIMfc';
 
 // The view as {s, ox, oy}: scale and the translate percentages the
 // script writes. Full frame is {s: 1, ox: 0, oy: 0} with no transform.
@@ -341,6 +342,41 @@ test('works on Shorts, whose player root is #shorts-player', async ({ page }) =>
   const narrow = await page.locator('#shorts-player').boundingBox();
   expect(narrow.width).toBeCloseTo(box.width, 0);
   expect(narrow.x).toBeCloseTo(box.x, 0);
+
+  // With nothing remembered, `x` on a Short zooms to the full width the
+  // page allows, vertically centered.  Navigating to another Short
+  // forgets the remembered view, so it's the fresh state again.
+  await page.goto(SHORTS_URL_2);
+  await expect.poll(() => page.evaluate(() =>
+    document.querySelector('#shorts-player video')?.offsetWidth ?? 0)).toBeGreaterThan(0);
+  await page.evaluate(() => { document.querySelector('#shorts-player video').muted = true; });
+  // Start it with a click so the video is laid out in the player
+  // (cued, it's parked above), then let its size settle.
+  const box2 = await page.locator('#shorts-player').boundingBox();
+  await page.mouse.click(box2.x + box2.width / 2, box2.y + box2.height / 2);
+  await expect.poll(() => page.evaluate(() => {
+    const v = document.querySelector('#shorts-player video');
+    return v.getBoundingClientRect().top >= v.closest('#shorts-player').getBoundingClientRect().top - 1;
+  })).toBe(true);
+  await page.waitForTimeout(1000);
+  await page.keyboard.press('x');
+  await expect.poll(async () => (await readView(page)).s).toBeGreaterThan(1.5);
+  await expect.poll(async () => {
+    const b = await page.locator('#shorts-player').boundingBox();
+    return Math.round(b.x + b.width);
+  }).toBe(Math.round(arrows.x));
+  const full = await page.evaluate((sel) => {
+    const v = document.querySelector(sel);
+    const r = v.getBoundingClientRect();
+    const p = v.closest('#shorts-player').getBoundingClientRect();
+    return { left: r.left - p.left, right: p.right - r.right,
+      centered: Math.abs((r.top + r.bottom) / 2 - (p.top + p.bottom) / 2) };
+  }, VIDEO);
+  expect(full.left).toBeLessThanOrEqual(0);
+  expect(full.right).toBeLessThanOrEqual(0);
+  expect(full.centered).toBeLessThan(2);
+  await page.keyboard.press('x');
+  expect((await readView(page)).s).toBe(1);
   // Shorts loop forever; stop it (the fixture closes the tab anyway).
   await page.evaluate(() => document.querySelector('#shorts-player video').pause());
 });
