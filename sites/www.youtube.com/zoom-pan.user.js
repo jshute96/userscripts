@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube: Simple zoom and pan
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.2.1
+// @version      0.2.2
 // @description  Zoom and pan the video with the mouse, trackpad or keyboard. Drag a box and zoom to that region. Zoom Shorts to full width.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -60,6 +60,9 @@
   // ytd-app carries this while the full guide (left sidebar, with
   // labels) is open; the ☰ button toggles it against the icon strip.
   const GUIDE_OPEN_ATTR = 'guide-persistent-and-visible';
+  // One Short in the feed: the one holding the player, plus neighbors
+  // that are just thumbnails.
+  const SHORTS_ITEM_SEL = '.reel-video-in-sequence-new';
 
   const MIN_SCALE = 1;
   const MAX_SCALE = 32;
@@ -103,6 +106,10 @@
   // The view `x` will return to.
   let savedView = null;
   let lastVideoKey = videoKey();
+  // The feed item the player was in when the view was last set, and
+  // the observer that notices it moving to another one.
+  let zoomedItem = null;
+  let itemObserver = null;
 
   // The drag in progress, if any: {mode: 'pan'|'box', player, video, ...}.
   let drag = null;
@@ -110,12 +117,19 @@
   let hudTimer = null;
   let styleObserver = null;
   let observedVideo = null;
+  // The video's inline style as we last left it, so the style observer
+  // can tell our own writes from the page's.
+  let appliedStyle = '';
   // Whether we collapsed the guide to make room for a zoomed Short;
   // it's reopened at 1×.
   let collapsedGuide = false;
   let placementObserver = null;
   let layoutObserver = null;
   let relayoutTimer = null;
+  // Times of recent automatic re-fits, to catch the page and the
+  // script resizing the player back and forth.
+  let relayoutTimes = [];
+  let relayoutHeld = false;
   // Whether Ctrl/Cmd is physically held.  A pinch's wheel event says
   // ctrlKey=true with no key down, and that's the only reliable way
   // to tell the two apart: high-resolution wheels emit the same small
@@ -160,11 +174,37 @@
   }
 
   function setView(video, next) {
+    relayoutHeld = false;
+    relayoutTimes = [];
     syncWide(video, next.s);
     view = clampView(video, next);
     if (view.s === 1) view = { s: 1, ox: 0, oy: 0 };
     applyView(video);
     showHud(video);
+    watchItem(video);
+  }
+
+  // Moving to the next or previous Short scrolls the feed for ~300 ms,
+  // then moves the one player into the new Short's item, and only then
+  // changes the URL.  The neighbors are thumbnails at their normal
+  // size, so the scroll itself looks right with the current Short
+  // still zoomed; what must not happen is the player arriving in the
+  // new item transformed and widened.  Reset the moment it moves — a
+  // mutation callback runs before the next paint.
+  function watchItem(video) {
+    const item = video.closest(SHORTS_ITEM_SEL);
+    zoomedItem = isZoomed(view) ? item : null;
+    if (!zoomedItem) {
+      itemObserver?.disconnect();
+      itemObserver = null;
+      return;
+    }
+    if (itemObserver) return;
+    itemObserver = new MutationObserver(() => {
+      if (!zoomedItem || !observedVideo || observedVideo.closest(SHORTS_ITEM_SEL) === zoomedItem) return;
+      resetView(observedVideo);
+    });
+    itemObserver.observe(video.closest('ytd-shorts') || document.documentElement, { childList: true, subtree: true });
   }
 
   function applyView(video) {
@@ -177,6 +217,7 @@
       video.style.removeProperty('transform');
       video.style.removeProperty('transform-origin');
     }
+    appliedStyle = video.style.cssText;
   }
 
   // Where the video's *untransformed* top-left corner is on screen,
@@ -353,10 +394,11 @@
       #${HUD_ID}.visible { opacity: 1; transition: none; }
       /* Shorts, zoomed: the player takes the width syncWide computed
          (the zoomed video's, capped by the free width).  YouTube sets
-         --ytd-shorts-player-width on these three elements; this
-         overrides it there. */
-      html[${WIDE_ATTR}] ytd-shorts,
-      html[${WIDE_ATTR}] .reel-video-in-sequence-new.ytd-shorts,
+         --ytd-shorts-player-width on ytd-shorts, on every feed item and
+         on the player's renderer; this overrides it on the item holding
+         the player (and the renderer inside it) only, so the neighbors'
+         thumbnails, which peek in above and below, keep their size. */
+      html[${WIDE_ATTR}] .reel-video-in-sequence-new.ytd-shorts:has(${PLAYER_SEL}),
       html[${WIDE_ATTR}] ytd-reel-video-renderer {
         --ytd-shorts-player-width: var(${WIDE_WIDTH_VAR}) !important;
       }
@@ -423,7 +465,7 @@
   // there's no ratio yet, and nothing of ours has touched its width.
   function naturalShortsWidth(video) {
     const player = video.closest(PLAYER_SEL);
-    const item = player.closest('.reel-video-in-sequence-new');
+    const item = player.closest(SHORTS_ITEM_SEL);
     const ratio = item && parseFloat(getComputedStyle(item).getPropertyValue('--ytd-shorts-player-ratio'));
     return ratio > 0 ? player.offsetHeight * ratio : player.offsetWidth;
   }
@@ -464,13 +506,27 @@
   }
 
   function scheduleRelayout() {
+    if (relayoutHeld) return;
     clearTimeout(relayoutTimer);
     relayoutTimer = setTimeout(() => {
       const video = observedVideo;
       if (!video || !isZoomed(view)) return;
+      const now = performance.now();
+      relayoutTimes = relayoutTimes.filter((t) => now - t < 2000);
+      relayoutTimes.push(now);
+      if (relayoutTimes.length > 10) {
+        // Something we change makes the page change something we react
+        // to.  Stop here rather than pin the CPU; the next gesture
+        // starts afresh.
+        console.log(`${TAG} layout kept changing; leaving it alone until the next zoom`);
+        relayoutHeld = true;
+        return;
+      }
       syncWide(video, view.s);
       view = clampView(video, view);
       applyView(video);
+      // The player may only just have been placed in its feed item.
+      watchItem(video);
     }, 0);
   }
 
@@ -499,18 +555,23 @@
     styleObserver?.disconnect();
     observedVideo = video;
     styleObserver = new MutationObserver(() => {
-      if (!isZoomed(view)) return;
+      // Our own writes come back through here too; reacting to them
+      // would re-clamp, re-write, and spin forever on rounding noise.
+      if (!isZoomed(view) || video.style.cssText === appliedStyle) return;
       if (!video.style.transform) {
         console.log(`${TAG} transform was cleared by the page; reapplying`);
         applyView(video);
       }
       // The page moved or resized the video (a cued Short being placed
-      // in the player, say); keep the view within the player.
+      // in the player, say); keep the view within the player.  Only for
+      // a visible difference, never sub-pixel drift.
+      const f = videoFrame(video);
       const clamped = clampView(video, view);
-      if (clamped.ox !== view.ox || clamped.oy !== view.oy) {
+      if (Math.abs(clamped.ox - view.ox) * f.w > 0.5 || Math.abs(clamped.oy - view.oy) * f.h > 0.5) {
         view = clamped;
         applyView(video);
       }
+      appliedStyle = video.style.cssText;
     });
     styleObserver.observe(video, { attributes: true, attributeFilter: ['style'] });
   }

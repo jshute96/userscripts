@@ -83,7 +83,20 @@ video is often playing long before `document-idle`, and a ctrl+wheel in
 that window would otherwise zoom the whole page. The one navigation hook is `urlchange` (via
 `@grant window.onurlchange`): when the video identity in the URL
 changes (`?v=` on the watch page, the path on Shorts), the view is
-reset so a zoom doesn't carry over.
+reset so a zoom doesn't carry over. On Shorts that's too late to look
+right. The feed (`#shorts-container`, scroll-snapping) holds one
+`.reel-video-in-sequence-new` item per Short, but there is only one
+player: the neighbors, which peek in above and below, are just
+thumbnail `div`s with a background image. Moving to the next or
+previous Short scrolls the feed for ~300 ms, then moves the player
+into the new item, and only then changes the URL — so the player would
+arrive in the new item still transformed and widened, then snap. So
+the widening override is scoped to the item holding the player
+(`:has(.html5-video-player)`), which keeps the neighbors at their
+normal size during the scroll, and a `MutationObserver` on `ytd-shorts`
+(childList, subtree, only while zoomed) resets the view the moment
+the player's item changes; that callback runs before the next paint.
+The leaving item, by then almost scrolled out, shrinks at that moment.
 
 Gestures:
 
@@ -131,10 +144,20 @@ Gestures:
   text field.
 
 A `MutationObserver` on the video's `style` attribute reapplies the
-transform if the page clears it. The watch page sets
-`width`/`height`/`left`/`top` individually on resize, which leaves
-`transform` alone; the Shorts player replaces the whole inline style
-(see below), so there it matters.
+transform if the page clears it, and re-clamps the view if the page
+moved or resized the video (a cued Short being placed in the player).
+The watch page sets `width`/`height`/`left`/`top` individually on
+resize, which leaves `transform` alone; the Shorts player replaces the
+whole inline style (see below), so there it matters. Two guards keep
+this from feeding on itself: the observer ignores mutations whose
+`cssText` is exactly what the script last wrote (its own writes come
+back through the same observer), and it only re-applies for a change
+of more than half a pixel. Without the first, a re-clamp that differed
+by floating-point noise re-wrote the style, which re-fired the
+observer, in an unbroken microtask loop that hung the tab. Similarly,
+the automatic re-fit stops (with a console line) if it runs more than
+ten times in two seconds, in case the page and the script ever resize
+the player back and forth.
 
 **Shorts: widening the player.** YouTube sizes the Shorts player from
 CSS custom properties: `--ytd-shorts-player-width` is
@@ -226,7 +249,9 @@ untouched, and one console line per video says so.
 * Pointer events over the picture land on the `<video>` (or another
   descendant of the player root), not on some overlay outside it.
 * `ytp-webgl-spherical` on the player root marks a 360° video.
-* Shorts: the player is inside `ytd-shorts`; its width comes from
+* Shorts: the feed is `#shorts-container`, one `.reel-video-in-sequence-new`
+  item per Short, and the single player is moved between items. The
+  player is inside `ytd-shorts`; its width comes from
   `--ytd-shorts-player-width` on the three elements above; the action
   bar column is 72px and the navigation column 96px; a window `resize`
   event makes the player re-fit the video synchronously; `ytd-app`

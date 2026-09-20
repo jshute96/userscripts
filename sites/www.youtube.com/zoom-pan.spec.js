@@ -375,8 +375,22 @@ test('works on Shorts, whose player root is #shorts-player', async ({ page }) =>
   expect(full.left).toBeLessThanOrEqual(0);
   expect(full.right).toBeLessThanOrEqual(0);
   expect(full.centered).toBeLessThan(2);
-  await page.keyboard.press('x');
+
+  // Only the current Short's item is widened; the neighbors peeking in
+  // above and below stay at their normal width.
+  const thumbWidths = () => page.evaluate(() =>
+    [...document.querySelectorAll('.reel-video-in-sequence-new')].slice(0, 3)
+      .map((i) => Math.round(i.querySelector('.reel-video-in-sequence-thumbnail').getBoundingClientRect().width)));
+  const widths = await thumbWidths();
+  expect(widths[0]).toBeGreaterThan(widths[1] * 1.5);
+  expect(widths[2]).toBe(widths[1]);
+  // Moving to another Short scrolls the feed, then moves the player into
+  // the next item, then changes the URL.  The view resets when the
+  // player moves, so the next Short never shows zoomed or widened.
+  await page.locator('#navigation-button-down button').click();
+  await expect.poll(() => page.url()).not.toBe(SHORTS_URL_2);
   expect((await readView(page)).s).toBe(1);
+  expect(new Set(await thumbWidths()).size).toBe(1);
   // Shorts loop forever; stop it (the fixture closes the tab anyway).
   await page.evaluate(() => document.querySelector('#shorts-player video').pause());
 });
