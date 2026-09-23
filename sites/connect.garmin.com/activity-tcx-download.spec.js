@@ -51,7 +51,7 @@ test.describe('Garmin Connect: TCX download button on activity page', () => {
       const b = document.getElementById(id);
       // Same gear lookup the userscript uses.
       const container = document.querySelector('[class*="ActivitySettingsMenu_menuContainer"]');
-      const gear = container.querySelector('button[class*="Menu_menuBtn"]');
+      const gear = container.querySelector(':scope > button');
       const br = b.getBoundingClientRect();
       const gr = gear.getBoundingClientRect();
       return { btnX: br.x, gearX: gr.x, sameRow: Math.abs(br.y - gr.y) < 30 };
