@@ -40,11 +40,16 @@ async function waitForLayoutSettled(page) {
   await page.waitForTimeout(200);
 }
 
-async function waitForInit(page) {
-  await page.waitForEvent('console', {
+// Wait for the script's `keys:` init line — confirms the handler is
+// registered before any keypress is dispatched. The wait is armed before
+// the goto: the script runs at document-idle, which can precede `load`.
+async function gotoAndInit(page) {
+  const init = page.waitForEvent('console', {
     predicate: msg => /^\[pb img\] keys:/.test(msg.text()),
     timeout: 15000,
   });
+  await page.goto(ARTICLE_URL);
+  await init;
 }
 
 // Dispatch a key and wait for the userscript's matching action log.
@@ -94,8 +99,7 @@ test.describe('pinkbike article image navigation', () => {
   });
 
   test('i from the top of the page jumps to the first big photo', async ({ page }) => {
-    await page.goto(ARTICLE_URL);
-    await waitForInit(page);
+    await gotoAndInit(page);
     await waitForLayoutSettled(page);
     const imgs = await listQualifyingImages(page);
     expect(imgs.length).toBeGreaterThan(0);
@@ -113,8 +117,7 @@ test.describe('pinkbike article image navigation', () => {
   });
 
   test('pressing i again advances past the just-anchored image', async ({ page }) => {
-    await page.goto(ARTICLE_URL);
-    await waitForInit(page);
+    await gotoAndInit(page);
     await waitForLayoutSettled(page);
     const imgs = await listQualifyingImages(page);
     expect(imgs.length).toBeGreaterThanOrEqual(2);
@@ -129,8 +132,7 @@ test.describe('pinkbike article image navigation', () => {
   });
 
   test('Shift-I steps backward through images', async ({ page }) => {
-    await page.goto(ARTICLE_URL);
-    await waitForInit(page);
+    await gotoAndInit(page);
     await waitForLayoutSettled(page);
     const imgs = await listQualifyingImages(page);
     expect(imgs.length).toBeGreaterThanOrEqual(3);
@@ -145,8 +147,7 @@ test.describe('pinkbike article image navigation', () => {
   });
 
   test('i past the last image is a no-op (logged)', async ({ page }) => {
-    await page.goto(ARTICLE_URL);
-    await waitForInit(page);
+    await gotoAndInit(page);
     await waitForLayoutSettled(page);
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight - window.innerHeight));
     await page.waitForTimeout(200);
@@ -155,8 +156,7 @@ test.describe('pinkbike article image navigation', () => {
   });
 
   test('Shift-I from the top of the page is a no-op (logged)', async ({ page }) => {
-    await page.goto(ARTICLE_URL);
-    await waitForInit(page);
+    await gotoAndInit(page);
     await waitForLayoutSettled(page);
     // Make sure we're at the very top.
     await page.evaluate(() => window.scrollTo(0, 0));
@@ -166,8 +166,7 @@ test.describe('pinkbike article image navigation', () => {
   });
 
   test('small (sub-threshold) images are not targeted', async ({ page }) => {
-    await page.goto(ARTICLE_URL);
-    await waitForInit(page);
+    await gotoAndInit(page);
     await waitForLayoutSettled(page);
     // There are dozens of <img> on the page (avatars, related-article
     // thumbs, ads). Only the gallery photos should be reachable. We
@@ -190,8 +189,7 @@ test.describe('pinkbike article image navigation', () => {
   });
 
   test('does not jump to images past the comments section', async ({ page }) => {
-    await page.goto(ARTICLE_URL);
-    await waitForInit(page);
+    await gotoAndInit(page);
     await waitForLayoutSettled(page);
     // Inject a synthetic "post-article" .blog-section AFTER the
     // comments wrapper with a large image inside. The userscript
@@ -246,8 +244,7 @@ test.describe('pinkbike article image navigation', () => {
   });
 
   test('keys are ignored while typing in a text field', async ({ page }) => {
-    await page.goto(ARTICLE_URL);
-    await waitForInit(page);
+    await gotoAndInit(page);
     await waitForLayoutSettled(page);
     await page.evaluate(() => {
       const ta = document.createElement('textarea');

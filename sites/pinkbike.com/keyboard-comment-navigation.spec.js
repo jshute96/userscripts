@@ -23,12 +23,15 @@ const ARTICLE_URL = process.env.PINKBIKE_ARTICLE_URL
   || 'https://www.pinkbike.com/news/new-vision-same-mountain-mammoth-mountain-to-reimagine-bike-park.html';
 
 // Wait for the script's `keys:` init line — confirms the handler is
-// registered before any keypress is dispatched. Pair it with a goto.
-async function waitForInit(page) {
-  await page.waitForEvent('console', {
+// registered before any keypress is dispatched. The wait is armed before
+// the goto: the script runs at document-idle, which can precede `load`.
+async function gotoAndInit(page) {
+  const init = page.waitForEvent('console', {
     predicate: msg => /^\[pb nav\] keys:/.test(msg.text()),
     timeout: 15000,
   });
+  await page.goto(ARTICLE_URL);
+  await init;
 }
 
 // Dispatch a key and wait for the userscript's matching action log.
@@ -63,8 +66,7 @@ test.describe('pinkbike better comment navigation', () => {
   });
 
   test('j advances to the next comment in document order', async ({ page }) => {
-    await page.goto(ARTICLE_URL);
-    await waitForInit(page);
+    await gotoAndInit(page);
     // Scroll the first comment to viewport top so findCurrentRow()
     // resolves to it.
     await page.evaluate(() => {
@@ -81,8 +83,7 @@ test.describe('pinkbike better comment navigation', () => {
   });
 
   test('k moves back to the previous comment', async ({ page }) => {
-    await page.goto(ARTICLE_URL);
-    await waitForInit(page);
+    await gotoAndInit(page);
     // Scroll the second cmcont to the top, then press k.
     const secondId = await page.evaluate(() => {
       const second = document.querySelectorAll('.cmcont')[1];
@@ -97,8 +98,7 @@ test.describe('pinkbike better comment navigation', () => {
   });
 
   test('p from a reply jumps to its thread root', async ({ page }) => {
-    await page.goto(ARTICLE_URL);
-    await waitForInit(page);
+    await gotoAndInit(page);
     await waitForSelector(page, '.cmcont.commentreply2');
     // Bring the first reply to the top.
     const { replyId, rootId } = await page.evaluate(() => {
@@ -113,8 +113,7 @@ test.describe('pinkbike better comment navigation', () => {
   });
 
   test('p on a root comment is a no-op (logged, no jump)', async ({ page }) => {
-    await page.goto(ARTICLE_URL);
-    await waitForInit(page);
+    await gotoAndInit(page);
     const rootId = await page.evaluate(() => {
       const root = document.querySelector('.cmcont:not(.commentreply2)');
       root.scrollIntoView({ block: 'start' });
@@ -128,8 +127,7 @@ test.describe('pinkbike better comment navigation', () => {
   });
 
   test('n jumps to the next thread root', async ({ page }) => {
-    await page.goto(ARTICLE_URL);
-    await waitForInit(page);
+    await gotoAndInit(page);
     const { firstRootId, secondRootId } = await page.evaluate(() => {
       const threads = document.querySelectorAll('.ppcont');
       const a = threads[0].querySelector('.cmcont:not(.commentreply2)');
@@ -144,8 +142,7 @@ test.describe('pinkbike better comment navigation', () => {
   });
 
   test('c lands with the comments header at the top of the viewport', async ({ page }) => {
-    await page.goto(ARTICLE_URL);
-    await waitForInit(page);
+    await gotoAndInit(page);
     // Start scrolled to the very top of the article.
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.waitForTimeout(200);
@@ -184,8 +181,7 @@ test.describe('pinkbike better comment navigation', () => {
     // end, so the scroll clamps and they never reach the viewport top.
     // That's the browser doing all it can — the drift correction has
     // to recognize it rather than retry and then log a failure.
-    await page.goto(ARTICLE_URL);
-    await waitForInit(page);
+    await gotoAndInit(page);
     // Park at the very bottom. Which comment `j` picks from here
     // doesn't matter — anything in the final viewport can't be raised
     // to the top, which is the case under test.
@@ -215,8 +211,7 @@ test.describe('pinkbike better comment navigation', () => {
   });
 
   test('keys are ignored while typing in a text field', async ({ page }) => {
-    await page.goto(ARTICLE_URL);
-    await waitForInit(page);
+    await gotoAndInit(page);
     // Inject and focus a textarea (Pinkbike's own reply box needs a
     // login). Then collect any [pb nav] logs while we type a key
     // that would otherwise navigate.
@@ -271,8 +266,7 @@ test.describe('pinkbike better comment navigation', () => {
   }
 
   test('r from a reply jumps to the root of its thread', async ({ page }) => {
-    await page.goto(ARTICLE_URL);
-    await waitForInit(page);
+    await gotoAndInit(page);
     const marks = await threadLandmarks(page);
     test.skip(!marks, 'article has no thread with a reply followed by another thread');
     await page.waitForTimeout(200);
@@ -281,8 +275,7 @@ test.describe('pinkbike better comment navigation', () => {
   });
 
   test('r on a root has nowhere to go', async ({ page }) => {
-    await page.goto(ARTICLE_URL);
-    await waitForInit(page);
+    await gotoAndInit(page);
     const rootId = await page.evaluate(() => {
       const root = document.querySelector('.cmcont:not(.commentreply2)');
       root.scrollIntoView({ block: 'start' });
@@ -294,8 +287,7 @@ test.describe('pinkbike better comment navigation', () => {
   });
 
   test('m from a reply skips the rest of the thread', async ({ page }) => {
-    await page.goto(ARTICLE_URL);
-    await waitForInit(page);
+    await gotoAndInit(page);
     const marks = await threadLandmarks(page);
     test.skip(!marks, 'article has no thread with a reply followed by another thread');
     await page.waitForTimeout(200);
@@ -304,8 +296,7 @@ test.describe('pinkbike better comment navigation', () => {
   });
 
   test('h from a root steps to the next root (roots are siblings)', async ({ page }) => {
-    await page.goto(ARTICLE_URL);
-    await waitForInit(page);
+    await gotoAndInit(page);
     const { firstRootId, secondRootId } = await page.evaluate(() => {
       const threads = document.querySelectorAll('.ppcont');
       const a = threads[0].querySelector('.cmcont:not(.commentreply2)');
@@ -334,12 +325,12 @@ test.describe('shared keyboard-shortcut help', () => {
   test('? lists shortcuts from every userscript on the page', async ({ page, loadUserscript }) => {
     await loadUserscript(SCRIPT_PATH);
     await loadUserscript(IMAGE_SCRIPT_PATH);
-    await page.goto(ARTICLE_URL);
-    await waitForInit(page);
-    await page.waitForEvent('console', {
+    const imgInit = page.waitForEvent('console', {
       predicate: msg => /^\[pb img\] keys:/.test(msg.text()),
       timeout: 15000,
     });
+    await gotoAndInit(page);
+    await imgInit;
 
     await page.keyboard.press('?');
     // Playwright's CSS engine pierces open shadow roots, so the
@@ -375,8 +366,7 @@ test.describe('shared keyboard-shortcut help', () => {
   // itself, in capture phase on window.
   test('Esc closes the overlay without the page seeing the keystroke', async ({ page, loadUserscript }) => {
     await loadUserscript(SCRIPT_PATH);
-    await page.goto(ARTICLE_URL);
-    await waitForInit(page);
+    await gotoAndInit(page);
     await page.evaluate(() => {
       window.__escSeen = 0;
       const count = e => { if (e.key === 'Escape') window.__escSeen++; };
@@ -398,8 +388,7 @@ test.describe('shared keyboard-shortcut help', () => {
 
   test('clicking outside the overlay closes it', async ({ page, loadUserscript }) => {
     await loadUserscript(SCRIPT_PATH);
-    await page.goto(ARTICLE_URL);
-    await waitForInit(page);
+    await gotoAndInit(page);
     await page.keyboard.press('?');
     await expect(page.locator('#userscript-shortcuts-help dialog')).toBeVisible();
     await page.mouse.click(5, 5);
@@ -408,8 +397,7 @@ test.describe('shared keyboard-shortcut help', () => {
 
   test('navigation keys do nothing while the help overlay is open', async ({ page, loadUserscript }) => {
     await loadUserscript(SCRIPT_PATH);
-    await page.goto(ARTICLE_URL);
-    await waitForInit(page);
+    await gotoAndInit(page);
     await page.keyboard.press('?');
     await expect(page.locator('#userscript-shortcuts-help dialog')).toBeVisible();
 
