@@ -13,10 +13,10 @@
 // default has 5 qualifying images in its body, which is more than
 // enough to exercise forward, reverse, and the end-of-article cases.
 
-const path = require('path');
-const { test, expect } = require('../../test/fixtures');
+import path from 'node:path';
+import { test, expect } from '../../test/fixtures.js';
 
-const SCRIPT_PATH = path.join(__dirname, 'article-image-navigation.user.js');
+const SCRIPT_PATH = path.join(import.meta.dirname, 'article-image-navigation.user.js');
 
 const ARTICLE_URL = process.env.PINKBIKE_ARTICLE_URL
   || 'https://www.pinkbike.com/news/new-vision-same-mountain-mammoth-mountain-to-reimagine-bike-park.html';

@@ -7,10 +7,10 @@
 //     scripts/open-browser.sh https://connect.garmin.com/app/home
 //     pnpm test
 
-const path = require('path');
-const { test, expect } = require('../../test/fixtures');
+import path from 'node:path';
+import { test, expect } from '../../test/fixtures.js';
 
-const SCRIPT_PATH = path.join(__dirname, 'activity-tcx-download.user.js');
+const SCRIPT_PATH = path.join(import.meta.dirname, 'activity-tcx-download.user.js');
 const BUTTON_ID = 'jshute-garmin-tcx-download-btn';
 
 // Cache the discovered activity id across tests in this worker so we

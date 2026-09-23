@@ -7,10 +7,10 @@
 // drive real input (page.mouse / page.keyboard with modifiers held), and
 // read the resulting transform straight off the <video>.
 
-const path = require('path');
-const { test, expect } = require('../../test/fixtures');
+import path from 'node:path';
+import { test, expect } from '../../test/fixtures.js';
 
-const SCRIPT_PATH = path.join(__dirname, 'zoom-pan.user.js');
+const SCRIPT_PATH = path.join(import.meta.dirname, 'zoom-pan.user.js');
 const VIDEO_URL = 'https://www.youtube.com/watch?v=aqz-KE-bpKQ'; // Big Buck Bunny
 // A 360° video, where the script must stand down.
 const SPHERICAL_URL = 'https://www.youtube.com/watch?v=CaswdIbc2UA';

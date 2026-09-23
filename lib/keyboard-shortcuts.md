@@ -173,16 +173,13 @@ than trying to serialize live state, which would only go stale.
 
 ### Testing
 
-There's no userscript manager in the Playwright suite, so
-`test/fixtures.js` resolves `@require` itself: it parses the metadata
-block, maps each URL back to a file in this repo, and concatenates the
-sources ahead of the script body inside one wrapper — reproducing the
-manager's rule that required code runs in the same scope immediately
-before the body. It also synthesizes `GM_info` from the script's real
-`@name` and `@version`.
+The Playwright suite runs scripts through SourceMonkey's own injection
+(see CLAUDE.md → Testing), so `@require` resolves as it does installed:
+the GitHub URL in the header reads this repo's local `lib/` copy, and
+the library runs in the script's own scope immediately before its body.
 
-Because each `loadUserscript` call builds its own wrapper, loading two
-scripts into one page gives each its own copy of this library with the
-DOM registry genuinely shared — a faithful simulation of the
-two-sandbox case. `sites/pinkbike.com/keyboard-comment-navigation.spec.js`
-uses that to assert `?` lists both Pinkbike scripts.
+Each script gets its own sandbox there, so loading two into one page
+gives each its own copy of this library with only the DOM registry
+shared — the real two-sandbox case, not a simulation of it.
+`sites/pinkbike.com/keyboard-comment-navigation.spec.js` uses that to
+assert `?` lists both Pinkbike scripts.

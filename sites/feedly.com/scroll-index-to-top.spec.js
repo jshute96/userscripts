@@ -14,10 +14,10 @@
 // need to hardcode a subscription URL. Override via FEEDLY_FEED_URL
 // for ad-hoc runs.
 
-const path = require('path');
-const { test, expect } = require('../../test/fixtures');
+import path from 'node:path';
+import { test, expect } from '../../test/fixtures.js';
 
-const SCRIPT_PATH = path.join(__dirname, 'scroll-index-to-top.user.js');
+const SCRIPT_PATH = path.join(import.meta.dirname, 'scroll-index-to-top.user.js');
 
 // How far down the feed to scroll before navigating to the Index. Has
 // to exceed the Index's own maximum scroll offset, or the carried-over

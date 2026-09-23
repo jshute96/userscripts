@@ -14,10 +14,10 @@
 // need to hardcode a subscription URL. Override via FEEDLY_FEED_URL
 // for ad-hoc runs.
 
-const path = require('path');
-const { test, expect } = require('../../test/fixtures');
+import path from 'node:path';
+import { test, expect } from '../../test/fixtures.js';
 
-const SCRIPT_PATH = path.join(__dirname, 'sort-filter-presets.user.js');
+const SCRIPT_PATH = path.join(import.meta.dirname, 'sort-filter-presets.user.js');
 
 // Cache the discovered feed URL across tests in this worker so we
 // only visit /i/feedIndex once.

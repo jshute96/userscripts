@@ -1,14 +1,22 @@
 {
   "name": "userscripts",
   "private": true,
+  "type": "module",
   "description": "Personal userscripts collection with a Playwright-based test harness.",
   "packageManager": "pnpm@11.22.0",
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "test": "node scripts/test-preflight.mjs && playwright test",
+    "sm-dev": "sm-dev",
     "open-browser": "scripts/open-browser.sh"
   },
   "devDependencies": {
-    "@playwright/test": "^1.48.0"
+    "@playwright/test": "^1.48.0",
+    "sourcemonkey": "file:../SourceMonkey2"
+  },
+  "dependenciesMeta": {
+    "sourcemonkey": {
+      "injected": true
+    }
   }
 }

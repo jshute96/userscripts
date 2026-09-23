@@ -138,8 +138,9 @@ Claude then does the rest on its own:
   following the file layout, documentation, and testing patterns described in
   [CLAUDE.md](CLAUDE.md) and this repo's skills.
 - Tests the userscript against the static HTML snapshot, in a real browser via
-  Playwright — and optionally against the live page (which may require me to log
-  in once in the Playwright browser).
+  Playwright, with SourceMonkey's own injection and `GM_*` APIs behind it — and
+  optionally against the live page (which may require me to log in once in the
+  Playwright browser).
 - Optionally writes a test verifying the userscript against the snapshot and/or
   the live page.
 - Documents the userscript: what it was trying to do, what the page looked like
@@ -236,6 +237,14 @@ One useful shortcut during development: create a stub script whose body is just 
 Tests live next to each script (`sites/<site>/<name>.spec.js`) and
 run via Playwright against a manually-launched Chromium.
 
+The userscript manager's half of the picture comes from SourceMonkey,
+installed as a dev dependency: a script is prepared with the
+extension's own install pipeline and injected behind its real prelude
+and `GM_*` runtime, so `@match`, `@grant`, `@require` and the `GM_*`
+APIs all behave in a test as they do installed. The same package
+provides `sm-dev`, a command-line loop for developing a script against
+a live page without writing a spec.
+
 Tests can run against live web pages to make sure the script still works as intended, and so fixing the script after the site changes can be automated.
 
 Some sites require login to get to the pages where the script is active.
@@ -243,7 +252,8 @@ These can run by getting the user to log in to the site in the Chromium test bro
 
 In some cases, to avoid login or other live-site issues, tests are written against static snapshots of the target page.
 
-During development, Claude can also explore sites and test scripts interactively using Playwright or Chrome DevTools.
+During development, Claude can also explore sites and test scripts interactively
+using `sm-dev`, Playwright or Chrome DevTools.
 
 One-time setup:
 
@@ -251,6 +261,18 @@ One-time setup:
 pnpm install
 pnpm exec playwright install chromium
 ```
+
+`sourcemonkey` is a dev dependency, taken from a sibling SourceMonkey
+checkout while both are being developed (`package.json` names the
+directory; point it at whichever checkout has the harness). Two things
+about that, in `package.json` and `pnpm-workspace.yaml`:
+
+- `dependenciesMeta.sourcemonkey.injected` copies it into this
+  project's store rather than symlinking the checkout, so its
+  Playwright is this project's one. Without it two copies load and
+  Playwright refuses to start.
+- `allowBuilds` lets it run its own build on install, which produces
+  the `lib/` the harness lives in.
 
 To run tests:
 
@@ -265,12 +287,21 @@ pnpm exec playwright test sites/feedly.com/sort-filter-presets.spec.js  # one fi
 pnpm exec playwright test -g "Newest preset"                    # by test name
 ```
 
+To drive a script in that browser without writing a spec:
+
+```
+pnpm sm-dev run sites/feedly.com/sort-filter-presets.user.js --watch
+pnpm sm-dev probe https://feedly.com/i/my --selectors '.FeedPage header'
+pnpm sm-dev validate sites
+pnpm sm-dev --help
+```
+
 `pnpm test` runs a preflight that launches the browser if it isn't already running on CDP (Chrome DevTools Protocol) port 9233; subsequent runs reuse it.
 The direct `pnpm exec playwright test …` invocations skip the preflight, so launch the browser yourself for those.
 
 See [CLAUDE.md](CLAUDE.md)'s "Testing" section for why we don't let Playwright
-launch the browser itself, and [test/fixtures.js](test/fixtures.js) for the shared
-fixtures (`page`, `loadUserscript`).
+launch the browser itself and what a spec has to work with, and
+[test/fixtures.js](test/fixtures.js) for the shared fixtures.
 
 ## License
 

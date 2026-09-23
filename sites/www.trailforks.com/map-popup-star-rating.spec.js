@@ -13,10 +13,10 @@
 // The assertions are about shape: a row appears, it reads as a rating, its
 // stars agree with its number, and it appears exactly once.
 
-const path = require('path');
-const { test, expect } = require('../../test/fixtures');
+import path from 'node:path';
+import { test, expect } from '../../test/fixtures.js';
 
-const SCRIPT_PATH = path.join(__dirname, 'map-popup-star-rating.user.js');
+const SCRIPT_PATH = path.join(import.meta.dirname, 'map-popup-star-rating.user.js');
 // A region map, which is where Trailforks still uses the older popup this
 // script fills in. Override for ad-hoc runs.
 const REGION_MAP = process.env.TRAILFORKS_REGION_MAP ||

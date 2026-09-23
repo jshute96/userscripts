@@ -4,17 +4,15 @@
 // nytimes.com login isn't required, since the tests plant their own
 // found-word element rather than relying on today's puzzle.
 //
-// `GM_xmlhttpRequest` is stubbed with the page's `fetch` (see
-// test/gm-stubs.js), which works because both definition sources allow
-// CORS from nytimes.com. These tests therefore hit the LIVE services —
-// a failure can mean a source is down, not just that the script broke.
-// Read the forwarded `[spelling-bee]` logs to tell which.
+// `GM_xmlhttpRequest` runs for real, so these tests hit the LIVE
+// definition services: a failure can mean a source is down, not just
+// that the script broke. Read the forwarded `[spelling-bee]` logs to
+// tell which.
 
-const path = require('path');
-const { test, expect } = require('../../test/fixtures');
-const { injectGmStubs } = require('../../test/gm-stubs');
+import path from 'node:path';
+import { test, expect } from '../../test/fixtures.js';
 
-const SCRIPT_PATH = path.join(__dirname, 'spelling-bee.user.js');
+const SCRIPT_PATH = path.join(import.meta.dirname, 'spelling-bee.user.js');
 const PAGE_URL = 'https://www.nytimes.com/puzzles/spelling-bee';
 const PRIMARY_HOST = 'freedictionaryapi.com';
 const FALLBACK_HOST = 'api.datamuse.com';
@@ -51,13 +49,15 @@ async function lookUp(page, word) {
   return popup;
 }
 
-async function requestHosts(page) {
-  return page.evaluate(() => window.__gmStubs.requests.map((u) => new URL(u).hostname));
+// The hosts the script asked for, in order, as the harness recorded
+// them: `GM_xmlhttpRequest` really runs here, so these are the
+// requests the extension would have made.
+function requestHosts(gm) {
+  return gm.requests().map((r) => new URL(r.url).hostname);
 }
 
 test.describe('definition popup', () => {
-  test('shows a definition from the primary source', async ({ page, loadUserscript }) => {
-    await injectGmStubs(page);
+  test('shows a definition from the primary source', async ({ page, loadUserscript, gm }) => {
     await loadUserscript(SCRIPT_PATH);
     await page.goto(PAGE_URL);
 
@@ -70,12 +70,12 @@ test.describe('definition popup', () => {
     await expect(popup.locator('p.credit')).toContainText('Wiktionary');
     await expect(popup.locator('p.credit')).toContainText('Free Dictionary API');
 
-    expect(await requestHosts(page)).toEqual([PRIMARY_HOST]);
+    expect(requestHosts(gm)).toEqual([PRIMARY_HOST]);
   });
 
   test('falls back to Datamuse, then stops trying the failing source first',
-    async ({ page, loadUserscript }) => {
-    await injectGmStubs(page, { failHosts: [PRIMARY_HOST] });
+    async ({ page, loadUserscript, gm }) => {
+    gm.failHosts(PRIMARY_HOST);
     await loadUserscript(SCRIPT_PATH);
     await page.goto(PAGE_URL);
 
@@ -88,35 +88,33 @@ test.describe('definition popup', () => {
 
     // Three attempts at the primary (initial + 2 cache-busting retries),
     // then the fallback.
-    expect(await requestHosts(page)).toEqual(
+    expect(requestHosts(gm)).toEqual(
       [PRIMARY_HOST, PRIMARY_HOST, PRIMARY_HOST, FALLBACK_HOST]);
 
     // The next word goes to Datamuse straight away.
     const popup2 = await lookUp(page, 'loll');
     await expect(popup2.locator('h2.word')).toHaveText('loll');
     await expect(popup2.locator('h3.pos').first()).toHaveText('verb');
-    const hosts = await requestHosts(page);
+    const hosts = requestHosts(gm);
     expect(hosts.slice(4)).toEqual([FALLBACK_HOST]);
   });
 
-  test('?sbDictSource pins lookups to one source', async ({ page, loadUserscript }) => {
-    await injectGmStubs(page);
+  test('?sbDictSource pins lookups to one source', async ({ page, loadUserscript, gm }) => {
     await loadUserscript(SCRIPT_PATH);
     await page.goto(PAGE_URL + '?sbDictSource=datamuse');
 
     const popup = await lookUp(page, 'tile');
     await expect(popup.locator('.def').first()).toContainText(/slab of clay/);
-    expect(await requestHosts(page)).toEqual([FALLBACK_HOST]);
+    expect(requestHosts(gm)).toEqual([FALLBACK_HOST]);
   });
 
-  test('reports an unknown word after asking every source', async ({ page, loadUserscript }) => {
-    await injectGmStubs(page);
+  test('reports an unknown word after asking every source', async ({ page, loadUserscript, gm }) => {
     await loadUserscript(SCRIPT_PATH);
     await page.goto(PAGE_URL);
 
     const popup = await lookUp(page, 'xyzzyq');
     await expect(popup.locator('p.msg')).toContainText('No definition found');
-    expect(await requestHosts(page)).toEqual([PRIMARY_HOST, FALLBACK_HOST]);
+    expect(requestHosts(gm)).toEqual([PRIMARY_HOST, FALLBACK_HOST]);
 
     // Datamuse knows this word but has no `defs` for it.
     const popup2 = await lookUp(page, 'lalala');

@@ -6,9 +6,9 @@
 // launches manually via scripts/open-browser.sh — see test/fixtures.js
 // for why (Google blocks sign-in when Playwright launches Chromium).
 
-const { defineConfig } = require('@playwright/test');
+import { defineConfig } from '@playwright/test';
 
-module.exports = defineConfig({
+export default defineConfig({
   // Each site's userscript has its tests next to the script.
   testMatch: 'sites/**/*.spec.js',
 

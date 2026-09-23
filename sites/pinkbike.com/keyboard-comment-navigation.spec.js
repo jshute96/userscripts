@@ -14,10 +14,10 @@
 // at least two top-level threads with replies (which any moderately
 // active news post will).
 
-const path = require('path');
-const { test, expect } = require('../../test/fixtures');
+import path from 'node:path';
+import { test, expect } from '../../test/fixtures.js';
 
-const SCRIPT_PATH = path.join(__dirname, 'keyboard-comment-navigation.user.js');
+const SCRIPT_PATH = path.join(import.meta.dirname, 'keyboard-comment-navigation.user.js');
 
 const ARTICLE_URL = process.env.PINKBIKE_ARTICLE_URL
   || 'https://www.pinkbike.com/news/new-vision-same-mountain-mammoth-mountain-to-reimagine-bike-park.html';
@@ -328,7 +328,7 @@ test.describe('pinkbike better comment navigation', () => {
 // library, so the registry they collaborate through is a DOM node —
 // this is the test that the collaboration actually works.
 
-const IMAGE_SCRIPT_PATH = path.join(__dirname, 'article-image-navigation.user.js');
+const IMAGE_SCRIPT_PATH = path.join(import.meta.dirname, 'article-image-navigation.user.js');
 
 test.describe('shared keyboard-shortcut help', () => {
   test('? lists shortcuts from every userscript on the page', async ({ page, loadUserscript }) => {

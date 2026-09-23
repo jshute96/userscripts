@@ -1,0 +1,4 @@
+# SourceMonkey builds itself on install (its `prepare` script), and pnpm
+# runs a dependency build only for packages listed here.
+allowBuilds:
+  "sourcemonkey@file:../SourceMonkey2": true

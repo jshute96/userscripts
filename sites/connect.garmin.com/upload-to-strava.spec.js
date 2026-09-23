@@ -2,11 +2,11 @@
 //
 // These cover the Garmin toolbar buttons and the Strava menu item.
 //
-// The script uses GM storage on its init path, and the fixture runs the
-// raw body with no userscript manager, so these specs inject the fakes
-// from test/gm-stubs.js first. That is enough to let the script start;
-// it is NOT coverage of the transfer itself, which needs two tabs and a
-// real manager to carry values between them. See CLAUDE.md → Testing.
+// GM storage and GM_openInTab run for real here (the harness supplies
+// the manager's half), so the script starts as it would installed, and
+// a test can answer a GM_xmlhttpRequest itself. This is still NOT
+// coverage of the transfer, which needs a Strava session as well as a
+// Garmin one. See CLAUDE.md → Testing.
 //
 // Needs a Garmin Connect login in the persistent profile. Run the
 // browser launcher in one terminal and leave it running:
@@ -17,11 +17,10 @@
 //
 //     pnpm test
 
-const path = require('path');
-const { test, expect } = require('../../test/fixtures');
-const { injectGmStubs } = require('../../test/gm-stubs');
+import path from 'node:path';
+import { test, expect } from '../../test/fixtures.js';
 
-const SCRIPT_PATH = path.join(__dirname, 'upload-to-strava.user.js');
+const SCRIPT_PATH = path.join(import.meta.dirname, 'upload-to-strava.user.js');
 const HOME_URL = 'https://connect.garmin.com/app/home';
 const STRAVA_URL = 'https://www.strava.com/dashboard';
 const STRAVA_ITEM_ID = 'jshute-strava-upload-from-garmin';
@@ -29,13 +28,12 @@ const ACTIVITIES_BUTTON_ID = 'jshute-garmin-activities-btn';
 const UPLOAD_BUTTON_ID = 'jshute-garmin-upload-to-strava-btn';
 
 test.describe('Garmin Connect → Strava: Upload new activities with one click', () => {
-  test.beforeEach(async ({ page, loadUserscript }) => {
-    // Must come first: the stubs have to exist when the body runs.
-    // Nothing is seeded: what counts as new is now read off Strava
-    // through GM_xmlhttpRequest, which the fixture has no fake for, so
-    // the badge fetch fails harmlessly and no row is badged. These
-    // specs cover the buttons and the menu item, not the diff.
-    await injectGmStubs(page);
+  test.beforeEach(async ({ loadUserscript }) => {
+    // Nothing is seeded: what counts as new is read off Strava through
+    // GM_xmlhttpRequest, which really runs here but needs a Strava
+    // session, so the badge fetch fails harmlessly and no row is
+    // badged. These specs cover the buttons and the menu item, not the
+    // diff.
     await loadUserscript(SCRIPT_PATH);
   });
 
@@ -95,11 +93,13 @@ test.describe('Garmin Connect → Strava: Upload new activities with one click',
   // click is GM_xmlhttpRequest against Garmin's API, and a fake for that
   // would be a fake of the entire feature — see CLAUDE.md → Testing.
 
-  // The guard reads the DOM rather than GM storage, so a second
-  // addInitScript is a genuine second copy in one document.
+  // Two installed copies of the script in one document, which is what
+  // the guard is written against. `copy` is what makes the second load
+  // a separate script rather than a replacement of the first: its own
+  // id, its own storage, as a second install would have.
   test('a second copy stands down and says so on screen', async ({ page, loadUserscript }) => {
     // beforeEach already loaded one copy; this is the duplicate.
-    await loadUserscript(SCRIPT_PATH);
+    await loadUserscript(SCRIPT_PATH, { copy: 'second-install' });
     await page.goto(HOME_URL);
 
     const status = page.locator('#jshute-garmin-strava-status');
@@ -135,25 +135,25 @@ test.describe('Garmin Connect → Strava: Upload new activities with one click',
     expect(menu.href).toBe('https://www.strava.com/upload/select#upload-from-garmin');
   });
 
-  test('"Upload from Garmin" stays put when Garmin says sign in', async ({ page }) => {
+  test('"Upload from Garmin" stays put when Garmin says sign in', async ({ page, gm }) => {
     // The click now checks Garmin *before* navigating, so a check that
     // can't get past the sign-in page must leave the tab where it was.
-    // Faking the one request the check starts with is enough to reach
-    // that decision without a real Garmin session.
+    // Answering the one request the check starts with is enough to
+    // reach that decision without a real Garmin session. The answer
+    // comes from the test rather than from a patched global: the
+    // script's `GM_xmlhttpRequest` is a binding in its own scope, and
+    // in its own world, so nothing the page assigns could reach it.
     await page.goto(STRAVA_URL);
     await expect(page.locator('#' + STRAVA_ITEM_ID)).toHaveCount(1, { timeout: 10000 });
-    await page.evaluate(() => {
-      window.__probes = [];
-      window.GM_xmlhttpRequest = ({ url, onload }) => {
-        window.__probes.push(url);
-        onload({
-          status: 200, finalUrl: 'https://connect.garmin.com/signin/', responseText: '',
-        });
-      };
-    });
+    gm.interceptRequests(() => ({
+      kind: 'load',
+      response: {
+        status: 200, statusText: 'OK', responseText: '', response: '',
+        responseHeaders: '', responseURL: 'https://connect.garmin.com/signin/',
+        finalUrl: 'https://connect.garmin.com/signin/',
+      },
+    }));
 
-    let opened = 0;
-    page.context().on('page', () => { opened += 1; });
     const before = page.url();
     // The item is inside a closed drop-down, so click it directly rather
     // than through the locator's visibility check.
@@ -165,15 +165,15 @@ test.describe('Garmin Connect → Strava: Upload new activities with one click',
     // Every probe failure gets a second look before we believe it —
     // Garmin bounces the first request of a run to /signin often enough
     // that one attempt is not evidence of a lapsed session.
-    expect(await page.evaluate(() => window.__probes)).toEqual([
+    expect(gm.requests().map((r) => r.url)).toEqual([
       'https://connect.garmin.com/app/activities',
       'https://connect.garmin.com/app/activities',
     ]);
+    // This tab stayed where it was; the sign-in page was offered in one
+    // of its own, through GM_openInTab. The harness opens that for
+    // real and closes it when the test ends.
     expect(page.url()).toBe(before);
-    // The sign-in page is offered in a tab of its own — through
-    // GM_openInTab, which the stubs record rather than open.
-    expect(opened).toBe(0);
-    expect(await page.evaluate(() => window.__gmStubs.openedTabs.map(t => t.url)))
+    expect(gm.openedTabs().map((t) => t.url))
       .toEqual(['https://connect.garmin.com/signin/']);
   });
 });

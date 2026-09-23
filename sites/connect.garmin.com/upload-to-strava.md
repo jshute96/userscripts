@@ -866,15 +866,17 @@ change event trigger the upload requests.)
 ### Testing
 
 `upload-to-strava.spec.js` covers the Garmin buttons, the Strava menu
-item, and that the menu item sends its own tab to the upload page. It
-injects `test/gm-stubs.js` before the script, because the fixture runs
-the raw body with no userscript manager and this script reads GM storage
-as soon as it starts. Nothing is seeded: what counts as new now comes
-from `GM_xmlhttpRequest`, which the fixture has no fake for, so the badge
+item, and that the menu item sends its own tab to the upload page. GM
+storage and `GM_openInTab` run for real there (the harness supplies the
+manager's half), so the script starts as it would installed. Nothing is
+seeded: what counts as new comes from `GM_xmlhttpRequest` against
+Garmin, which needs a session the suite doesn't have, so the badge
 fetch fails harmlessly and no row is badged.
 
 Nothing past the click is covered. Every request goes through
-`GM_xmlhttpRequest`, and a fake for that would be a fake of the entire
-feature — the interesting behavior is exactly the part the manager
-provides. Runs are verified by hand in a browser with the real manager,
-reading the `[garmin-dl]` logs.
+`GM_xmlhttpRequest` against two signed-in services, and answering those
+from the test would be a fake of the entire feature. The sign-in-check
+path is the exception: one canned answer (`gm.interceptRequests`) is
+enough to reach the decision, and the spec takes it. Full runs are
+verified by hand in a browser with the real manager, reading the
+`[garmin-dl]` logs.

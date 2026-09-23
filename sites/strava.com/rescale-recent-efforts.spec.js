@@ -15,10 +15,10 @@
 // relational: wherever the script leaves the chart, it has to be a
 // chart that reads correctly.
 
-const path = require('path');
-const { test, expect } = require('../../test/fixtures');
+import path from 'node:path';
+import { test, expect } from '../../test/fixtures.js';
 
-const SCRIPT_PATH = path.join(__dirname, 'rescale-recent-efforts.user.js');
+const SCRIPT_PATH = path.join(import.meta.dirname, 'rescale-recent-efforts.user.js');
 const CHART = '[data-testid="segment-recent-efforts"]';
 const SETTLED = /page settled/;
 const RESCALED = /capped at /;

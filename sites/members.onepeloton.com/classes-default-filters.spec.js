@@ -10,11 +10,10 @@
 //
 //     pnpm test
 
-const path = require('path');
-const { test, expect } = require('../../test/fixtures');
-const { injectGmStubs } = require('../../test/gm-stubs');
+import path from 'node:path';
+import { test, expect } from '../../test/fixtures.js';
 
-const SCRIPT_PATH = path.join(__dirname, 'classes-default-filters.user.js');
+const SCRIPT_PATH = path.join(import.meta.dirname, 'classes-default-filters.user.js');
 
 const EXPECTED_DIFFICULTY = encodeURIComponent(
   JSON.stringify(['intermediate', 'advanced']));
@@ -46,8 +45,7 @@ test.describe('peloton classes default filters', () => {
   // unrewritten href. Seeding nothing is what we want: with no saved
   // config the script falls back to HARDCODED_DEFAULTS, which is
   // what EXPECTED_DIFFICULTY / EXPECTED_HAS_WORKOUT below encode.
-  test.beforeEach(async ({ page, loadUserscript }) => {
-    await injectGmStubs(page, { values: {} });
+  test.beforeEach(async ({ loadUserscript }) => {
     await loadUserscript(SCRIPT_PATH);
   });
 

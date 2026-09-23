@@ -82,10 +82,12 @@ maybe HTML), follow this flow:
    order, then run `scripts/update_readme.py` to regenerate the
    README tables — see "Keeping the script list current" below.
    Only set a `category` if the user asks for one.
-5. **Manually verify in Playwright.** Inject the script the same way
-   the `loadUserscript` fixture does, confirm the button appears,
-   click it, watch logs and effects. If you get stuck, stop and
-   report exactly where — don't guess.
+5. **Run it against the page.** `pnpm sm-dev validate <script>` for
+   the header and syntax, then
+   `pnpm sm-dev run <script> --url <page> --watch` to inject it into
+   the running browser and watch its logs, its reports and its `GM_*`
+   calls while you fix it. If you get stuck, stop and report exactly
+   where — don't guess.
 6. **Suggest install**
    - If using SourceMonkey (the default), the directory should be installed
      already, and the manifest entry was added in step 4. Run the
@@ -361,7 +363,9 @@ if it's missing; it makes the next break diagnose itself.
 
 * **Getting an edit to take effect depends on the userscript manager —
   defer to the relevant skill** (e.g. `install-in-SourceMonkey` or
-  `install-in-tampermonkey`) for how to trigger refresh.
+  `install-in-tampermonkey`) for how to trigger refresh. None of this
+  applies while iterating with `pnpm sm-dev run`, which injects the
+  file as it is on disk.
   - Under SourceMonkey (our default), editing the body of an
     already-installed local script needs **nothing** — it re-reads the
     file on every page load, so the user just reloads the page. Don't
@@ -401,9 +405,11 @@ if it's missing; it makes the next break diagnose itself.
   *with an on-screen error*: which copy wins is load order decided per
   tab, so cross-tab state can still land in a storage the other tab
   isn't reading, and the script stays broken until one is uninstalled.
-  Our Playwright harness can cover this, unusually for a manager-level
-  failure, because the guard reads the DOM: a second `loadUserscript()`
-  is a second copy in one document.
+  Our Playwright harness covers this:
+  `loadUserscript(PATH, { copy: 'second' })` beside a plain
+  `loadUserscript(PATH)` is a second installed copy in one document,
+  with its own sandbox and its own storage. Without `copy` the second
+  load replaces the first.
 
 * Default to `@noframes` in the header. Sites often embed hidden
   iframes; without `@noframes` the script
@@ -531,6 +537,28 @@ Tests run against a real browser using Playwright. Tests for a script
 live next to it: `sites/<site>/<name>.spec.js`. Shared fixtures are
 in `test/fixtures.js`.
 
+### The harness
+
+* **The manager's half comes from SourceMonkey**, installed as the
+  `sourcemonkey` dev dependency (from the sibling SourceMonkey
+  checkout, injected so its Playwright is ours) and imported by `test/fixtures.js`
+  through `sourcemonkey/harness`. A script is prepared with the
+  extension's own install pipeline and injected behind its real prelude
+  and `GM_*` runtime, with a Node host standing in for the service
+  worker. Full description: `docs/harness-guide.md` in the SourceMonkey
+  repo.
+
+* **What that means for a spec.** The header decides: a page the
+  `@match` doesn't cover runs nothing, and the runner says which rule
+  missed. `@grant` decides which `GM_*` names exist and whether the
+  script is sandboxed. `@require` resolves, including a
+  `raw.githubusercontent.com` URL that reads the local `lib/` copy.
+  `@run-at` is honored. Errors are attributed to the script.
+
+* **So write scripts as they ship.** No guards for a missing `GM_*`,
+  no test-only branches: whatever a real manager defines, the tests
+  define too.
+
 * Workflow:
   1. `scripts/open-browser.sh <url>` — launches Playwright's bundled
      Chromium with `--user-data-dir=.playwright-profile` and
@@ -562,58 +590,67 @@ in `test/fixtures.js`.
   until timeout, with no useful error. Same-process iframes respond
   synchronously, so the flag eliminates the hang at the source. If
   you're debugging a CDP hang and see `pw:protocol` stop dead on a
-  `Page.createIsolatedWorld` `SEND ►` for a cross-origin frameId,
+  `Page.createIsolatedWorld` `SEND` for a cross-origin frameId,
   this is what you're looking at.
 
-* `loadUserscript` (a fixture) reads the `.user.js` file fresh on
-  each test, strips the metadata block, and injects via
-  `page.addInitScript` wrapped in a `load`-event listener (mirroring
-  `@run-at document-idle`). Edits to the script are picked up next
-  test run — no rebuild step.
+### Writing a spec
 
-* **There is no userscript manager in the tests.** The fixture runs the
-  raw body in the page's own world, and the test profile has no
-  extensions installed. So none of the manager's behavior exists:
-  - **no `GM_*` functions**, whatever the script `@grant`s — every
-    granted name is simply undefined;
-  - `@match`, `@noframes`, `@connect` and `@require` are inert — the
-    test navigates wherever it likes, and `@require`d files are never
-    fetched;
-  - no sandbox: the script shares the page's world rather than an
-    isolated one.
+* `loadUserscript(SCRIPT_PATH)` prepares and attaches the script, so
+  call it before the `page.goto` that should see it. It reads the file
+  fresh each test; edits are picked up next run, no rebuild.
 
-  `@run-at document-idle` is the one directive emulated, via the
-  `load`-event wrapper.
+* **A script's `GM_*` names are bindings in its own scope, in its own
+  world.** A test cannot patch them from `page.evaluate`; use `gm`
+  below. The same goes for anything else inside the script: its
+  sandbox is real.
 
-* **So the suite covers the manager-independent half only** — DOM
-  insertion, selectors, styling, click-through navigation. A script
-  built on GM storage, menu commands, or cross-tab messaging can't be
-  exercised here at all. That's a limitation of the harness, and **not
-  something to design around**: don't contort a script to survive a
-  missing `GM_*`, because a real manager always defines what you
-  `@grant`. Guards for it are dead code everywhere except our tests,
-  and they turn a loud failure into a silent wrong answer.
+* `gm` reads and drives what the script did through the manager:
+  `gm.get(key)` / `gm.set(key, value)`, `gm.list()`,
+  `gm.menuCommands()` and `gm.fireMenu(label)`, `gm.openedTabs()`,
+  `gm.notifications()`, `gm.downloads()`, `gm.requests()`. Seed
+  storage before the script runs with
+  `loadUserscript(PATH, { values: { … } })`. These are the same
+  actions `sm-dev` offers while a script runs, so what you work out by
+  hand transfers into the spec.
 
-  Watch for the failure mode, though: a `GM_*` call on a path the tests
-  *do* execute throws a `ReferenceError` that aborts the whole IIFE, so
-  every test in the file fails on "element not found" — pointing
-  nowhere near the real cause.
+* `reports` is what the script itself reported: `reports.errors()`
+  (assert it is empty), `reports.skipped()`, and
+  `await reports.waitForStart()` as the gate before interacting. A
+  timeout there names the script and the rule that kept it off the
+  page.
 
-* **Verify the GM-dependent half interactively**, in the real browser
-  with the manager installed, reading the `[name]` console logs. That's
-  the only place the real semantics exist: storage that persists,
-  writes that are debounced, values that reach another tab.
+* `gm.failHosts('api.example.com')` answers that host with a 503 so a
+  fallback path can be exercised; `gm.interceptRequests(fn)` answers
+  any request from the test. Without one of those a
+  `GM_xmlhttpRequest` really goes out, so a spec that depends on a live
+  service should say so at the top of the file: a red test may mean the
+  service is down, not the script.
 
-* **When a change moves *where* a request comes from, send one real
-  request from the new place before building on it.** Page context and
-  `GM_xmlhttpRequest` are not interchangeable: the manager's request
-  comes from the extension, so it carries different cookies, no
-  `Origin`, and `Sec-Fetch-Site: none` — a value no page can produce and
-  that WAFs reject. Measuring the endpoint from a page tells you almost
-  nothing about whether the manager can reach it.
+* When a userscript's button handler fires off async work
+  (fire-and-forget from the event handler), don't poll DOM state for
+  completion — wait for a specific console log line the script emits
+  on success (e.g. `[name] preset applied: foo`). Polling races with
+  intermediate states; a log line is a clean signal.
+
+* The `page` fixture forwards in-page `[name]` console logs and
+  `pageerror` to the test runner output, and the fixture prints the
+  script's own start / skipped / error reports beside them. Read those
+  lines before believing a "selector broke" story.
+
+### What the harness still isn't
+
+* **The request identity of `GM_xmlhttpRequest`.** It goes out from
+  Node with the browser's cookies for the target, not from the
+  extension: no `Sec-Fetch-Site: none`, no cookie re-attachment across
+  a cross-origin redirect. **When a change moves *where* a request
+  comes from, send one real request from the new place before building
+  on it.** Page context and the extension's request are not
+  interchangeable: the manager's carries different cookies, no
+  `Origin`, and `Sec-Fetch-Site: none` — a value no page can produce
+  and that WAFs reject.
 
   This cost a 1100-line rewrite that had to be debugged backwards: the
-  Garmin→Strava script was rebuilt around "the Strava page can fetch
+  Garmin to Strava script was rebuilt around "the Strava page can fetch
   from Garmin now", verified with a page-context `fetch`, and then
   every API call 403'd. One `GM_xmlhttpRequest` to one endpoint, first,
   would have found both blockers at once.
@@ -623,51 +660,20 @@ in `test/fixtures.js`.
   rather than the origin — with Cloudflare, a missing `cf-cache-status`
   on the failure where the success has one.
 
-* **A test that genuinely needs `GM_*` can inject stubs** ahead of
-  `loadUserscript`. `test/gm-stubs.js` has `injectGmStubs(page, {values})`
-  — an in-memory store for the storage calls and value-change
-  listeners, plus recording no-ops for `GM_openInTab` /
-  `GM_registerMenuCommand` (readable from
-  `window.__gmStubs.openedTabs` and `.menuCommands`).
+* **Chrome's own UI**: the download manager, notification popups, the
+  toolbar menu. `GM_download` writes the file from Node, a
+  notification is recorded rather than shown, and a menu command is
+  fired by the test.
 
-  ```js
-  await injectGmStubs(page, { values: { seenActivityIds: [] } });
-  await loadUserscript(SCRIPT_PATH);   // stubs must exist first
-  ```
+* For those, run the script in the real extension:
+  `pnpm sm-dev run <script> --extension --solo`, which pushes the
+  script into SourceMonkey in the running browser and streams its Log
+  tab. See "Interactive development" below.
 
-  It also fakes `GM_xmlhttpRequest` with the page's own `fetch`, so a
-  script's network path can run — but only against hosts that allow
-  CORS from the page's origin (the real manager request has no such
-  limit; `curl -D - -H 'Origin: https://<site>' <url>` shows whether
-  a host does). `failHosts: ['api.example.com']` makes a host answer
-  503 instead, to force a script down its fallback path, and every
-  request URL lands in `window.__gmStubs.requests`. A spec that uses
-  this hits the live service, so say so at the top of the file: a red
-  test may mean the service is down, not the script.
+* **After changing SourceMonkey itself**, `pnpm install` here to pick
+  up its rebuilt `lib/`: the dependency is a copy, not a live link.
 
-  Stub only where the fake is **an obvious no-op or an obvious, simple
-  mock** — a plain object standing in for key/value storage, a recorder
-  standing in for "open a tab". Anything needing real semantics to be
-  meaningful isn't a stubbing problem; test it by hand instead.
-
-  It stays opt-in per spec rather than living in `loadUserscript`, so a
-  spec has to say it's faking the manager. A stub store is synchronous,
-  same-page and instant: it proves the script's own logic and nothing
-  about the manager's debounce, persistence, or cross-tab delivery.
-
-* When a userscript's button handler fires off async work
-  (fire-and-forget from the event handler), don't poll DOM state for
-  completion — wait for a specific console log line the script emits
-  on success (e.g. `[name] preset applied: foo`). Polling races with
-  intermediate states; a log line is a clean signal.
-
-* The `page` fixture forwards in-page `[name]` console logs to the
-  test runner output, so userscript debug logs are visible during
-  test failures without opening DevTools. **It also forwards
-  `pageerror`** — that's where the aborted-IIFE failure above shows
-  itself: a single `page-error: GM_getValue is not defined` line,
-  usually scrolled well past by the time you reach the assertion
-  that failed. Read it before believing a "selector broke" story.
+### Test techniques that outlive the harness
 
 * **Waiting for a smooth scroll to settle: poll the target element's
   `getBoundingClientRect().top`, not `window.scrollY`.** On
@@ -704,6 +710,42 @@ in `test/fixtures.js`.
   the navigation in `setTimeout` or use `Page.navigate`; and
   `Page.captureScreenshot` of a *background* tab renders WebGL canvases
   (maps) blank — hit `GET /json/activate/<id>` first.
+
+### Interactive development
+
+`pnpm sm-dev <command>` drives the running browser from the command
+line, without writing a spec. It connects to the same CDP port the
+tests use, so the logged-in profile applies.
+
+* `pnpm sm-dev run sites/<site>/<name>.user.js --url <page>` injects
+  the script as it is on disk and streams its console lines, its
+  reports, and every `GM_*` call it makes, until Ctrl-C or
+  `--seconds N`. `--watch` re-injects and reloads on save; `--values`
+  seeds storage.
+* **While `run` streams, type commands at it**: `menu` lists the
+  script's menu commands and `menu <label>` fires one, `values` and
+  `get <key>` read what it stored, `set <key> <json>` writes a value
+  as another tab would, `reload` and `open <url>` move the page,
+  `quit` stops. Piping them in works the same way, which is how to
+  drive a sequence without sitting at it:
+
+  ```sh
+  printf 'menu Bump\nvalues\nquit\n' | pnpm sm-dev run sites/x/y.user.js --seconds 30
+  ```
+* `pnpm sm-dev probe <url> --selectors 'a, b, c'` says which selectors
+  resolve. This is the triage step in "When a script stops working",
+  in one call.
+* `pnpm sm-dev snapshot <url> --out file.html` saves the DOM (with the
+  site's scripts disabled) for a spec to serve back with
+  `serveSnapshot`, so a spec needs no login.
+* `pnpm sm-dev match <script> <url>...` says whether the header covers
+  a URL, and which rule decided.
+* `pnpm sm-dev validate <path>` runs the install-time checks: header,
+  `@require`, syntax. Cheap to run after any edit.
+* `--extension` on `run` pushes into the real SourceMonkey instead of
+  injecting; `--solo` silences the other collections for the run, and
+  `pnpm sm-dev clear --extension` puts them back and removes the
+  pushed scripts.
 
 ## Iterating on DOM-heavy userscripts
 
