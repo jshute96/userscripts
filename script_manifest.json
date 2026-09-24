@@ -69,6 +69,9 @@
       "path": "sites/greasyfork.org/prefill-forms-from-hash.user.js"
     },
     {
+      "path": "sites/instagram.com/fullscreen-and-keyboard.user.js"
+    },
+    {
       "path": "sites/maps.google.com/correct-names.user.js",
       "greasyfork": {
         "id": 594854,

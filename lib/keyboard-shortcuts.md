@@ -42,7 +42,9 @@ keys.logKeys();
 `register(spec, label, handler, extra)`:
 
 * `spec` — zero or more dash-separated modifiers then one base key:
-  `'j'`, `'shift-i'`, `'ctrl-alt-c'`, `'?'`.
+  `'j'`, `'shift-i'`, `'ctrl-alt-c'`, `'?'`. Named keys use their
+  `KeyboardEvent.key` name, lowercased (`'arrowright'`, `'enter'`), and
+  the space bar is `'space'`.
 * `label` — user-facing description, shown on the help screen.
 * `extra.when` — predicate checked at keypress time. A binding whose
   `when` is false isn't handled at all, so the keystroke passes
@@ -70,12 +72,14 @@ from the registered labels, so it can't drift from what's bound.
 ### Caps Lock vs Shift
 
 Bindings match on `e.key.toLowerCase()`, and **`shiftKey` is compared
-only for single-letter keys**. That keeps `i` and `shift-i` distinct
+for single-letter keys and named keys** (`arrowright`, `enter`,
+`space`, …), but not for symbols. For letters, that keeps `i` and `shift-i` distinct
 while making Caps Lock irrelevant — reading the character case
 directly would make CapsLock+i behave as Shift-I, silently reversing
-the binding. Symbol keys are exempt because most of them (`?` among
-them) are *produced* by shift, so requiring `shiftKey: false` would
-make them unbindable.
+the binding. For named keys, it keeps `shift-arrowright` from also
+firing on a plain arrow, which a site may use itself. Symbol keys are
+exempt because most of them (`?` among them) are *produced* by shift,
+so requiring `shiftKey: false` would make them unbindable.
 
 ### The cross-script registry
 
