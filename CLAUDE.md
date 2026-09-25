@@ -531,6 +531,26 @@ if it's missing; it makes the next break diagnose itself.
     `<body>`, the host would go with it and nothing would rebuild
     it, because the other sandboxes finished registering long ago.
 
+* **Modifying Chrome's standalone image viewer (`ImageDocument`,
+  `document.contentType.startsWith('image/')`)**:
+  - Userscripts matching the site origin run on direct image URLs
+    (e.g. `/image/foo.png`) too, where Chrome builds a synthetic
+    `<html><head>…</head><body><img src="…"></body></html>` document.
+  - **Never replace or `cloneNode` the `<img>`** — Blink feeds the
+    main document network stream directly into the original `<img>`'s
+    `ImageResourceContent`, so a cloned or replaced `<img>` loses the
+    decoded bitmap (`naturalWidth === 0`).
+  - Instead, keep `body > img` in place, suppress Chrome's native
+    click-to-zoom with a capture-phase `click` listener
+    (`e.preventDefault(); e.stopImmediatePropagation()`), and style
+    `body` (`display: flex; align-items: center; justify-content:
+    center; width: 100vw; height: 100vh; overflow: hidden`) and
+    `body > img` (`max-width: 100vw !important; max-height: 100vh
+    !important; width: auto !important; height: auto !important;
+    margin: 0 !important`) to override the HTML `width`/`height`
+    attributes Blink sets. (Don't put `display: flex` on `<html>`, or
+    `body` won't vertically center the `<img>`.)
+
 ## Testing
 
 Tests run against a real browser using Playwright. Tests for a script

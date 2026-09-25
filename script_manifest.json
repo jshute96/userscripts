@@ -1,6 +1,9 @@
 {
   "scripts": [
     {
+      "path": "sites/any/image-zoom-pan.user.js"
+    },
+    {
       "path": "sites/calendar.google.com/highlight-local-rooms.user.js",
       "greasyfork": {
         "id": 591535,
@@ -278,6 +281,10 @@
     }
   ],
   "libraries": [
+    {
+      "path": "lib/image-zoom-pan.js",
+      "github_url": "https://raw.githubusercontent.com/jshute96/userscripts/main/lib/image-zoom-pan.js"
+    },
     {
       "path": "lib/keyboard-comment-nav.js",
       "github_url": "https://raw.githubusercontent.com/jshute96/userscripts/main/lib/keyboard-comment-nav.js",
