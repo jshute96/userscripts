@@ -15,8 +15,8 @@ importers:
         specifier: ^1.48.0
         version: 1.63.0
       sourcemonkey:
-        specifier: file:../SourceMonkey2
-        version: file:../SourceMonkey2(@playwright/test@1.63.0)
+        specifier: file:../SourceMonkey
+        version: file:../SourceMonkey(@playwright/test@1.63.0)
 
 packages:
 
@@ -35,8 +35,8 @@ packages:
     engines: {node: '>=20'}
     hasBin: true
 
-  sourcemonkey@file:../SourceMonkey2:
-    resolution: {directory: ../SourceMonkey2, type: directory}
+  sourcemonkey@file:../SourceMonkey:
+    resolution: {directory: ../SourceMonkey, type: directory}
     engines: {node: '>=22'}
     hasBin: true
     peerDependencies:
@@ -57,6 +57,6 @@ snapshots:
     dependencies:
       playwright-core: 1.63.0
 
-  sourcemonkey@file:../SourceMonkey2(@playwright/test@1.63.0):
+  sourcemonkey@file:../SourceMonkey(@playwright/test@1.63.0):
     optionalDependencies:
       '@playwright/test': 1.63.0

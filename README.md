@@ -25,7 +25,7 @@ Scripts uploaded to Greasy Fork have a `GF` link.
 <!-- update_readme.py category=default -->
 | Script | Doc | GF | Description |
 | --- | --- | --- | --- |
-| [Image Viewer: Simple zoom and pan](sites/any/image-zoom-pan.user.js) | [doc](sites/any/image-zoom-pan.md) |  | Replace Chrome's standalone image viewer with mouse-wheel, trackpad, drag, Shift+drag box, and keyboard zoom and pan. |
+| [Chrome Image Viewer: Simple zoom and pan](sites/any/image-zoom-pan.user.js) | [doc](sites/any/image-zoom-pan.md) |  | Enhance Chrome's standalone image viewer (for links to PNG, JPG, etc. files) with zoom and pan, controlled by mouse, keyboard or trackpad. |
 | [Google Calendar: Highlight matching meeting rooms](sites/calendar.google.com/highlight-local-rooms.user.js) | [doc](sites/calendar.google.com/highlight-local-rooms.md) | [GF](https://greasyfork.org/scripts/591535-google-calendar-highlight-matching-meeting-rooms) | Highlights meeting locations matching a regex you configure, so your own building stands out in a long room list. Also formats the room list one room per line. |
 | [NOAA CNRFC: Default precipitation map view (Bay Area, 24-hour)](sites/cnrfc.noaa.gov/precip-default-view.user.js) | [doc](sites/cnrfc.noaa.gov/precip-default-view.md) |  | Opens NOAA's map zoomed to the SF Bay Area with 24-hour precipitation selected by default (avoiding several navigation clicks to get there). |
 | [Garmin Connect: One-click TCX download](sites/connect.garmin.com/activity-tcx-download.user.js) | [doc](sites/connect.garmin.com/activity-tcx-download.md) |  | Adds a Download button to the activity page toolbar that exports the activity as a TCX file in one click, instead of three clicks inside the More… menu. |

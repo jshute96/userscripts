@@ -84,7 +84,7 @@ maybe HTML), follow this flow:
    Only set a `category` if the user asks for one.
 5. **Run it against the page.** `pnpm sm-dev validate <script>` for
    the header and syntax, then
-   `pnpm sm-dev run <script> --url <page> --watch` to inject it into
+   `pnpm sm-dev run <script> <page> --watch` to inject it into
    the running browser and watch its logs, its reports and its `GM_*`
    calls while you fix it. If you get stuck, stop and report exactly
    where — don't guess.
@@ -531,25 +531,11 @@ if it's missing; it makes the next break diagnose itself.
     `<body>`, the host would go with it and nothing would rebuild
     it, because the other sandboxes finished registering long ago.
 
-* **Modifying Chrome's standalone image viewer (`ImageDocument`,
-  `document.contentType.startsWith('image/')`)**:
-  - Userscripts matching the site origin run on direct image URLs
-    (e.g. `/image/foo.png`) too, where Chrome builds a synthetic
-    `<html><head>…</head><body><img src="…"></body></html>` document.
-  - **Never replace or `cloneNode` the `<img>`** — Blink feeds the
-    main document network stream directly into the original `<img>`'s
-    `ImageResourceContent`, so a cloned or replaced `<img>` loses the
-    decoded bitmap (`naturalWidth === 0`).
-  - Instead, keep `body > img` in place, suppress Chrome's native
-    click-to-zoom with a capture-phase `click` listener
-    (`e.preventDefault(); e.stopImmediatePropagation()`), and style
-    `body` (`display: flex; align-items: center; justify-content:
-    center; width: 100vw; height: 100vh; overflow: hidden`) and
-    `body > img` (`max-width: 100vw !important; max-height: 100vh
-    !important; width: auto !important; height: auto !important;
-    margin: 0 !important`) to override the HTML `width`/`height`
-    attributes Blink sets. (Don't put `display: flex` on `<html>`, or
-    `body` won't vertically center the `<img>`.)
+* **Scripts matching a site also run on its direct image URLs**, in
+  Chrome's standalone image viewer (`ImageDocument`, where
+  `document.contentType` starts with `image/`). To change that viewer,
+  never replace or clone its `<img>`: the clone has no bitmap. Details
+  in `sites/any/image-zoom-pan.md`.
 
 ## Testing
 
@@ -737,7 +723,7 @@ in `test/fixtures.js`.
 line, without writing a spec. It connects to the same CDP port the
 tests use, so the logged-in profile applies.
 
-* `pnpm sm-dev run sites/<site>/<name>.user.js --url <page>` injects
+* `pnpm sm-dev run <script> <page>` injects
   the script as it is on disk and streams its console lines, its
   reports, and every `GM_*` call it makes, until Ctrl-C or
   `--seconds N`. `--watch` re-injects and reloads on save; `--values`

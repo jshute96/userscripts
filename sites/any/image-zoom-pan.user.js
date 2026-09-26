@@ -1,15 +1,11 @@
 // ==UserScript==
-// @name         Image Viewer: Simple zoom and pan
+// @name         Chrome Image Viewer: Simple zoom and pan
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.1.0
-// @description  Replace Chrome's standalone image viewer with mouse-wheel, trackpad, drag, Shift+drag box, and keyboard zoom and pan.
+// @version      0.1.1
+// @description  Enhance Chrome's standalone image viewer (for links to PNG, JPG, etc. files) with zoom and pan, controlled by mouse, keyboard or trackpad.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
-// @match        *://*/*.png
-// @match        *://*/*.jpg
-// @match        *://*/*.jpeg
-// @match        *://*/*.webp
-// @match        *://*/*.gif
+// @include      /^(https?|file):\/\/[^?#]*\.(png|jpe?g|webp|gif|avif|bmp)([?#].*)?$/
 // @require      https://raw.githubusercontent.com/jshute96/userscripts/main/lib/image-zoom-pan.js
 // @grant        none
 // @noframes
@@ -19,6 +15,8 @@
 (function () {
   'use strict';
 
+  // Does nothing if the page isn't actually an image, e.g. a URL ending
+  // in .png that serves an HTML page.
   ImageZoomPan.create({
     tag: '[image-zoom]',
   });
