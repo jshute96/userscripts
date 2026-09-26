@@ -259,6 +259,17 @@ test.describe('URL matching', () => {
     'https://example.com/photo.jpg?w=1&h=2#top',
     'https://example.com/my.photo.v2.png', // dots earlier in the name
     'file:///home/user/Pictures/photo.png',
+    // Image hosts whose URLs have no extension.
+    'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcExample&s=10',
+    'https://encrypted-tbn3.gstatic.com/images?q=tbn:ANd9GcExample',
+    'https://lh3.googleusercontent.com/AbCdEf123=w800-h600',
+    'https://lh6.googleusercontent.com/a/AbCdEf123=s96-c',
+    'https://play-lh.googleusercontent.com/AbCdEf123=s128-rw',
+    'https://yt3.googleusercontent.com/AbCdEf123=s176-c-k-c0x00ffffff-no-rj',
+    'https://blogger.googleusercontent.com/img/b/R29vZ2xl/AbCdEf123/s1600/photo',
+    'https://pbs.twimg.com/media/AbCdEf123?format=jpg&name=large',
+    'https://example.com/_next/image?url=%2Fphotos%2Fbeach.jpg&w=1080&q=75',
+    'http://localhost:3000/_next/image?url=%2Fa.png&w=64&q=75',
   ];
   const MISSES = [
     'https://example.com/',
@@ -272,6 +283,17 @@ test.describe('URL matching', () => {
     'https://example.com/drawing.svg',
     'https://example.com/scan.tiff',
     'ftp://example.com/photo.png',
+    // Near misses for the extensionless hosts.
+    'https://www.gstatic.com/images/branding/logo', // not an encrypted-tbn host
+    'https://encrypted-tbn0.gstatic.com/other?q=x',
+    'https://colab.research.googleusercontent.com/notebook', // not an lh host
+    'https://doc-0g-docs.googleusercontent.com/docs/securesc/x',
+    'https://sites.googleusercontent.com/embeds/x',
+    'https://pbs.twimg.com/profile_banners/123/456', // not /media/
+    'https://example.com/_next/static/chunks/main.js',
+    'https://example.com/_next/image', // no query
+    // Only /_next/image at the root: a site under a path prefix isn't covered.
+    'https://example.com/docs/_next/image?url=%2Fa.png&w=64',
   ];
 
   for (const url of MATCHES) {

@@ -12,7 +12,9 @@ gestures**, and then **pan the image by dragging**. Both have keyboard
 controls too.
 
 This works on any URL ending with `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`,
-`.avif`, `.bmp` or `.ico` that serves an image.
+`.avif`, `.bmp` or `.ico` that serves an image, and on a few common image
+links without an extension: Google's image hosting pages, Twitter photos,
+and images resized by Next.js sites (`/_next/image?...`).
 
 ### Controls
 
@@ -50,8 +52,17 @@ with or without a query string or fragment, over `http`, `https` and
 can't ignore case, and `*.png` misses `foo.png?w=800`. A regex
 `@include` ignores case in Tampermonkey, Violentmonkey and
 SourceMonkey, so the regex needs no uppercase copies (and no `/i`
-flag, which no manager accepts). Images served from URLs with no
-extension aren't covered.
+flag, which no manager accepts).
+
+Images served from URLs with no extension are only covered for these
+hosts, each with its own rule:
+
+| Host | Rule |
+| --- | --- |
+| Google Images thumbnails (`encrypted-tbn0.gstatic.com/images?q=tbn:...`) | `@include` regex on `encrypted-tbn<N>.gstatic.com/images?` |
+| Google Photos, Google Play, YouTube avatars, Blogger (`lh3`, `play-lh`, `yt3`, `blogger` `.googleusercontent.com/<id>=s128`) | `@include` regex on those four hosts; a plain `*.googleusercontent.com` would also cover Colab, Google Sites and Drive downloads |
+| X / Twitter photos (`pbs.twimg.com/media/<id>?format=jpg`) | `@match https://pbs.twimg.com/media/*` |
+| Next.js image resizer (`<site>/_next/image?url=...`), on any site | `@match *://*/_next/image?*` |
 
 A matching URL can still serve HTML, so `create()` also checks
 `document.contentType` and returns with no listeners unless it starts
