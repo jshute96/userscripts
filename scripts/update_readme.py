@@ -30,6 +30,7 @@ description is the file's first line (see `read_library_metadata`).
 Usage:
   update_readme.py                  # rewrite README.md in place
   update_readme.py --check          # exit 1 if README.md is out of date
+  update_readme.py --root DIR       # another collection repo with the same layout
 """
 
 import argparse
@@ -205,7 +206,15 @@ def main():
                                    formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('--check', action='store_true',
                       help="don't write; exit 1 if README.md is out of date")
+  parser.add_argument('--root', type=Path,
+                      help='repo to update (default: this one), e.g. ../userscripts-private')
   args = parser.parse_args()
+
+  global REPO_ROOT, MANIFEST, README
+  if args.root:
+    REPO_ROOT = args.root.resolve()
+    MANIFEST = REPO_ROOT / 'script_manifest.json'
+    README = REPO_ROOT / 'README.md'
 
   scripts, libraries = load_manifest()
   old = README.read_text(encoding='utf-8')

@@ -23,6 +23,40 @@ written down before, that's the bar for recording it.
 * Each userscript has a sibling `.md` doc file with the same basename
   (e.g. `foo.user.js` and `foo.md`). See "Doc files" below.
 
+## Other script collections
+
+Scripts can also live in other repos, each a parallel collection with
+the same layout (`sites/<site>/`, sibling `.md` docs,
+`script_manifest.json`, a generated README table) that takes its
+conventions, skills and tools from this repo. A collection can be
+anywhere I point at; it doesn't have to sit beside this one. For
+example:
+
+* `userscripts` (this repo): public scripts, on GitHub and some on
+  Greasy Fork. Holds all the conventions, skills and tools.
+* `../userscripts-private`: scripts I keep but don't publish.
+
+When I ask to build or change a script in another collection (by name
+or path), put it there and follow this file as usual. The collection's
+`AGENTS.md` (with `CLAUDE.md` and `GEMINI.md` symlinked to it) says
+what it is, imports this file, and lists what differs there. In short:
+
+* It refers to this repo by relative path (below, `<this repo>`), so
+  those paths depend on where it lives: the `@<this repo>/CLAUDE.md`
+  import, its skills symlinks, and the paths in its `package.json`.
+* It has its own `pnpm install` with the same dependencies, so
+  `pnpm sm-dev` works there. Its `pnpm test` runs *this* repo's
+  Playwright binary (`<this repo>/node_modules/.bin/playwright`),
+  because its specs import this repo's fixtures and Playwright refuses
+  to load two copies of itself.
+* Its specs import `<this repo>/test/fixtures.js`, relative to the
+  spec.
+* `scripts/update_readme.py --root <collection>` regenerates its
+  README.
+* SourceMonkey loads it as a separate local collection.
+* Nothing in a private collection is published, and nothing from it
+  gets copied or mentioned here: this repo is public.
+
 ## Skills
 
 * `tampermonkey` is a public plugin with general guidance on userscript
@@ -446,6 +480,30 @@ if it's missing; it makes the next break diagnose itself.
   `.click()` may not toggle the menu — keyboard activation
   `focus()` + `Enter` works there as a fallback when needed.)
 
+* **Rearranging a React-rendered list: don't move React's nodes.**
+  React keeps references to its DOM nodes and later calls
+  `insertBefore`/`removeChild` on them against the parent it expects,
+  which throws (and can break the page) if we moved them.
+  - To reorder or regroup items in a flex/grid container, set
+    `style.order` on each item instead. The DOM order, and so Tab
+    order, stays the site's.
+  - Adding *our own* element inside React's container (a heading as a
+    full-width flex item, `flex: 0 0 100%`) is safe; React ignores
+    children it didn't create.
+  - To show an item in a second place, `cloneNode(true)` it into a
+    container of our own, and replay clicks on the copy onto the
+    original: find the clicked element's child-index path within the
+    copy, follow it in the original, and `.click()` the nearest
+    button there. Rebuild the copies when the originals change.
+  - Re-apply from a `MutationObserver` on `childList` (plus
+    `characterData` if you track text React rewrites, like a
+    quantity). Leave out `attributes`, so our own `style.order` writes
+    don't retrigger it.
+  - Copy the site's generated class names (JSS `jss32`, MUI) from a
+    live element at runtime rather than hardcoding them. Measure
+    offsets that change with the window width (e.g. a grid's negative
+    margin) instead of assuming one.
+
 * `@require` for helpers shared **across sites**: put a plain `.js`
   file (no UserScript header) in `lib/`, alongside `sites/`, with a
   sibling `.md` doc. Reference it by its full
@@ -746,12 +804,17 @@ tests use, so the logged-in profile applies.
   ```sh
   printf 'menu Bump\nvalues\nquit\n' | pnpm sm-dev run sites/x/y.user.js --seconds 30
   ```
-* `pnpm sm-dev probe <url> --selectors 'a, b, c'` says which selectors
-  resolve. This is the triage step in "When a script stops working",
-  in one call.
-* `pnpm sm-dev snapshot <url> --out file.html` saves the DOM (with the
-  site's scripts disabled) for a spec to serve back with
-  `serveSnapshot`, so a spec needs no login.
+* **Commands in a run also drive and read the page** (typed, or with
+  `pnpm sm-dev send`; each takes a tab first, e.g. `T2`):
+  `click <selector>`, `type <selector> <text>`, `key <keys>`,
+  `eval <js>` (`eval --script` in the scripts' world), `snapshot`
+  (the accessibility tree as text), `screenshot <file>`, `probe
+  <selector>...` (which selectors match: the triage step in "When a
+  script stops working"), and `logs`.
+* `savehtml <file>` in a run saves the page's DOM (with the site's
+  scripts disabled) for a spec to serve back with `serveHtml`, so a
+  spec needs no login. Save it from a tab without the script (`tabs
+  new --noscript <url>`), or the spec applies the script twice.
 * `pnpm sm-dev match <script> <url>...` says whether the header covers
   a URL, and which rule decided.
 * `pnpm sm-dev validate <path>` runs the install-time checks: header,
@@ -760,6 +823,63 @@ tests use, so the logged-in profile applies.
   injecting; `--solo` silences the other collections for the run, and
   `pnpm sm-dev clear --extension` puts them back and removes the
   pushed scripts.
+* `--devtools` on `run` starts a Chrome DevTools MCP server (the
+  `chrome-devtools` command, from `npm i -g chrome-devtools-mcp`)
+  scoped to the run's own tabs, for what the run's commands don't
+  cover (network requests, performance traces). The run prints its
+  session and each tab's page id:
+
+  ```sh
+  pnpm sm-dev run sites/x/y.user.js --url <page> --devtools &
+  # [sm-dev] DevTools: chrome-devtools --sessionId=D2 <tool> <pageId> ...
+  # [sm-dev] T1 is DevTools page 1
+  chrome-devtools --sessionId=D2 list_pages
+  chrome-devtools --sessionId=D2 take_snapshot 1     # element uids like 1_2
+  chrome-devtools --sessionId=D2 click 1 1_2
+  chrome-devtools --sessionId=D2 press_key 1 j
+  chrome-devtools --sessionId=D2 evaluate_script "() => document.title" --pageId 1
+  pnpm sm-dev stop D2
+  ```
+
+  - Page ids only work with that run's `--sessionId`. The DevTools
+    MCP tools available to an agent run a separate server with other
+    page numbers.
+  - While attached, DevTools makes every tab report that it has focus
+    (`document.hasFocus()` is true, even in background tabs), which can
+    hide a script's focus bugs. Test focus-dependent behavior without
+    `--devtools`.
+  - A hand-started session id must be hex (`^[a-fA-F0-9-]+$`); e.g.
+    `chrome-devtools --sessionId=ab start --browserUrl
+    http://127.0.0.1:9233` attaches to *every* tab in the test browser.
+  - **Take a new snapshot before each click when the DOM changes.** A uid
+    is `<snapshot#>_<n>`, and it stays the same only for elements that
+    still exist. Elements the page (or our script) rebuilt get new ones
+    (`1_51` → `2_14` → `6_85`), so don't grep for a fixed `1_` prefix.
+    Match `[0-9]+_[0-9]+`.
+  - The snapshot is Chrome's accessibility tree (`Accessibility.getFullAXTree`,
+    pruned by Puppeteer), in **DOM order**, not on-screen order. A script
+    that reorders with CSS `order` won't show its order there.
+  - `click`, `press_key` etc. send real pointer and key events (trusted
+    input, unlike `.click()`), and every action waits for the DOM to
+    stay stable for 100ms (up to 3s) before returning. So no `sleep` is
+    needed between a click and checking its effect.
+  - Each call costs ~1s, ~0.7s of it being the command starting up. A
+    step is usually snapshot + click + check with `evaluate_script`, so
+    ~3s. For many quick checks, raw CDP (see "Test techniques" above)
+    is ~0.1s per call. Target the tab by the `targetId` sm-dev prints,
+    not by URL: two tabs on the same page are common, and picking the
+    wrong one looks like the script didn't run.
+  - Script logs stream to the `run`'s output, not DevTools' output, so
+    run it in the background with output to a file and `tail` that file
+    after each action.
+  - **Check whether an interactive test changes real data.** On a
+    shopping or account page, clicks may change real state. Only do
+    reversible steps (+ then -, add then remove) and never submit or
+    save; use a `serveHtml` spec when that isn't enough.
+* Full reference: `docs/harness-guide.md` in the SourceMonkey checkout
+  that `package.json`'s `sourcemonkey` dependency points at (the
+  installed package doesn't ship its docs). "DevTools alongside a run"
+  covers `--devtools`.
 
 ## Iterating on DOM-heavy userscripts
 
