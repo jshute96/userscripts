@@ -84,7 +84,7 @@ maybe HTML), follow this flow:
    Only set a `category` if the user asks for one.
 5. **Run it against the page.** `pnpm sm-dev validate <script>` for
    the header and syntax, then
-   `pnpm sm-dev run <script> --url <page> --watch` to inject it into
+   `pnpm sm-dev run <script> <page> --watch` to inject it into
    the running browser and watch its logs, its reports and its `GM_*`
    calls while you fix it. If you get stuck, stop and report exactly
    where — don't guess.
@@ -531,6 +531,12 @@ if it's missing; it makes the next break diagnose itself.
     `<body>`, the host would go with it and nothing would rebuild
     it, because the other sandboxes finished registering long ago.
 
+* **Scripts matching a site also run on its direct image URLs**, in
+  Chrome's standalone image viewer (`ImageDocument`, where
+  `document.contentType` starts with `image/`). To change that viewer,
+  never replace or clone its `<img>`: the clone has no bitmap. Details
+  in `sites/any/image-zoom-pan.md`.
+
 ## Testing
 
 Tests run against a real browser using Playwright. Tests for a script
@@ -675,6 +681,14 @@ in `test/fixtures.js`.
 
 ### Test techniques that outlive the harness
 
+* **Testing a page with no site behind it: serve it from
+  `page.route`.** A route can answer a made-up URL
+  (`https://x.test/big.png`) with any body and content type, and
+  Chrome treats it as the real thing. An `image/*` response opens
+  Chrome's standalone image viewer, so image sizes and window sizes
+  (`page.setViewportSize`) are chosen by the spec. Example:
+  `sites/any/image-zoom-pan.spec.js`, which generates its PNGs in Node.
+
 * **Waiting for a smooth scroll to settle: poll the target element's
   `getBoundingClientRect().top`, not `window.scrollY`.** On
   ad-heavy, lazy-loading pages, content above the target keeps
@@ -717,7 +731,7 @@ in `test/fixtures.js`.
 line, without writing a spec. It connects to the same CDP port the
 tests use, so the logged-in profile applies.
 
-* `pnpm sm-dev run sites/<site>/<name>.user.js --url <page>` injects
+* `pnpm sm-dev run <script> <page>` injects
   the script as it is on disk and streams its console lines, its
   reports, and every `GM_*` call it makes, until Ctrl-C or
   `--seconds N`. `--watch` re-injects and reloads on save; `--values`
