@@ -12,7 +12,7 @@ gestures**, and then **pan the image by dragging**. Both have keyboard
 controls too.
 
 This works on any URL ending with `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`,
-`.avif` or `.bmp` that serves an image.
+`.avif`, `.bmp` or `.ico` that serves an image.
 
 ### Controls
 
@@ -44,7 +44,7 @@ options, so only standalone image documents are handled.
 ### Targeting
 
 A regex `@include` targets URLs whose path ends in an image extension
-(`png`, `jpg`, `jpeg`, `webp`, `gif`, `avif`, `bmp`, in any case),
+(`png`, `jpg`, `jpeg`, `webp`, `gif`, `avif`, `bmp`, `ico`, in any case),
 with or without a query string or fragment, over `http`, `https` and
 `file`. Plain `@match` patterns can't do this in a few lines: they
 can't ignore case, and `*.png` misses `foo.png?w=800`. A regex

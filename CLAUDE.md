@@ -681,6 +681,14 @@ in `test/fixtures.js`.
 
 ### Test techniques that outlive the harness
 
+* **Testing a page with no site behind it: serve it from
+  `page.route`.** A route can answer a made-up URL
+  (`https://x.test/big.png`) with any body and content type, and
+  Chrome treats it as the real thing. An `image/*` response opens
+  Chrome's standalone image viewer, so image sizes and window sizes
+  (`page.setViewportSize`) are chosen by the spec. Example:
+  `sites/any/image-zoom-pan.spec.js`, which generates its PNGs in Node.
+
 * **Waiting for a smooth scroll to settle: poll the target element's
   `getBoundingClientRect().top`, not `window.scrollY`.** On
   ad-heavy, lazy-loading pages, content above the target keeps
