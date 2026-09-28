@@ -78,6 +78,14 @@ what it is, imports this file, and lists what differs there. In short:
   - **`references/header-reference.md`**, **`sandbox-modes.md`**,
     **`browser-compatibility.md`** — load on demand when the question
     is specifically about that area.
+* `SourceMonkey-dev` is how to run, drive, debug and test a script:
+  `sm-dev` (inject a script into the test browser, drive and inspect
+  the page, read the script's logs, state and stored values), raw CDP
+  for what `sm-dev` can't do (window size, real wheel input), and the
+  Playwright harness for specs. **Load it before running a script in a
+  browser or writing a spec**, rather than working from memory: the
+  tool changes, and the skill tracks it. `pnpm sm-dev help` is the
+  current reference.
 * `install-in-SourceMonkey` is my skill commands to install scripts in SourceMonkey,
   my preferred userscript manager.
 * `install-in-tampermonkey` is my skill commands to install scripts in Tampermonkey,
@@ -99,9 +107,8 @@ what it is, imports this file, and lists what differs there. In short:
 When the user describes a new userscript (usually a site, screenshot,
 maybe HTML), follow this flow:
 
-1. **Reproduce the starting state.** Drive the running CDP browser
-   (`scripts/open-browser.sh`, port 9233) to the page they're asking
-   about, and confirm you can see and inspect the controls they want
+1. **Reproduce the starting state.** Drive the test browser (see
+   "Testing" below) to the page they're asking about with `sm-dev`, and confirm you can see and inspect the controls they want
    to change. If the persistent profile isn't logged in to the
    target site, **stop and ask the user to log in** in that
    window — don't try to automate the login.
@@ -116,13 +123,10 @@ maybe HTML), follow this flow:
    order, then run `scripts/update_readme.py` to regenerate the
    README tables — see "Keeping the script list current" below.
    Only set a `category` if the user asks for one.
-5. **Run it against the page.** `pnpm sm-dev validate <script>` for
-   the header and syntax, then
-   `pnpm sm-dev start <script> <page> --watch --detach` to inject it
-   into the running browser, and drive it with `pnpm sm-dev <command>`
-   while you fix it; its logs, reports and `GM_*` calls go to the log
-   file it names. `pnpm sm-dev stop` ends it. If you get stuck, stop
-   and report exactly where — don't guess.
+5. **Run it against the page** with `sm-dev`, following the
+   `SourceMonkey-dev` skill's core loop: `validate`, `start --watch
+   --detach` in the test browser, drive and check it, then `stop`. If
+   you get stuck, stop and report exactly where — don't guess.
 6. **Suggest install**
    - If using SourceMonkey (the default), the directory should be installed
      already, and the manifest entry was added in step 4. Run the
@@ -336,11 +340,12 @@ re-deriving the script from scratch:
 1. **Open DevTools on the affected page and look for the `[name]
    init` log.**
    - Present → @match is fine, the IIFE ran. Skip to step 2.
-   - Absent → it's an installation, `@match`, or grant issue. Check
-     Tampermonkey's "Installed Scripts" page; confirm the URL in
-     the address bar against the `@match` pattern; check whether
-     `@match` was changed since the script was last installed
-     (header changes require reinstall).
+   - Absent → it's an installation, `@match`, or grant issue.
+     `pnpm sm-dev match <script> <url>` says whether the header covers
+     the URL, and which rule decided. Otherwise check the manager's
+     installed-scripts page, and whether the header changed since the
+     script was installed (header changes need a refresh or
+     reinstall).
 
 2. **Find the first log line that *should* fire but doesn't.** Each
    step in the script logs on success; the gap between the last
@@ -350,17 +355,12 @@ re-deriving the script from scratch:
    callback).
 
 3. **Treat the sibling `.md` doc's "What we assume stays stable"
-   section as the selector checklist.** Open DevTools console on
-   the live page and run a one-liner that probes each assumed
-   selector and prints which ones are non-null. The first null is
-   your answer. Example:
-   ```js
-   ({
-     wrapper:  !!document.querySelector('.FeedPage'),
-     header:   !!document.querySelector('.FeedPage header'),
-     moreBtn:  !!document.querySelector('header button[aria-haspopup="listbox"]'),
-     markRead: !!document.querySelector('button[aria-label="Mark as read"]'),
-   })
+   section as the selector checklist.** Probe each assumed selector
+   on the live page; the first one that's missing is your answer.
+   `sm-dev probe` does it in one call:
+   ```sh
+   pnpm sm-dev probe '.FeedPage' '.FeedPage header' \
+     'header button[aria-haspopup="listbox"]' 'button[aria-label="Mark as read"]'
    ```
 
 4. **Once you've identified the changed selector, look for a more
@@ -564,14 +564,9 @@ if it's missing; it makes the next break diagnose itself.
     `@require` lines verbatim and adds its own `file://` `@require`
     for the body, so a script with a shared-helper `@require` still
     installs cleanly as a local-file pointer.
-  - The Playwright fixture (`loadUserscript`) resolves `@require`
-    itself: bare relative paths against the script's directory, and
-    github-raw URLs by walking shorter suffixes of the URL path until
-    one exists under the repo root. Sources are concatenated ahead of
-    the body inside one wrapper, reproducing the manager's rule that
-    required code shares scope with the script. An unresolvable
-    `@require` throws rather than being skipped. The fixture also
-    synthesizes `GM_info` from the real metadata block.
+  - `sm-dev` and the spec harness resolve `@require` the way
+    SourceMonkey does, reading local copies of `lib/` and relative
+    files, so there's nothing to stub.
 
 * **Cross-userscript collaboration goes through the DOM.** Each
   script is sandboxed, so a `@require`d library runs once per script
@@ -598,298 +593,74 @@ if it's missing; it makes the next break diagnose itself.
 
 ## Testing
 
-Tests run against a real browser using Playwright. Tests for a script
-live next to it: `sites/<site>/<name>.spec.js`. Shared fixtures are
-in `test/fixtures.js`.
+**For anything about running a script in a browser, driving and
+inspecting the page, or writing a spec, load the `SourceMonkey-dev`
+skill.** It covers `sm-dev`, raw CDP, the Playwright harness, and the
+gotchas that go with them. This section only has what's specific to
+this repo.
 
-### The harness
+### The test browser
 
-* **The manager's half comes from SourceMonkey**, installed as the
-  `sourcemonkey` dev dependency (from the sibling SourceMonkey
-  checkout, injected so its Playwright is ours) and imported by `test/fixtures.js`
-  through `sourcemonkey/harness`. A script is prepared with the
-  extension's own install pipeline and injected behind its real prelude
-  and `GM_*` runtime, with a Node host standing in for the service
-  worker. Full description: `docs/harness-guide.md` in the SourceMonkey
-  repo.
-
-* **What that means for a spec.** The header decides: a page the
-  `@match` doesn't cover runs nothing, and the runner says which rule
-  missed. `@grant` decides which `GM_*` names exist and whether the
-  script is sandboxed. `@require` resolves, including a
-  `raw.githubusercontent.com` URL that reads the local `lib/` copy.
-  `@run-at` is honored. Errors are attributed to the script.
-
-* **So write scripts as they ship.** No guards for a missing `GM_*`,
-  no test-only branches: whatever a real manager defines, the tests
-  define too.
-
-* Workflow:
-  1. `scripts/open-browser.sh <url>` — launches Playwright's bundled
-     Chromium with `--user-data-dir=.playwright-profile` and
-     `--remote-debugging-port=9233`. Leave it running. Log in to test
-     sites once; the profile persists.
-  2. `pnpm test` — tests connect over CDP and reuse that running
-     browser, so they get the logged-in session for free.
-
+* `scripts/open-browser.sh [url]` launches Playwright's bundled
+  Chromium with a persistent profile (`.playwright-profile`) and CDP
+  on port 9233. Leave it running, and log in to test sites in it once.
+  `sm-dev` and `pnpm test` both connect to it by default.
+  - A page that needs no login can use a throwaway browser instead
+    (`sm-dev --temp-browser`, or a spec that serves its own page).
 * **Don't let Playwright launch the browser.** Both system Chrome
   (`channel: 'chrome'`) and `chromium.launchPersistentContext()` set
   automation flags that Google's bot detection trips on, blocking
-  sign-in. Launching the bundled Chromium binary ourselves and
-  attaching via `chromium.connectOverCDP()` looks "real" to Google.
-  The "Chrome for Testing" banner in the launched window is the
-  visual marker that you're on the right binary.
+  sign-in. Launching the bundled Chromium ourselves and attaching over
+  CDP looks "real" to Google. The "Chrome for Testing" banner is the
+  sign you're on the right binary.
+* The port is project-specific (9233), so other test browsers can run
+  alongside without connecting to the wrong one.
+* **Site isolation is disabled in `open-browser.sh`**
+  (`--disable-features=IsolateOrigins,site-per-process`). With it on,
+  cross-origin iframes (almost any third-party embed) run in their own
+  process, and Playwright's `connectOverCDP` hangs until timeout: Chrome
+  silently drops its `Page.createIsolatedWorld` reply for those frames.
+  If a CDP connect hangs with `pw:protocol` stopped on that call for a
+  cross-origin frame, this is it.
 
-* Use a project-specific CDP port (we use 9233) so multiple test
-  browsers can run side by side without `connectOverCDP` finding the
-  wrong one.
+### Specs
 
-* **Site isolation must be disabled in `open-browser.sh`** via
-  `--disable-features=IsolateOrigins,site-per-process`. With site
-  isolation on (Chrome's default), cross-origin iframes (Feedly's
-  Twitter widget, the New Tab Page's Google widgets, almost any
-  third-party embed) run in their own renderer process. During
-  `chromium.connectOverCDP`, Playwright calls
-  `Page.createIsolatedWorld` once per frame, and for those OOPIFs
-  Chrome 147 silently drops the response — the whole connect hangs
-  until timeout, with no useful error. Same-process iframes respond
-  synchronously, so the flag eliminates the hang at the source. If
-  you're debugging a CDP hang and see `pw:protocol` stop dead on a
-  `Page.createIsolatedWorld` `SEND` for a cross-origin frameId,
-  this is what you're looking at.
-
-### Writing a spec
-
-* `loadUserscript(SCRIPT_PATH)` prepares and attaches the script, so
-  call it before the `page.goto` that should see it. It reads the file
-  fresh each test; edits are picked up next run, no rebuild.
-
-* **A script's `GM_*` names are bindings in its own scope, in its own
-  world.** A test cannot patch them from `page.evaluate`; use `gm`
-  below. The same goes for anything else inside the script: its
-  sandbox is real.
-
-* `gm` reads and drives what the script did through the manager:
-  `gm.get(key)` / `gm.set(key, value)`, `gm.list()`,
-  `gm.menuCommands()` and `gm.fireMenu(label)`, `gm.openedTabs()`,
-  `gm.notifications()`, `gm.downloads()`, `gm.requests()`. Seed
-  storage before the script runs with
-  `loadUserscript(PATH, { values: { … } })`. These are the same
-  actions `sm-dev` offers while a script runs, so what you work out by
-  hand transfers into the spec.
-
-* `reports` is what the script itself reported: `reports.errors()`
-  (assert it is empty), `reports.skipped()`, and
-  `await reports.waitForStart()` as the gate before interacting. A
-  timeout there names the script and the rule that kept it off the
-  page.
-
-* `gm.failHosts('api.example.com')` answers that host with a 503 so a
-  fallback path can be exercised; `gm.interceptRequests(fn)` answers
-  any request from the test. Without one of those a
-  `GM_xmlhttpRequest` really goes out, so a spec that depends on a live
-  service should say so at the top of the file: a red test may mean the
-  service is down, not the script.
-
-* When a userscript's button handler fires off async work
-  (fire-and-forget from the event handler), don't poll DOM state for
-  completion — wait for a specific console log line the script emits
-  on success (e.g. `[name] preset applied: foo`). Polling races with
-  intermediate states; a log line is a clean signal.
-
-* The `page` fixture forwards in-page `[name]` console logs and
-  `pageerror` to the test runner output, and the fixture prints the
-  script's own start / skipped / error reports beside them. Read those
-  lines before believing a "selector broke" story.
-
-### What the harness still isn't
-
-* **The request identity of `GM_xmlhttpRequest`.** It goes out from
-  Node with the browser's cookies for the target, not from the
-  extension: no `Sec-Fetch-Site: none`, no cookie re-attachment across
-  a cross-origin redirect. **When a change moves *where* a request
-  comes from, send one real request from the new place before building
-  on it.** Page context and the extension's request are not
-  interchangeable: the manager's carries different cookies, no
-  `Origin`, and `Sec-Fetch-Site: none` — a value no page can produce
-  and that WAFs reject.
-
-  This cost a 1100-line rewrite that had to be debugged backwards: the
-  Garmin to Strava script was rebuilt around "the Strava page can fetch
-  from Garmin now", verified with a page-context `fetch`, and then
-  every API call 403'd. One `GM_xmlhttpRequest` to one endpoint, first,
-  would have found both blockers at once.
-
-  Corollary for diagnosing it: a 403 that a page can't reproduce is
-  probably not the site. Check whether the response came from the edge
-  rather than the origin — with Cloudflare, a missing `cf-cache-status`
-  on the failure where the success has one.
-
-* **Chrome's own UI**: the download manager, notification popups, the
-  toolbar menu. `GM_download` writes the file from Node, a
-  notification is recorded rather than shown, and a menu command is
-  fired by the test.
-
-* For those, run the script in the real extension:
-  `pnpm sm-dev start <script> --extension --solo --detach`, which
-  pushes the script into SourceMonkey in the running browser and logs
-  its Log tab. See "Interactive development" below.
-
-* **After changing SourceMonkey itself**, `pnpm install` here to pick
-  up its rebuilt `lib/`: the dependency is a copy, not a live link.
-
-### Test techniques that outlive the harness
-
-* **Testing a page with no site behind it: serve it from
-  `page.route`.** A route can answer a made-up URL
-  (`https://x.test/big.png`) with any body and content type, and
-  Chrome treats it as the real thing. An `image/*` response opens
-  Chrome's standalone image viewer, so image sizes and window sizes
-  (`page.setViewportSize`) are chosen by the spec. Example:
-  `sites/any/image-zoom-pan.spec.js`, which generates its PNGs in Node.
-
+* Specs live next to their script, `sites/<site>/<name>.spec.js`, and
+  run with `pnpm test` (or `pnpm test <file>`).
+* Import `test` and `expect` from `../../test/fixtures.js`, not from
+  `sourcemonkey/harness` directly. The fixture connects to the test
+  browser, uses this repo as the root for `@require` lookups, and
+  prints the page's `[name]` logs and the script's start, skip and
+  error reports beside the test output.
+* Write a spec after the user confirms the script works (see "Creating
+  a new userscript"), so it encodes a known-good state.
+* Examples worth copying:
+  - `sites/any/image-zoom-pan.spec.js`: no site at all. It serves
+    generated images at made-up URLs with `page.route`, sets the window
+    size, and tests URL matching with `loadUserscript(path, { url })`.
 * **Waiting for a smooth scroll to settle: poll the target element's
-  `getBoundingClientRect().top`, not `window.scrollY`.** On
-  ad-heavy, lazy-loading pages, content above the target keeps
-  growing, so `scrollY` can sit perfectly still while the element is
-  still moving — a scrollY-based settle loop then measures far too
-  early and reports a plausible-looking wrong number. (Scripts have
-  the mirror-image problem; see the drift correction in
+  `getBoundingClientRect().top`, not `window.scrollY`.** On ad-heavy,
+  lazy-loading pages, content above the target keeps growing, so
+  `scrollY` can sit still while the element is still moving, and a
+  scrollY-based settle measures too early. (Scripts have the
+  mirror-image problem; see the drift correction in
   `sites/pinkbike.com/keyboard-comment-navigation.md`.)
 
-* **When Playwright itself misbehaves, drive the browser via raw
-  CDP.** The running Chromium exposes a stable HTTP+WebSocket API
-  at `http://localhost:9233`, completely independent of
-  `chromium.connectOverCDP`. Useful endpoints:
-  - `GET /json` — list all targets (pages, iframes), each with a
-    `webSocketDebuggerUrl`.
-  - `PUT /json/new?<url>` — open a tab navigated to that URL.
-  - `GET /json/close/<id>` — close a tab. **Closing the last page
-    quits Chromium on Linux**, so always leave at least one.
-  - `ws://.../devtools/page/<id>` — per-page CDP session. Send
-    `{id, method, params}` JSON; Node 22+ has a built-in
-    `WebSocket` so no `ws` dep needed. `Runtime.evaluate` with
-    `awaitPromise: true` and `returnByValue: true` covers most
-    needs (inspect DOM, click elements, inject scripts). Listen
-    for `Runtime.consoleAPICalled` to capture `[name]` logs.
+### Lesson: where a request comes from matters
 
-  This was the lifeline when `connectOverCDP` was hanging on
-  `Page.createIsolatedWorld` — page-level CDP doesn't go through
-  Playwright's per-frame attach dance, so the same iframe that
-  hung Playwright was perfectly accessible directly.
+The harness sends a `GM_xmlhttpRequest` from Node with the browser's
+cookies, not from the extension, which sends different cookies, no
+`Origin`, and `Sec-Fetch-Site: none` (a value no page can produce, and
+that some firewalls reject). **When a change moves where a request
+comes from, send one real request from the new place first**, in the
+real extension (`--extension`, see the skill).
 
-  Two raw-CDP gotchas: a `Runtime.evaluate` that navigates the page
-  never gets its reply (the session dies with the document), so wrap
-  the navigation in `setTimeout` or use `Page.navigate`; and
-  `Page.captureScreenshot` of a *background* tab renders WebGL canvases
-  (maps) blank — hit `GET /json/activate/<id>` first.
-
-### Interactive development
-
-`pnpm sm-dev <command>` drives the running browser from the command
-line, without writing a spec. It connects to the same CDP port the
-tests use, so the logged-in profile applies.
-
-* `pnpm sm-dev start <script> <page> --detach` starts a run in the
-  background: it injects the script as it is on disk and logs its
-  console lines, its reports, and every `GM_*` call it makes to a log
-  file it names. `--watch` re-injects and reloads on save; `--values`
-  seeds storage. `pnpm sm-dev stop` ends the run.
-  * A person at a terminal can use `pnpm sm-dev -i start ...` instead,
-    for a `> ` prompt; `exit` or Ctrl-D ends it and the run.
-  * Line-wide flags go first: `pnpm sm-dev --run D2 status`.
-* **Send a run commands** as `pnpm sm-dev <command>`: `menu` lists the
-  script's menu commands and `menu <label>` fires one, `values` and
-  `get <key>` read what it stored, `set <key> <json>` writes a value
-  as another tab would, `reload` and `open <url>` move the page. A
-  sequence can go on one line after `--`, or be piped in with
-  `--stdin`; without `--detach`, the run stops once they are done:
-
-  ```sh
-  pnpm sm-dev start sites/x/y.user.js -- menu Bump -- values
-  printf 'menu Bump\nvalues\n' | pnpm sm-dev --stdin start sites/x/y.user.js
-  ```
-* **Commands in a run also drive and read the page** (each takes a
-  tab first, e.g. `T2`):
-  `click <selector>`, `type <selector> <text>`, `key <keys>`,
-  `eval <js>` (`eval --script` in the scripts' world), `snapshot`
-  (the accessibility tree as text), `screenshot <file>`, `probe
-  <selector>...` (which selectors match: the triage step in "When a
-  script stops working"), and `logs`.
-* `savehtml <file>` in a run saves the page's DOM (with the site's
-  scripts disabled) for a spec to serve back with `serveHtml`, so a
-  spec needs no login. Save it from a tab without the script (`newtab
-  --noscript <url>`), or the spec applies the script twice.
-* `pnpm sm-dev match <script> <url>...` says whether the header covers
-  a URL, and which rule decided.
-* `pnpm sm-dev validate <path>` runs the install-time checks: header,
-  `@require`, syntax. Cheap to run after any edit.
-* `--extension` on `start` pushes into the real SourceMonkey instead of
-  injecting; `--solo` silences the other collections for the run, and
-  `pnpm sm-dev clear --extension` puts them back and removes the
-  pushed scripts.
-* **Driving a run's tab over raw CDP** (see "Test techniques" above):
-  target it by the `targetId` sm-dev prints, not by URL. Two tabs on
-  the same page are common, and picking the wrong one looks like the
-  script didn't run.
-* **Check whether an interactive test changes real data.** On a
-  shopping or account page, clicks may change real state. Only do
-  reversible steps (+ then -, add then remove) and never submit or
-  save; use a `serveHtml` spec when that isn't enough.
-* Full reference: `docs/harness-guide.md` in the SourceMonkey checkout
-  that `package.json`'s `sourcemonkey` dependency points at (the
-  installed package doesn't ship its docs).
-
-### Fullscreen (images, videos, lightboxes)
-
-* **Enter it the way a person would**: `key f`, or `click` on the
-  site's fullscreen button. Both count as a real user action, so
-  `requestFullscreen()` is allowed and the window really goes
-  fullscreen.
-* **Check the state**: `eval [document.fullscreenElement?.outerHTML.slice(0, 200), innerWidth, innerHeight]`.
-  In real fullscreen the size is the screen's, not the window's.
-* **Exit with `eval document.exitFullscreen()`.** `key Escape` reaches
-  the page but doesn't exit fullscreen: that's a browser shortcut, and
-  keys sent over CDP (the DevTools protocol sm-dev uses) go straight
-  to the page. sm-dev says so when the page is still fullscreen after
-  one.
-* **If the page won't exit**, restore the window over raw CDP (see
-  "Test techniques" above): `Browser.getWindowForTarget` with the tab's
-  `targetId`, then `Browser.setWindowBounds` with
-  `{ windowState: 'normal' }`.
-* **Don't turn on focus emulation** (`Emulation.setFocusEmulationEnabled`).
-  With it on, fullscreen only fills the tab, and the page lays out at
-  the window's size. sm-dev leaves it off.
-* **Switching tabs exits fullscreen**, as in a normal browser. So does
-  a script's `GM_openInTab` with `active`.
-* **To see a transition** (a flash, a gap, a jump between slides),
-  record what's on top at chosen points on every frame, then trigger
-  it. Screenshots are too slow to catch these. Change `points` to
-  spots in the image or video:
-
-  ```
-  > eval {{
-  ... window.smTrace = [];
-  ... const points = [[400, 300], [20, 20]];
-  ... const t0 = performance.now();
-  ... let last = '';
-  ... const name = (el) => !el ? 'nothing'
-  ...   : el.tagName.toLowerCase() + (el.id ? `#${el.id}` : '') + [...el.classList].slice(0, 2).map((c) => `.${c}`).join('');
-  ... (function frame() {
-  ...   const now = (document.fullscreenElement ? 'fullscreen: ' : '') + points.map(([x, y]) => name(document.elementFromPoint(x, y))).join(' | ');
-  ...   if (now !== last) window.smTrace.push(`${Math.round(performance.now() - t0)}ms ${now}`);
-  ...   last = now;
-  ...   if (performance.now() - t0 < 3000) requestAnimationFrame(frame);
-  ... })();
-  ... }}
-  > key ArrowRight
-  > eval window.smTrace
-  ```
-
-  - It logs only the frames where something changed, for 3 seconds.
-  - Frames don't run in a background tab, so trace the visible one.
-  - To follow an image or video's source too, add
-    `el.currentSrc` to `name`.
+This cost a 1100-line rewrite once: the Garmin to Strava script was
+rebuilt around "the Strava page can fetch from Garmin now", checked
+with a page-context `fetch`, and then every API call returned 403. A
+403 the page can't reproduce is probably the site's edge, not its
+server: with Cloudflare, the failing response lacks the
+`cf-cache-status` header the working one has.
 
 ## Iterating on DOM-heavy userscripts
 

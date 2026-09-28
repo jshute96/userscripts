@@ -186,6 +186,7 @@ Install in Claude:
 I have skills for interacting with userscript managers (currently SourceMonkey or Tampermonkey), for workflows like installing or updating scripts.
 
 - [install-in-SourceMonkey](.claude/skills/install-in-SourceMonkey/SKILL.md)
+- [SourceMonkey-dev](https://github.com/jshute96/SourceMonkey/tree/main/skills/SourceMonkey-dev) — running, debugging and testing a script with SourceMonkey's `sm-dev` tool and test harness (see [Test harness](#test-harness)). It lives in the SourceMonkey repo, linked into this one's skills directory.
 - [install-in-tampermonkey](.claude/skills/install-in-tampermonkey/SKILL.md) — automates the copy-paste flow, putting the script on the clipboard and opening Tampermonkey's script page ready to paste.
 
 ### Skills for repeated patterns
@@ -256,7 +257,11 @@ These can run by getting the user to log in to the site in the Chromium test bro
 In some cases, to avoid login or other live-site issues, tests are written against static snapshots of the target page.
 
 During development, Claude can also explore sites and test scripts interactively
-using `sm-dev`, Playwright or Chrome DevTools.
+using `sm-dev`, plus raw CDP (Chrome DevTools Protocol) for the few things
+`sm-dev` has no command for, like resizing the window. The
+[SourceMonkey-dev](https://github.com/jshute96/SourceMonkey/tree/main/skills/SourceMonkey-dev)
+skill, from the SourceMonkey repo, teaches Claude how to use both, and how to
+turn what it checked by hand into a spec.
 
 One-time setup:
 
