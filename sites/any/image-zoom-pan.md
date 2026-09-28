@@ -70,6 +70,12 @@ with `image/` (SVG excluded: Chrome renders it as a normal document).
 It runs at `document-start` so the restyle lands before the
 first paint.
 
+The header sets `@icon` to Chrome's own favicon
+(`google.com/chrome/static/images/favicons/favicon-96x96.png`).
+Without an `@icon`, managers take the icon from the site in the first
+`@match` with a real host, which here is `pbs.twimg.com`, so the
+script showed X's logo.
+
 ### What we assume stays stable
 
 * Chrome shows a directly opened raster image as an `ImageDocument`:

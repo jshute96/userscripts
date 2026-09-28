@@ -16,6 +16,19 @@ recurring decision, record it so the next session benefits:
 If something would have saved time *this* session if it had been
 written down before, that's the bar for recording it.
 
+### SourceMonkey friction log
+
+When a task that ran into friction with SourceMonkey's development
+tools (`sm-dev`, the Playwright harness, the `SourceMonkey-dev` skill,
+the script manager) is finished, use the `SourceMonkey-friction` skill
+to add an entry to the friction log, without being asked. The log is
+`../SourceMonkey-friction.md`, in the directory above this repo.
+
+* Finished means committing the work, or abandoning it.
+* Write one entry per task, not one per problem. If more work on the
+  same task follows on the same day, add to that entry rather than
+  starting a new one.
+
 ## Organization
 
 * Save userscripts for domain `example.com` in a subdirectory called `sites/example.com`.
@@ -86,6 +99,8 @@ what it is, imports this file, and lists what differs there. In short:
   browser or writing a spec**, rather than working from memory: the
   tool changes, and the skill tracks it. `pnpm sm-dev help` is the
   current reference.
+* `SourceMonkey-friction` records problems with those tools in the
+  friction log. See "SourceMonkey friction log" above.
 * `install-in-SourceMonkey` is my skill commands to install scripts in SourceMonkey,
   my preferred userscript manager.
 * `install-in-tampermonkey` is my skill commands to install scripts in Tampermonkey,
@@ -346,6 +361,10 @@ re-deriving the script from scratch:
      installed-scripts page, and whether the header changed since the
      script was installed (header changes need a refresh or
      reinstall).
+   - Absent, but the header matches and the manager says it should
+     run (SourceMonkey's badge shows MISSING) → the page may be
+     blocking page-world scripts. See "Pages sent with a CSP
+     `sandbox` header" under Tips.
 
 2. **Find the first log line that *should* fire but doesn't.** Each
    step in the script logs on success; the gap between the last
@@ -590,6 +609,41 @@ if it's missing; it makes the next break diagnose itself.
   `document.contentType` starts with `image/`). To change that viewer,
   never replace or clone its `<img>`: the clone has no bitmap. Details
   in `sites/any/image-zoom-pan.md`.
+
+* **Pages sent with a CSP `sandbox` header silently skip `@grant none`
+  scripts.** `Content-Security-Policy: sandbox` (without
+  `allow-scripts`) turns off JavaScript in the page's own world, so
+  Chrome never injects page-world scripts there. Scripts in the
+  isolated world still run. Sites serving user uploads or raw files
+  send this header to block XSS, including on direct image URLs.
+  - Most likely to bite any-site scripts (broad `@include` regexes,
+    `*://*/*`, `<all_urls>`), since they land on hosts nobody checked.
+  - Which world a script gets: `@grant none` (or no `@grant`, or
+    `unsafeWindow`) → page world. Any other grant → isolated world.
+    `@inject-into page` / `content` overrides both.
+  - Symptoms: the header matches (`sm-dev match` agrees), but there's
+    no init log and no `[SourceMonkey]` line in the page console,
+    SourceMonkey's badge shows the script as MISSING, and
+    `typeof __smRun` in the page console is `"undefined"`. Other
+    scripts with real grants still run on the same page.
+  - What the tools say:
+    - SourceMonkey's Log for the script gets a warning a few seconds
+      after the page loads: `Matched <url> but never started there`,
+      plus a hint. When another script in the isolated world ran on
+      the page, the hint says the page is sandboxed; otherwise it says
+      the page may be blocking scripts, and which header to check.
+    - `sm-dev start` (both backends) prints a warning on each load of
+      such a page, naming the loaded page-world scripts it blocks.
+      sm-dev's own injection is blocked there too, so they also show
+      as not started after the 10s wait.
+  - Confirm it: in the Network tab, the document's response has
+    `sandbox` in its `Content-Security-Policy` header. In the console,
+    `self.origin` is `"null"` (sandboxed documents get an opaque
+    origin).
+  - Fix: add `// @inject-into content` when the script only needs the
+    DOM, not page globals. SourceMonkey and Violentmonkey honor it;
+    Tampermonkey ignores it. A script that needs page globals (e.g.
+    React internals) can't run on such a page at all.
 
 ## Testing
 

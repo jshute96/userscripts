@@ -214,6 +214,17 @@ target, and look like the script is doing nothing. It's invalidated by
 `wheel`, `touchmove`, and any unbound keypress (PageDown, arrows,
 space) — all signs the user moved the viewport themselves.
 
+#### Testing: move the page as a user would
+
+A scroll made from code (`scrollIntoView` or `scrollTo` in `sm-dev eval`)
+fires none of those events, so `lastJumpTarget` survives it. The next
+key then moves from the comment the script last jumped to, not the one
+now on screen. It looks like a bug, but the script is right: a real
+user can't scroll without one of those events. Position the page with
+a real input instead: a `mouseWheel` event through the
+`SourceMonkey-dev` skill's `cdp.mjs`, or an unbound key such as
+`PageDown`.
+
 ### `headerOffset` is asked two different questions
 
 `headerOffset` is called from two places, and a site with a header that

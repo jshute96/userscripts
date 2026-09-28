@@ -49,9 +49,11 @@ Reddit (new design, `www.reddit.com`) renders each comment as a
 
 Nested replies live inside their parent's *light* DOM (slotted into the
 shadow DOM for rendering via `slot="children-t1_yyyyyy-N"`). That means
-`closest('shreddit-comment')` walks the comment tree, and
-`element.querySelectorAll(':scope > shreddit-comment')` returns direct
-children only.
+`closest('shreddit-comment')` walks the comment tree. A reply isn't
+always a *direct* child of its parent, though. Replies loaded by an
+"N more replies" button come inside an extra `<div>` wrapper (seen
+2026-09-27), so `:scope > shreddit-comment` misses them, while
+`closest` still finds the right parent.
 
 The comment body is a div with id `${thingid}-comment-rtjson-content` and
 `slot="comment"`. We anchor viewport intersection on that div rather than
@@ -75,8 +77,8 @@ its direct `<shreddit-comment>` children are the root threads. The
 ### What we assume stays stable
 
 * `shreddit-comment` custom element with `thingid` and `depth` attributes.
-* Nested replies are real light-DOM children of their parent
-  `shreddit-comment`.
+* Nested replies are light-DOM descendants of their parent
+  `shreddit-comment` (not always direct children).
 * Each comment body div has id `${thingid}-comment-rtjson-content`.
 * `shreddit-comment-tree`, `shreddit-comments-sort-dropdown`, and
   `shreddit-comment-tree-stats` exist at the top of the comments section.
@@ -124,3 +126,17 @@ Both are checked. Measured against the live `<reddit-header-large>`
 the declared 56px is accurate to a pixel; 8px is added for breathing
 room, and a landing comment's body settles around y=100 (the ~36px
 avatar/username row sits above the body).
+
+### Testing notes
+
+* Use the regular test browser (`scripts/open-browser.sh`). A headless
+  `sm-dev --temp-browser` gets Reddit's bot check
+  (`?js_challenge=1&jsc_token=...`). The script still starts on the
+  check page, so `start` looks fine, but no posts or comments load.
+* Logged out, a post shows only top-level comments, with replies behind
+  "N more replies" buttons. Click one to test nested navigation (`p`,
+  `r`, `h`/`l` below the top level).
+* To test from a particular comment, position the page with a real
+  wheel event, not `scrollIntoView` from `eval`. See "Testing: move the
+  page as a user would" in
+  [`lib/keyboard-comment-nav.md`](../../lib/keyboard-comment-nav.md).
