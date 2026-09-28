@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         Chrome Image Viewer: Simple zoom and pan
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.1.1
+// @version      0.1.2
 // @description  Enhance Chrome's standalone image viewer (for links to PNG, JPG, etc. files) with zoom and pan, controlled by mouse, keyboard or trackpad.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
+// @icon         https://www.google.com/chrome/static/images/favicons/favicon-96x96.png
 // @include      /^(https?|file):\/\/[^?#]*\.(png|jpe?g|webp|gif|avif|bmp|ico)([?#].*)?$/
 // @include      /^https:\/\/encrypted-tbn\d+\.gstatic\.com\/images\?/
 // @include      /^https:\/\/(lh\d+|play-lh|yt3|blogger)\.googleusercontent\.com\//

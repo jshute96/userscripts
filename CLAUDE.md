@@ -133,7 +133,7 @@ maybe HTML), follow this flow:
      `install-in-SourceMonkey` skill's `refresh-file` command once,
      naming the new script's path, so SourceMonkey picks up the new script.
    - If using Tampermonkey, use the `install-in-tampermonkey` skill's
-   `install-pointer` action, so the user can iterate by reloading.
+     `install-pointer` action, so the user can iterate by reloading.
 7. **Write a Playwright spec** (`<name>.spec.js`) once the user
    confirms it works in their normal browser. The spec is for
    reproducible regression — write it after the human-confirmed pass,
