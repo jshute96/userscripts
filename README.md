@@ -293,11 +293,12 @@ pnpm exec playwright test -g "Newest preset"                    # by test name
 To drive a script in that browser without writing a spec:
 
 ```
-pnpm sm-dev run sites/feedly.com/sort-filter-presets.user.js --watch &
-pnpm sm-dev send probe '.FeedPage header'   # which selectors match
-pnpm sm-dev send click '.FeedPage header button'
+pnpm sm-dev start sites/feedly.com/sort-filter-presets.user.js --watch --detach
+pnpm sm-dev probe '.FeedPage header'   # which selectors match
+pnpm sm-dev click '.FeedPage header button'
 pnpm sm-dev stop
 pnpm sm-dev validate sites
+pnpm sm-dev -i start sites/feedly.com/sort-filter-presets.user.js --watch   # or: a prompt to type commands at
 pnpm sm-dev --help
 ```
 

@@ -118,10 +118,11 @@ maybe HTML), follow this flow:
    Only set a `category` if the user asks for one.
 5. **Run it against the page.** `pnpm sm-dev validate <script>` for
    the header and syntax, then
-   `pnpm sm-dev run <script> <page> --watch` to inject it into
-   the running browser and watch its logs, its reports and its `GM_*`
-   calls while you fix it. If you get stuck, stop and report exactly
-   where — don't guess.
+   `pnpm sm-dev start <script> <page> --watch --detach` to inject it
+   into the running browser, and drive it with `pnpm sm-dev <command>`
+   while you fix it; its logs, reports and `GM_*` calls go to the log
+   file it names. `pnpm sm-dev stop` ends it. If you get stuck, stop
+   and report exactly where — don't guess.
 6. **Suggest install**
    - If using SourceMonkey (the default), the directory should be installed
      already, and the manifest entry was added in step 4. Run the
@@ -398,7 +399,7 @@ if it's missing; it makes the next break diagnose itself.
 * **Getting an edit to take effect depends on the userscript manager —
   defer to the relevant skill** (e.g. `install-in-SourceMonkey` or
   `install-in-tampermonkey`) for how to trigger refresh. None of this
-  applies while iterating with `pnpm sm-dev run`, which injects the
+  applies while iterating with `pnpm sm-dev start`, which injects the
   file as it is on disk.
   - Under SourceMonkey (our default), editing the body of an
     already-installed local script needs **nothing** — it re-reads the
@@ -730,9 +731,9 @@ in `test/fixtures.js`.
   fired by the test.
 
 * For those, run the script in the real extension:
-  `pnpm sm-dev run <script> --extension --solo`, which pushes the
-  script into SourceMonkey in the running browser and streams its Log
-  tab. See "Interactive development" below.
+  `pnpm sm-dev start <script> --extension --solo --detach`, which
+  pushes the script into SourceMonkey in the running browser and logs
+  its Log tab. See "Interactive development" below.
 
 * **After changing SourceMonkey itself**, `pnpm install` here to pick
   up its rebuilt `lib/`: the dependency is a copy, not a live link.
@@ -789,23 +790,27 @@ in `test/fixtures.js`.
 line, without writing a spec. It connects to the same CDP port the
 tests use, so the logged-in profile applies.
 
-* `pnpm sm-dev run <script> <page>` injects
-  the script as it is on disk and streams its console lines, its
-  reports, and every `GM_*` call it makes, until Ctrl-C or
-  `--seconds N`. `--watch` re-injects and reloads on save; `--values`
-  seeds storage.
-* **While `run` streams, type commands at it**: `menu` lists the
+* `pnpm sm-dev start <script> <page> --detach` starts a run in the
+  background: it injects the script as it is on disk and logs its
+  console lines, its reports, and every `GM_*` call it makes to a log
+  file it names. `--watch` re-injects and reloads on save; `--values`
+  seeds storage. `pnpm sm-dev stop` ends the run.
+  * A person at a terminal can use `pnpm sm-dev -i start ...` instead,
+    for a `> ` prompt; `exit` or Ctrl-D ends it and the run.
+  * Line-wide flags go first: `pnpm sm-dev --run D2 status`.
+* **Send a run commands** as `pnpm sm-dev <command>`: `menu` lists the
   script's menu commands and `menu <label>` fires one, `values` and
   `get <key>` read what it stored, `set <key> <json>` writes a value
-  as another tab would, `reload` and `open <url>` move the page,
-  `quit` stops. Piping them in works the same way, which is how to
-  drive a sequence without sitting at it:
+  as another tab would, `reload` and `open <url>` move the page. A
+  sequence can go on one line after `--`, or be piped in with
+  `--stdin`; without `--detach`, the run stops once they are done:
 
   ```sh
-  printf 'menu Bump\nvalues\nquit\n' | pnpm sm-dev run sites/x/y.user.js --seconds 30
+  pnpm sm-dev start sites/x/y.user.js -- menu Bump -- values
+  printf 'menu Bump\nvalues\n' | pnpm sm-dev --stdin start sites/x/y.user.js
   ```
-* **Commands in a run also drive and read the page** (typed, or with
-  `pnpm sm-dev send`; each takes a tab first, e.g. `T2`):
+* **Commands in a run also drive and read the page** (each takes a
+  tab first, e.g. `T2`):
   `click <selector>`, `type <selector> <text>`, `key <keys>`,
   `eval <js>` (`eval --script` in the scripts' world), `snapshot`
   (the accessibility tree as text), `screenshot <file>`, `probe
@@ -813,73 +818,78 @@ tests use, so the logged-in profile applies.
   script stops working"), and `logs`.
 * `savehtml <file>` in a run saves the page's DOM (with the site's
   scripts disabled) for a spec to serve back with `serveHtml`, so a
-  spec needs no login. Save it from a tab without the script (`tabs
-  new --noscript <url>`), or the spec applies the script twice.
+  spec needs no login. Save it from a tab without the script (`newtab
+  --noscript <url>`), or the spec applies the script twice.
 * `pnpm sm-dev match <script> <url>...` says whether the header covers
   a URL, and which rule decided.
 * `pnpm sm-dev validate <path>` runs the install-time checks: header,
   `@require`, syntax. Cheap to run after any edit.
-* `--extension` on `run` pushes into the real SourceMonkey instead of
+* `--extension` on `start` pushes into the real SourceMonkey instead of
   injecting; `--solo` silences the other collections for the run, and
   `pnpm sm-dev clear --extension` puts them back and removes the
   pushed scripts.
-* `--devtools` on `run` starts a Chrome DevTools MCP server (the
-  `chrome-devtools` command, from `npm i -g chrome-devtools-mcp`)
-  scoped to the run's own tabs, for what the run's commands don't
-  cover (network requests, performance traces). The run prints its
-  session and each tab's page id:
-
-  ```sh
-  pnpm sm-dev run sites/x/y.user.js --url <page> --devtools &
-  # [sm-dev] DevTools: chrome-devtools --sessionId=D2 <tool> <pageId> ...
-  # [sm-dev] T1 is DevTools page 1
-  chrome-devtools --sessionId=D2 list_pages
-  chrome-devtools --sessionId=D2 take_snapshot 1     # element uids like 1_2
-  chrome-devtools --sessionId=D2 click 1 1_2
-  chrome-devtools --sessionId=D2 press_key 1 j
-  chrome-devtools --sessionId=D2 evaluate_script "() => document.title" --pageId 1
-  pnpm sm-dev stop D2
-  ```
-
-  - Page ids only work with that run's `--sessionId`. The DevTools
-    MCP tools available to an agent run a separate server with other
-    page numbers.
-  - While attached, DevTools makes every tab report that it has focus
-    (`document.hasFocus()` is true, even in background tabs), which can
-    hide a script's focus bugs. Test focus-dependent behavior without
-    `--devtools`.
-  - A hand-started session id must be hex (`^[a-fA-F0-9-]+$`); e.g.
-    `chrome-devtools --sessionId=ab start --browserUrl
-    http://127.0.0.1:9233` attaches to *every* tab in the test browser.
-  - **Take a new snapshot before each click when the DOM changes.** A uid
-    is `<snapshot#>_<n>`, and it stays the same only for elements that
-    still exist. Elements the page (or our script) rebuilt get new ones
-    (`1_51` → `2_14` → `6_85`), so don't grep for a fixed `1_` prefix.
-    Match `[0-9]+_[0-9]+`.
-  - The snapshot is Chrome's accessibility tree (`Accessibility.getFullAXTree`,
-    pruned by Puppeteer), in **DOM order**, not on-screen order. A script
-    that reorders with CSS `order` won't show its order there.
-  - `click`, `press_key` etc. send real pointer and key events (trusted
-    input, unlike `.click()`), and every action waits for the DOM to
-    stay stable for 100ms (up to 3s) before returning. So no `sleep` is
-    needed between a click and checking its effect.
-  - Each call costs ~1s, ~0.7s of it being the command starting up. A
-    step is usually snapshot + click + check with `evaluate_script`, so
-    ~3s. For many quick checks, raw CDP (see "Test techniques" above)
-    is ~0.1s per call. Target the tab by the `targetId` sm-dev prints,
-    not by URL: two tabs on the same page are common, and picking the
-    wrong one looks like the script didn't run.
-  - Script logs stream to the `run`'s output, not DevTools' output, so
-    run it in the background with output to a file and `tail` that file
-    after each action.
-  - **Check whether an interactive test changes real data.** On a
-    shopping or account page, clicks may change real state. Only do
-    reversible steps (+ then -, add then remove) and never submit or
-    save; use a `serveHtml` spec when that isn't enough.
+* **Driving a run's tab over raw CDP** (see "Test techniques" above):
+  target it by the `targetId` sm-dev prints, not by URL. Two tabs on
+  the same page are common, and picking the wrong one looks like the
+  script didn't run.
+* **Check whether an interactive test changes real data.** On a
+  shopping or account page, clicks may change real state. Only do
+  reversible steps (+ then -, add then remove) and never submit or
+  save; use a `serveHtml` spec when that isn't enough.
 * Full reference: `docs/harness-guide.md` in the SourceMonkey checkout
   that `package.json`'s `sourcemonkey` dependency points at (the
-  installed package doesn't ship its docs). "DevTools alongside a run"
-  covers `--devtools`.
+  installed package doesn't ship its docs).
+
+### Fullscreen (images, videos, lightboxes)
+
+* **Enter it the way a person would**: `key f`, or `click` on the
+  site's fullscreen button. Both count as a real user action, so
+  `requestFullscreen()` is allowed and the window really goes
+  fullscreen.
+* **Check the state**: `eval [document.fullscreenElement?.outerHTML.slice(0, 200), innerWidth, innerHeight]`.
+  In real fullscreen the size is the screen's, not the window's.
+* **Exit with `eval document.exitFullscreen()`.** `key Escape` reaches
+  the page but doesn't exit fullscreen: that's a browser shortcut, and
+  keys sent over CDP (the DevTools protocol sm-dev uses) go straight
+  to the page. sm-dev says so when the page is still fullscreen after
+  one.
+* **If the page won't exit**, restore the window over raw CDP (see
+  "Test techniques" above): `Browser.getWindowForTarget` with the tab's
+  `targetId`, then `Browser.setWindowBounds` with
+  `{ windowState: 'normal' }`.
+* **Don't turn on focus emulation** (`Emulation.setFocusEmulationEnabled`).
+  With it on, fullscreen only fills the tab, and the page lays out at
+  the window's size. sm-dev leaves it off.
+* **Switching tabs exits fullscreen**, as in a normal browser. So does
+  a script's `GM_openInTab` with `active`.
+* **To see a transition** (a flash, a gap, a jump between slides),
+  record what's on top at chosen points on every frame, then trigger
+  it. Screenshots are too slow to catch these. Change `points` to
+  spots in the image or video:
+
+  ```
+  > eval {{
+  ... window.smTrace = [];
+  ... const points = [[400, 300], [20, 20]];
+  ... const t0 = performance.now();
+  ... let last = '';
+  ... const name = (el) => !el ? 'nothing'
+  ...   : el.tagName.toLowerCase() + (el.id ? `#${el.id}` : '') + [...el.classList].slice(0, 2).map((c) => `.${c}`).join('');
+  ... (function frame() {
+  ...   const now = (document.fullscreenElement ? 'fullscreen: ' : '') + points.map(([x, y]) => name(document.elementFromPoint(x, y))).join(' | ');
+  ...   if (now !== last) window.smTrace.push(`${Math.round(performance.now() - t0)}ms ${now}`);
+  ...   last = now;
+  ...   if (performance.now() - t0 < 3000) requestAnimationFrame(frame);
+  ... })();
+  ... }}
+  > key ArrowRight
+  > eval window.smTrace
+  ```
+
+  - It logs only the frames where something changed, for 3 seconds.
+  - Frames don't run in a background tab, so trace the visible one.
+  - To follow an image or video's source too, add
+    `el.currentSrc` to `name`.
 
 ## Iterating on DOM-heavy userscripts
 
