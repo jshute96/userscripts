@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "description": "Personal userscripts collection with a Playwright-based test harness.",
-  "packageManager": "pnpm@11.22.0",
+  "packageManager": "pnpm@12.6.0",
   "scripts": {
     "preinstall": "npx only-allow pnpm",
     "test": "node scripts/test-preflight.mjs && playwright test",
