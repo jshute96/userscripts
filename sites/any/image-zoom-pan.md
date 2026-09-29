@@ -70,6 +70,15 @@ with `image/` (SVG excluded: Chrome renders it as a normal document).
 It runs at `document-start` so the restyle lands before the
 first paint.
 
+The header sets `@inject-into content`, so the script runs in the
+isolated world rather than the page's. Many hosts of raw files and user
+uploads send image responses with `Content-Security-Policy: sandbox`,
+which turns off JavaScript in the page world, so a page-world script
+never starts there (SourceMonkey shows it as MISSING). The script only
+touches the DOM, so the isolated world is enough. SourceMonkey and
+Violentmonkey honor `@inject-into`; Tampermonkey ignores it, so under
+Tampermonkey the script still doesn't run on those pages.
+
 The header sets `@icon` to Chrome's own favicon
 (`google.com/chrome/static/images/favicons/favicon-96x96.png`).
 Without an `@icon`, managers take the icon from the site in the first

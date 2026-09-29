@@ -471,6 +471,15 @@ if it's missing; it makes the next break diagnose itself.
   didn't expect. Drop it only when the script genuinely needs to
   run inside iframes.
 
+* **Scripts for an open-ended set of sites: add `// @inject-into
+  content` up front**, unless the script needs page globals. This
+  means any-site patterns (`*://*/*`, broad `@include` regexes), or a
+  URL shape like `*/_next/image?*` on any host. Some hosts block
+  page-world scripts (see "Pages sent with a CSP `sandbox` header"
+  below), and we'll never test every host such a script lands on, so
+  don't wait for a broken one. Scripts for one known site don't need
+  it; testing on that site catches the problem.
+
 * When inserting a button into a host site that uses CSS-modules
   (class names like `Button_btn__g8LLk Button_secondary__8WBFj`
   with build-hash suffixes), don't hardcode the suffixes — they
