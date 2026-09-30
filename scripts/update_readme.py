@@ -15,7 +15,8 @@ and the one table of shared `@require` libraries is marked:
 
 Everything from the line after the placeholder up to the next blank line
 is the generated table, and is replaced wholesale. Rows come from
-`script_manifest.json` (in manifest order).
+`script_manifest.json`. Script rows are sorted by the name the table
+shows (`@name`: site, then title, ignoring case); library rows stay in manifest order.
 
 For a script, the row's name and description are its `@name` and
 `@description` headers. A manifest entry's `category` field selects the
@@ -119,8 +120,22 @@ def gf_cell(entry):
   return f'[GF]({gf["url"]})' if gf else ''
 
 
+def sort_key(name):
+  """Sort by the site part of `Site: title`, then the title, ignoring case.
+
+  Sorting the whole name would put `Strava Upload: ...` before
+  `Strava: ...`, since a space sorts before a colon.
+  """
+  site, _, title = name.partition(':')
+  return site.strip().casefold(), title.strip().casefold()
+
+
 def build_rows(scripts):
-  """Return {category: [table row, ...]}, in manifest order."""
+  """Return {category: [table row, ...]}, sorted by script name.
+
+  The manifest is in path order, but the table shows `@name`, which
+  can sort differently.
+  """
   rows = {}
   for entry in scripts:
     rel = entry['path']
@@ -131,8 +146,9 @@ def build_rows(scripts):
     name, description = read_metadata(script)
     row = (f'| [{escape_cell(name)}]({rel}) | [doc]({doc}) '
            f'| {gf_cell(entry)} | {escape_cell(description)} |')
-    rows.setdefault(entry.get('category', 'default'), []).append(row)
-  return rows
+    rows.setdefault(entry.get('category', 'default'), []).append((sort_key(name), row))
+  return {category: [row for _, row in sorted(named)]
+          for category, named in rows.items()}
 
 
 def build_library_rows(libraries):
