@@ -14,10 +14,12 @@
       "path": "sites/cnrfc.noaa.gov/precip-default-view.user.js"
     },
     {
-      "path": "sites/connect.garmin.com/activity-tcx-download.user.js"
+      "path": "sites/connect.garmin.com/activity-tcx-download.user.js",
+      "category": "bikes"
     },
     {
       "path": "sites/connect.garmin.com/mtb-jumps-map-link.user.js",
+      "category": "bikes",
       "greasyfork": {
         "id": 591536,
         "url": "https://greasyfork.org/scripts/591536-garmin-connect-improve-ui-in-mtb-dynamics-jumps-view"
@@ -25,6 +27,7 @@
     },
     {
       "path": "sites/connect.garmin.com/upload-to-strava.user.js",
+      "category": "bikes",
       "greasyfork": {
         "id": 594858,
         "url": "https://greasyfork.org/scripts/594858-garmin-connect-strava-upload-new-activities-with-one-click"
@@ -176,6 +179,7 @@
     },
     {
       "path": "sites/strava.com/fix-climb-slider.user.js",
+      "category": "bikes",
       "greasyfork": {
         "id": 590960,
         "url": "https://greasyfork.org/scripts/590960-strava-fix-the-broken-climb-filter-on-segment-search"
@@ -183,16 +187,19 @@
     },
     {
       "path": "sites/strava.com/rescale-recent-efforts.user.js",
+      "category": "bikes",
       "greasyfork": {
         "id": 594855,
         "url": "https://greasyfork.org/scripts/594855-strava-rescale-segment-my-efforts-graph-to-handle-outliers-better"
       }
     },
     {
-      "path": "sites/strava.com/segment-leaderboard-ranks.user.js"
+      "path": "sites/strava.com/segment-leaderboard-ranks.user.js",
+      "category": "bikes"
     },
     {
       "path": "sites/strava.com/segment-search-location-filter.user.js",
+      "category": "bikes",
       "greasyfork": {
         "id": 590976,
         "url": "https://greasyfork.org/scripts/590976-strava-segment-search-location-filter-and-unpaged-view"
@@ -200,13 +207,15 @@
     },
     {
       "path": "sites/strava.com/show-elevation-loss.user.js",
+      "category": "bikes",
       "greasyfork": {
         "id": 590975,
         "url": "https://greasyfork.org/scripts/590975-strava-show-elevation-gain-and-loss-for-each-segment"
       }
     },
     {
-      "path": "sites/strava.com/upload-commute-preset.user.js"
+      "path": "sites/strava.com/upload-commute-preset.user.js",
+      "category": "bikes"
     },
     {
       "path": "sites/substack.com/close-popups.user.js",
@@ -263,6 +272,7 @@
     },
     {
       "path": "sites/www.trailforks.com/map-popup-star-rating.user.js",
+      "category": "bikes",
       "greasyfork": {
         "id": 594857,
         "url": "https://greasyfork.org/scripts/594857-trailforks-map-show-star-rating-in-trail-popups"
@@ -270,6 +280,7 @@
     },
     {
       "path": "sites/www.trailforks.com/strava-map-crosslink.user.js",
+      "category": "bikes",
       "greasyfork": {
         "id": 596136,
         "url": "https://greasyfork.org/scripts/596136-trailforks-strava-cross-link-maps"
