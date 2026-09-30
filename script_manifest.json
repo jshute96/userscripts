@@ -142,6 +142,9 @@
       }
     },
     {
+      "path": "sites/open.spotify.com/mark-recently-played.user.js"
+    },
+    {
       "path": "sites/pinkbike.com/article-image-navigation.user.js",
       "greasyfork": {
         "id": 591540,
