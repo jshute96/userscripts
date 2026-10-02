@@ -2,3 +2,5 @@
 # runs a dependency build only for packages listed here.
 allowBuilds:
   "sourcemonkey@file:../SourceMonkey": true
+  "sourcemonkey@file:../SourceMonkey2": true
+  "sourcemonkey@file:../SourceMonkey3": true

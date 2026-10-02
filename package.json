@@ -12,7 +12,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",
-    "sourcemonkey": "file:../SourceMonkey"
+    "sourcemonkey": "file:../SourceMonkey3"
   },
   "dependenciesMeta": {
     "sourcemonkey": {

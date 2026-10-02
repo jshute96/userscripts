@@ -292,6 +292,9 @@
         "id": 596511,
         "url": "https://greasyfork.org/scripts/596511-youtube-simple-zoom-and-pan"
       }
+    },
+    {
+      "path": "sites/xfinity.com/stream-on-linux.user.js"
     }
   ],
   "libraries": [
