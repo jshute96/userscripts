@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         go-grip: Add toggle to pause auto-reload
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.1.7
+// @version      0.1.8
 // @description  Add a button to the go-grip markdown preview to pause auto-reload while you read, and skip reloads when this page's file didn't change.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -136,7 +136,9 @@
       const changed = await pageChanged();
       if (!changed) {
         log('page unchanged, skipping reload', why);
-      } else if (enabled) {
+      } else if (enabled || !document.getElementById(BUTTON_ID)) {
+        // Pages with no button (directory listings) always reload for
+        // real changes, since nothing there would show them as pending.
         log('page changed, reloading', why);
         return fn.call(this, ev);
       } else {

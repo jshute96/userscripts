@@ -96,9 +96,11 @@ test.describe('go-grip auto-reload toggle', () => {
     for (const name of ['test.md', 'image.svg']) backdate(name);
   });
 
-  // Opens the page with auto-reload on or off, and returns helpers that
-  // watch the script's log lines.
-  async function openPage(page, loadUserscript, { enabled }) {
+  // Opens a page with auto-reload on or off, and returns helpers that
+  // watch the script's log lines. ready matches the script's last
+  // startup line on that page.
+  async function openPage(page, loadUserscript,
+    { enabled, path: pagePath = 'test.md', ready = /\[go-grip reload\] button added/ }) {
     const logs = [];
     page.on('console', (msg) => logs.push(msg.text()));
 
@@ -124,7 +126,7 @@ test.describe('go-grip auto-reload toggle', () => {
       const at = await waitLog(outcome, from);
       const line = logs[at - 1];
       if (line.includes('page changed')) {
-        await waitLog(/\[go-grip reload\] button added/, at);
+        await waitLog(ready, at);
         return 'reloaded';
       }
       const reconnect = await waitLog(/\(server reconnected\)/, at);
@@ -135,12 +137,12 @@ test.describe('go-grip auto-reload toggle', () => {
     }
 
     await loadUserscript(SCRIPT_PATH);
-    await page.goto(`${origin}/test.md`);
+    await page.goto(`${origin}/${pagePath}`);
     await page.evaluate(([key, value]) => localStorage.setItem(key, value),
       [STORAGE_KEY, enabled ? 'on' : 'off']);
     const from = logs.length;
     await page.reload();
-    await waitLog(/\[go-grip reload\] button added/, from);
+    await waitLog(ready, from);
     return { logs, waitLog, change };
   }
 
@@ -231,4 +233,36 @@ test.describe('go-grip auto-reload toggle', () => {
     await waitLog(/\[go-grip reload\] init, auto-reload on/, from);
     await expect(button(page)).toHaveAttribute('aria-pressed', 'true');
   });
+
+  // Fails under the harness: while a run is live, a document-start
+  // script waits for the extension's check, so on a listing (a tiny
+  // page) go-grip's reload script opens its socket before ours wraps
+  // WebSocket. Installed SourceMonkey injects document-start scripts
+  // before any page script. See "Known limitations" in SourceMonkey's
+  // docs/harness-guide.md.
+  test.fixme('directory listing: no button, skips no-op signals, reloads when entries change',
+    async ({ page, loadUserscript, reports }) => {
+      fs.rmSync(file('sub'), { recursive: true, force: true });
+      fs.mkdirSync(file('sub'));
+      write('sub/a.md', '# A\n');
+      backdate('sub/a.md');
+      // Stored off, as set from a markdown page on the same port. Listings
+      // have no button to show a change as pending, so they reload anyway.
+      const { logs, change } = await openPage(page, loadUserscript, {
+        enabled: false,
+        path: 'sub/',
+        ready: /\[go-grip reload\] not a go-grip page, no button/,
+      });
+      expect(logs.some((line) => line.includes('gating reload socket'))).toBe(true);
+      await expect(button(page)).toHaveCount(0);
+
+      // Edits that leave the listing's names alone.
+      expect(await change(() => write('sub/a.md', '# A, edited\n'))).toBe('unchanged');
+      expect(await change(() => write('other.txt', 'five\n'))).toBe('unchanged');
+
+      // A new entry changes the listing.
+      expect(await change(() => write('sub/b.md', '# B\n'))).toBe('reloaded');
+      await expect(page.locator('pre')).toContainText('b.md');
+      expect(reports.errors()).toEqual([]);
+    });
 });

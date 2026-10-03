@@ -27,6 +27,9 @@ The script matches `localhost` with ports 6419 (go-grip's default) to 6422.
 When go-grip runs with `--no-reload`, reloads never happen, so the
 button doesn't get added.
 
+Directory listings get the no-op check too, but no button: they reload
+whenever their list of names changes, even with auto-reload off.
+
 ## Visible changes
 
 - No reload when go-grip signals a change that doesn't affect this
@@ -73,6 +76,12 @@ file server sends `Last-Modified` in whole seconds, and it's on this
 machine, so the clocks agree. An image now missing counts as changed
 only if it loaded before. The rendered page itself has no
 `Last-Modified`, which is why the HTML is compared by content.
+
+Directory listings (Go's `http.FileServer` output, with go-grip's
+reload script appended) go through the same check, comparing the
+listing's HTML, but have no `#theme-toggle` and so no button. A page
+without our button ignores the stored off setting and reloads for real
+changes, since nothing there could show them as pending.
 
 The server only signals connected pages, and closes the socket after
 each signal, so a change during the ~1s reconnect gap arrives as the

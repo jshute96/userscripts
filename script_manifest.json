@@ -75,6 +75,9 @@
       "path": "sites/go-grip/auto-reload-toggle.user.js"
     },
     {
+      "path": "sites/go-grip/directory-nav.user.js"
+    },
+    {
       "path": "sites/greasyfork.org/prefill-forms-from-hash.user.js"
     },
     {
