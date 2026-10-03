@@ -72,6 +72,9 @@
       }
     },
     {
+      "path": "sites/go-grip/auto-reload-toggle.user.js"
+    },
+    {
       "path": "sites/greasyfork.org/prefill-forms-from-hash.user.js"
     },
     {
