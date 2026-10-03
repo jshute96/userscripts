@@ -59,7 +59,8 @@ to them. Outside the top directory we add an `<a href="../">..</a>`
 first. The rebuilt `<pre>` must not start with a newline: the HTML
 parser drops the one after `<pre>`, but a script-inserted one renders.
 
-A rendered markdown page has a title starting `go-grip`,
+A rendered markdown page loads go-grip's
+`<script src="/static/js/theme-switch.js">`, and has
 `class="markdown-body"` on `<body>`, and go-grip's theme toggle
 (`#theme-toggle`, class `theme-toggle`), fixed 20px from the top right.
 
@@ -91,6 +92,7 @@ names work. **Up** strips the last path segment.
 - Go's directory listing format: a `<pre>` of `<a>` links as the first
   element of `<body>`.
 - Go's 404 body is exactly `404 page not found`, sent as `text/plain`.
-- go-grip's markdown page: title starting `go-grip`, `markdown-body`
-  and `data-theme` on `<body>`, and `#theme-toggle` with class
+- go-grip's markdown page: the `/static/js/theme-switch.js` script
+  (its title is the document's own since v0.10.0), `markdown-body` and
+  `data-theme` on `<body>`, and `#theme-toggle` with class
   `theme-toggle`, fixed at the top right.

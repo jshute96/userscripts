@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         go-grip: Add toggle to pause auto-reload
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.1.8
+// @version      0.1.9
 // @description  Add a button to the go-grip markdown preview to pause auto-reload while you read, and skip reloads when this page's file didn't change.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -218,7 +218,11 @@
 
   function addButton() {
     const themeToggle = document.getElementById('theme-toggle');
-    if (!themeToggle || !document.title.startsWith('go-grip')) {
+    // go-grip's theme script marks a go-grip markdown page. (The title
+    // was "go-grip - markdown preview" before v0.10.0, but is now the
+    // document's own.)
+    const themeScript = document.querySelector('script[src="/static/js/theme-switch.js"]');
+    if (!themeToggle || !themeScript) {
       log('not a go-grip page, no button');
       return;
     }

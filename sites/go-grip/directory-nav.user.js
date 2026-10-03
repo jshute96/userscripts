@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         go-grip: Add path box and Up button
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.1.4
+// @version      0.1.5
 // @description  Add a bar with an editable path and an Up button to the go-grip markdown preview's pages and directory listings, and list directories before files.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -42,9 +42,10 @@
   }
 
   // go-grip's rendered markdown page, with its theme toggle fixed top
-  // right.
+  // right. It loads go-grip's theme script. (The title was "go-grip -
+  // markdown preview" before v0.10.0, but is now the document's own.)
   function isMarkdownPage() {
-    return document.title.startsWith('go-grip') &&
+    return !!document.querySelector('script[src="/static/js/theme-switch.js"]') &&
       document.body?.classList.contains('markdown-body') &&
       !!document.getElementById('theme-toggle');
   }

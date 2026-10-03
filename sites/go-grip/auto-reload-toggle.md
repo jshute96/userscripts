@@ -102,8 +102,10 @@ pressed look (keyed on `aria-pressed`) and the dot are our own CSS.
 - The theme toggle is `#theme-toggle`, fixed 20px from the top right
   and 32px wide.
 - go-grip serves non-markdown files with `Last-Modified`.
-- The page title starts with `go-grip` (used, with `#theme-toggle`, to
-  check it's a go-grip page before adding the button).
+- go-grip's markdown pages load `/static/js/theme-switch.js` (used,
+  with `#theme-toggle`, to check it's a go-grip page before adding the
+  button). Before go-grip v0.10.0 we checked for a title starting
+  `go-grip`, but the title is now the document's own.
 - With `--no-reload`, go-grip leaves the reload script out of the page
   (it's injected by its reload middleware). We add the button only if
   a `/reload_ws` socket was opened by `DOMContentLoaded`; the inline
