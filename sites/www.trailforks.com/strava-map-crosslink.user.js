@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Trailforks ↔ Strava: Cross-link maps
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.1.1
+// @version      0.1.2
 // @description  Adds a button on each site's maps that opens the other site's map at the same location and zoom level.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -164,11 +164,23 @@
     return a;
   }
 
-  // Trailforks has two map UIs. The older one (trail pages, region maps)
-  // has a horizontal <ul class="bartop"> menu bar over the map; the newer
+  // Trailforks has three map UIs. Embedded maps (trail pages, region
+  // maps) have a toolbar over the map, either the current
+  // div.tf-mapctl__bar or the older <ul class="bartop"> menu bar; the
   // full-page map (/map/, /trails/map/) has a row of floating pill
   // buttons (activity, Filters, Views) along the top.
   function insertTrailforks() {
+    const bar = document.querySelector('#tfmapctl .tf-mapctl__bar');
+    if (bar) {
+      const a = makeButton(STRAVA_ICON, 'Open this map in Strava');
+      a.className = 'tf-mapctl__btn';
+      // End of the left-hand group (Basemap ... Activity), before the
+      // spacer that pushes the rest to the right.
+      const spacer = bar.querySelector(':scope > .tf-mapctl__spacer');
+      if (spacer) spacer.insertAdjacentElement('beforebegin', a); else bar.appendChild(a);
+      log('button added to map controls bar');
+      return true;
+    }
     const legacyAnchor = document.querySelector('ul.bartop > li#mapViewMenu');
     if (legacyAnchor) {
       // Same li > div.parent structure as the neighbors, so the site's

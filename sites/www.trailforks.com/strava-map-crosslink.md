@@ -13,9 +13,9 @@ and zoom level.
 
 ## Visible changes
 
-* Trailforks, older map toolbar (trail pages, region maps): a Strava logo
-  after the "save this map view" icon, at the right end of the
-  Layers / Basemap / Style row.
+* Trailforks, embedded maps (trail pages, region maps): a Strava logo
+  at the end of the left-hand group of buttons in the map's toolbar,
+  after Activity.
 * Trailforks, newer full-page map: a Strava logo pill after the
   activity / Filters / Views buttons along the top.
 * Strava full-page map: a Trailforks logo button after the "Segments" pill.
@@ -70,9 +70,18 @@ continuously.
 
 ### Where the button goes
 
-Trailforks has two map UIs:
+Trailforks has three map UIs:
 
-* The older one (trail pages, region maps, whether inline or fullscreen)
+* Embedded maps (trail pages, region maps, inline or fullscreen) now
+  have a toolbar `div#tfmapctl > div.tf-mapctl__bar` (role=toolbar) of
+  `button.tf-mapctl__btn`s: Basemap, Layers, Style, Filters, Activity,
+  then a spacer and Trail list, Search, Saved Map Views, Open in Map,
+  and the `div.tf-mapctl__more` "More" menu. The button is an
+  `a.tf-mapctl__btn` inserted before `.tf-mapctl__spacer`, ending the
+  left-hand group. (The items marked `tf-mapctl__btn--wide-only`, on the
+  right, hide when the map is narrow; the left group doesn't.)
+* The older version of that toolbar (replaced by the above in 2026-10; the
+  script still handles it in case it comes back somewhere) (trail pages, region maps, whether inline or fullscreen)
   has `<ul class="bartop">` menu bar over the map with `<li
   class="menuitem">` entries, each wrapping a `div.parent` that carries
   the site's hover highlight. The button is a new `<li>` with the same
@@ -106,6 +115,7 @@ component with no control strip; they're not handled.
 ### What we assume stays stable
 
 * Trailforks: `window.map` with Mapbox GL's `getCenter`/`getZoom`;
+  `#tfmapctl .tf-mapctl__bar` with its `.tf-mapctl__spacer` child;
   `ul.bartop > li#mapViewMenu`; `#tfMapFloatbar .tf-map-floatbtns-row`
   with `.tf-map-floatbtn` children.
 * Strava: the React context property named `terrainEngine` with a
