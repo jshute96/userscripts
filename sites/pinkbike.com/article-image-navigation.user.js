@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Pinkbike: Keyboard navigation for article photos
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.1.0
+// @version      1.1.1
 // @description  Adds i and Shift-I shortcuts that jump from photo to photo through an article, for nicer viewing in photo-heavy stories.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT

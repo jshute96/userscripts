@@ -81,7 +81,8 @@ from video to video). Because nothing needs the DOM at init, the script
 runs at `document-start`: YouTube's watch page is heavy enough that the
 video is often playing long before `document-idle`, and a ctrl+wheel in
 that window would otherwise zoom the whole page. The one navigation hook is `urlchange` (via
-`@grant window.onurlchange`): when the video identity in the URL
+`@grant window.onurlchange`; under Violentmonkey, which doesn't support
+it, the Navigation API's `currententrychange`): when the video identity in the URL
 changes (`?v=` on the watch page, the path on Shorts), the view is
 reset so a zoom doesn't carry over. On Shorts that's too late to look
 right. The feed (`#shorts-container`, scroll-snapping) holds one

@@ -105,6 +105,14 @@ document, so the registry is a DOM node:
   navigation; if a site replaced its `<body>` the registry would go
   with it, and nothing would rebuild it, since the other sandboxes
   finished registering long ago.
+* Sites can still remove it. React 19, when it client-renders into the
+  whole document (Medium does), strips every child of `<html>` except
+  `<head>`, `<body>`, scripts and styles. That can happen after our
+  scripts registered, depending on how early the manager starts them
+  (it hit under Tampermonkey and Violentmonkey). So each instance keeps
+  a `MutationObserver` on `<html>`'s direct children, and re-publishes
+  its entry when it's no longer in the document. The first one to do so
+  recreates the host.
 * Each script owns exactly one child, keyed by `@name`, so a re-run
   replaces its entry rather than duplicating it.
 * `type="application/json"` keeps it inert: never executed, so no CSP

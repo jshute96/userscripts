@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Instagram: Fullscreen images and video, video seek bar, keyboard shortcuts
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.1.0
+// @version      0.1.1
 // @description  View images and videos full screen, add a progress bar on videos, and add keyboard shortcuts to step through posts
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT

@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Garmin Connect → Strava: Upload new activities with one click
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.4.8
+// @version      0.4.9
 // @description  Adds an Upload to Strava button to Garmin's toolbar and an Upload from Garmin item to Strava's upload menu. Either sends all new rides you haven't uploaded yet.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -833,7 +833,12 @@
     // page never appears on the login page.
     showSigninHint();
 
-    window.addEventListener('urlchange', onGarminUrl);
+    // Violentmonkey has no window.onurlchange (it stays undefined, where
+    // managers that support it set it to null); the Navigation API's
+    // currententrychange fires on the same history changes.
+    if (window.onurlchange === null) window.addEventListener('urlchange', onGarminUrl);
+    else if (window.navigation) window.navigation.addEventListener('currententrychange', onGarminUrl);
+    else console.log(TAG, 'no urlchange event or Navigation API; in-page navigation is not tracked');
     onGarminUrl();
 
     // An upload that ran entirely on the Strava side still changes what

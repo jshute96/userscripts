@@ -154,8 +154,10 @@ Defaults set per class type take priority over the global defaults.
     through them.
 
   We detect URL changes with `@grant window.onurlchange` and a
-  `urlchange` listener; both Tampermonkey and SourceMonkey fire that
-  event on any history mutation.
+  `urlchange` listener; SourceMonkey and Tampermonkey fire that event on
+  any history mutation. Violentmonkey doesn't support the grant, so
+  there the script listens for the Navigation API's
+  `currententrychange` instead.
 
 ### What we assume stays stable
 

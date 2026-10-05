@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Spotify: Mark recently played tracks, from last.fm history
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.1.0
+// @version      0.1.1
 // @description  Marks tracks in playlists and albums that your last.fm history shows you played in the past week, so you can see where you left off.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -252,7 +252,12 @@
     requestAnimationFrame(() => { scheduled = false; markRows(); });
   }).observe(document.body, { childList: true, subtree: true, characterData: true });
 
-  window.addEventListener('urlchange', refresh);
+  // Violentmonkey has no window.onurlchange (it stays undefined, where
+  // managers that support it set it to null); the Navigation API's
+  // currententrychange fires on the same history changes.
+  if (window.onurlchange === null) window.addEventListener('urlchange', refresh);
+  else if (window.navigation) window.navigation.addEventListener('currententrychange', refresh);
+  else log('no urlchange event or Navigation API; in-page navigation is not tracked');
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') refresh();
   });

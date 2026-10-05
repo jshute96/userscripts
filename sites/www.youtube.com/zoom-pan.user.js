@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         YouTube: Simple zoom and pan
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.2.3
+// @version      0.2.4
 // @description  Zoom and pan the video with the mouse, trackpad or keyboard. Drag a box and zoom to that region. Zoom Shorts to full width.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -777,5 +777,10 @@
   document.addEventListener('click', onClick, true);
   document.addEventListener('dblclick', onClick, true);
   document.addEventListener('keydown', onKeyDown, true);
-  window.addEventListener('urlchange', onUrlChange);
+  // Violentmonkey has no window.onurlchange (it stays undefined, where
+  // managers that support it set it to null); the Navigation API's
+  // currententrychange fires on the same history changes.
+  if (window.onurlchange === null) window.addEventListener('urlchange', onUrlChange);
+  else if (window.navigation) window.navigation.addEventListener('currententrychange', onUrlChange);
+  else console.log(TAG, 'no urlchange event or Navigation API; in-page navigation is not tracked');
 })();

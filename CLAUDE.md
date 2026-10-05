@@ -284,8 +284,8 @@ inside the script:
 2. Add `@grant window.onurlchange` and listen for the native
    `urlchange` event. The manager fires it on any history mutation —
    `pushState`, `replaceState`, `popstate` — so there's nothing to
-   monkey-patch. Both SourceMonkey (our default) and Tampermonkey
-   support it.
+   monkey-patch. Violentmonkey doesn't support it, so add the
+   fallback shown below (see "Portability across userscript managers").
 3. Dispatch on `location.pathname`, both initially and on every
    `urlchange`.
 
@@ -296,7 +296,12 @@ function onUrlChange() {
     // dispatch on location.pathname; idempotent — handlers must
     // tolerate being called repeatedly on the same URL.
 }
-window.addEventListener('urlchange', onUrlChange);
+// Violentmonkey has no window.onurlchange (it stays undefined, where
+// managers that support it set it to null); the Navigation API's
+// currententrychange fires on the same history changes.
+if (window.onurlchange === null) window.addEventListener('urlchange', onUrlChange);
+else if (window.navigation) window.navigation.addEventListener('currententrychange', onUrlChange);
+else log('no urlchange event or Navigation API; in-page navigation is not tracked');
 onUrlChange(); // initial
 ```
 
@@ -346,6 +351,33 @@ What this implies for the rest of the script:
 Cost: the script's init runs on every page of the site, not just the
 relevant ones. For our scripts that's ~1ms of JS plus a couple of
 event listeners; almost always fine.
+
+## Portability across userscript managers
+
+Our scripts should work in SourceMonkey, Tampermonkey (TM) and
+Violentmonkey (VM), when that can be achieved easily. Check with
+`sm-dev --manager tm` / `--manager vm` (see the `SourceMonkey-dev`
+skill). Differences we've hit:
+
+* **`window.onurlchange`: VM doesn't support it.** `@grant
+  window.onurlchange` defines `window.onurlchange` as `null` in
+  SourceMonkey and TM; in VM it stays `undefined` and `urlchange` never
+  fires. Test `window.onurlchange === null`, and otherwise listen for the
+  Navigation API's `currententrychange`, which fires on the same history
+  changes, including in a granted script's isolated world. See the
+  snippet under "SPA sites" above.
+* **Start time differs.** TM and VM can start a `document-idle` script
+  earlier than an sm-dev SourceMonkey run does (a run delays every
+  script until the extension's check). Anything the page does after
+  load can undo our early work: Medium's React 19 strips every extra
+  child of `<html>` when it client-renders the document. DOM state that
+  must persist should be re-created when it's removed, as
+  `lib/keyboard-shortcuts.js` does for its registry.
+* **`@inject-into` is ignored by TM**; see the CSP `sandbox` tip below.
+* **Other browsers are untested.** Our tools only drive Chromium, so
+  Firefox and Safari behavior is unverified. Where a script leans on a
+  newer web API (like the Navigation API above), feature-check it and
+  log when it's missing, rather than failing silently.
 
 ## When a script stops working
 

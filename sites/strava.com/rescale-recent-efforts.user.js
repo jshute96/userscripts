@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Strava: Rescale segment my-efforts graph to handle outliers better
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.1.5
+// @version      0.1.6
 // @description  Strava's Recent Efforts graph scales its y-axis (time) to include your slowest ride. Rescale the graph so a few slow outliers don't flatten everything else.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -517,7 +517,12 @@
     attributes: true,
     attributeFilter: ['cy', 'y', 'y1', 'y2', 'width'],
   });
-  window.addEventListener('urlchange', onUrlChange);
+  // Violentmonkey has no window.onurlchange (it stays undefined, where
+  // managers that support it set it to null); the Navigation API's
+  // currententrychange fires on the same history changes.
+  if (window.onurlchange === null) window.addEventListener('urlchange', onUrlChange);
+  else if (window.navigation) window.navigation.addEventListener('currententrychange', onUrlChange);
+  else console.log(TAG, 'no urlchange event or Navigation API; in-page navigation is not tracked');
   lastPath = location.pathname;
   if (document.readyState === 'complete') schedule();
   else window.addEventListener('load', schedule, { once: true });

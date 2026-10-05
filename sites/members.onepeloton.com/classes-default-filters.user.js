@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Peloton: Default filters on class lists
 // @namespace    https://github.com/jshute96/userscripts
-// @version      3.0.3
+// @version      3.0.4
 // @description  Applies your preferred filters on class lists by default, so browsing starts from a useful view. Defaults are configurable per class type from the script menu.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -389,7 +389,12 @@
     lastPath = location.pathname;
     refreshMenu();
   }
-  window.addEventListener('urlchange', onUrlChange);
+  // Violentmonkey has no window.onurlchange (it stays undefined, where
+  // managers that support it set it to null); the Navigation API's
+  // currententrychange fires on the same history changes.
+  if (window.onurlchange === null) window.addEventListener('urlchange', onUrlChange);
+  else if (window.navigation) window.navigation.addEventListener('currententrychange', onUrlChange);
+  else console.log(TAG, 'no urlchange event or Navigation API; in-page navigation is not tracked');
 
   refreshMenu();
 })();

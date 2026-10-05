@@ -1,5 +1,8 @@
 # TODOs
 
-* Update instructions and skills that current assume TamperMonkey to also support SourceMonkey
-* Update `@requires` handling so it can use relative paths when working locally, but switch to github paths for an installed version.
-* Add instructions for updating the manifest file.
+Possible ideas
+
+* Clean up and refactor hints accumulated in CLAUDE.md into a skill.
+* Extract skills and other pieces as a copyable template.
+* We have some fallback patterns (e.g. window.onurlchange workaround for VM) copy/pasted in multiple scripts. We could make a library for these.
+* Set up a way to test on firefox or other browsers for checking portability.
