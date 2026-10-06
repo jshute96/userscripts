@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Peloton Player: Fix bad video overlay on tall screens
 // @namespace    https://github.com/jshute96/userscripts
-// @version      2.0.3
+// @version      2.0.4
 // @description  Fixes a bug in Peloton's video player where, on large monitors, a fixed-size overlay is added over the video, creating an ugly horizontal seam.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -34,7 +34,32 @@
       el.style.setProperty('background-image', 'none', 'important');
       el.setAttribute(MARKER, '');
       console.log(TAG, 'hid overlay on', el);
+      addClassRule(el);
     }
+  }
+
+  // The scan only runs for a while after load or a URL change, but
+  // Peloton probably re-mounts the player without either sometimes
+  // (suspected after the vignette came back once after switching
+  // windows mid-class; not reproduced). A re-mounted overlay gets the same
+  // class names until the next deploy, so a style rule on them covers
+  // it with no further scanning.
+  const STYLE_ID = 'jshute-peloton-overlay-style';
+  const classRules = new Set();
+  function addClassRule(el) {
+    if (!el.classList.length) return;
+    const selector = 'div' + [...el.classList].map(c => '.' + CSS.escape(c)).join('');
+    if (classRules.has(selector)) return;
+    classRules.add(selector);
+    let style = document.getElementById(STYLE_ID);
+    if (!style) {
+      style = document.createElement('style');
+      style.id = STYLE_ID;
+      document.head.appendChild(style);
+    }
+    style.textContent = [...classRules]
+      .map(sel => `${sel} { background-image: none !important; }`).join('\n');
+    console.log(TAG, 'added style rule for', selector);
   }
 
   // The player div is rendered after route navigation finishes, so a single

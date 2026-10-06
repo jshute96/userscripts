@@ -98,6 +98,14 @@ it falls apart on any non-1080p viewing.
   `background-image: none !important` inline on that element. We
   also stamp it with `data-jshute-overlay-hidden` so the next sweep
   can skip it cheaply.
+- When it finds the element, it also adds a `<style
+  id="jshute-peloton-overlay-style">` rule setting `background-image:
+  none !important` on that element's class names
+  (`div.sc-b919e837-1.jzUDu`). The scan below only runs for a while,
+  but Peloton can re-mount the player without a URL change: the
+  vignette came back once after switching windows mid-class (not
+  reproduced). A re-mounted element gets the same classes until the
+  next deploy, so the rule covers it without further scanning.
 - The element is rendered after route navigation completes, so the
   initial `document-idle` sweep usually misses it. We instead poll
   every 250ms for up to 10s, stopping as soon as the element is
