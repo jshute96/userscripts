@@ -754,6 +754,24 @@ this repo.
   mirror-image problem; see the drift correction in
   `sites/pinkbike.com/keyboard-comment-navigation.md`.)
 
+* **A spec that times out in `page.goto` on a site with a service
+  worker may be the test browser's profile, not the script.** In the
+  shared profile, nytimes.com and youtube.com loads took about 6.5s to
+  start, and every other one stalled, while a fresh profile started
+  them in well under a second. The sites' own service workers were the
+  cause (not SourceMonkey, nor site isolation). See TODO.md.
+  - Check: a fresh tab of that site in the test browser is slow or
+    never loads.
+  - Fix: clear that site's service workers and cache storage in the
+    profile (cookies and logins stay), then rerun. In the test
+    browser, DevTools → Application → Storage → "Clear site data" with
+    only those two boxes ticked; or over CDP, from a page's session,
+    `Storage.clearDataForOrigin` with
+    `storageTypes: 'service_workers,cache_storage'`.
+  - It can come back once the site registers its worker again
+    (YouTube did). A spec that needs no login avoids it by using
+    `tempBrowserTest`.
+
 ### Lesson: where a request comes from matters
 
 The harness sends a `GM_xmlhttpRequest` from Node with the browser's

@@ -1,14 +1,12 @@
 // Tests for zoom-pan.user.js.
 //
-//     scripts/open-browser.sh https://www.youtube.com
-//     pnpm test
-//
-// No login needed. Uses a public Blender Foundation video. The tests
+// No login needed, so it runs in a throwaway browser (tempBrowserTest).
+// Uses a public Blender Foundation video. The tests
 // drive real input (page.mouse / page.keyboard with modifiers held), and
 // read the resulting transform straight off the <video>.
 
 import path from 'node:path';
-import { test, expect } from '../../test/fixtures.js';
+import { tempBrowserTest as test, expect } from '../../test/fixtures.js';
 
 const SCRIPT_PATH = path.join(import.meta.dirname, 'zoom-pan.user.js');
 const VIDEO_URL = 'https://www.youtube.com/watch?v=aqz-KE-bpKQ'; // Big Buck Bunny
