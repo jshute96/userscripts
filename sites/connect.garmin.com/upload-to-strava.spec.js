@@ -165,7 +165,7 @@ test.describe('Garmin Connect → Strava: Upload new activities with one click',
     // Every probe failure gets a second look before we believe it —
     // Garmin bounces the first request of a run to /signin often enough
     // that one attempt is not evidence of a lapsed session.
-    expect(gm.requests().map((r) => r.url)).toEqual([
+    await expect.poll(() => gm.requests().map((r) => r.url)).toEqual([
       'https://connect.garmin.com/app/activities',
       'https://connect.garmin.com/app/activities',
     ]);
@@ -173,7 +173,9 @@ test.describe('Garmin Connect → Strava: Upload new activities with one click',
     // of its own, through GM_openInTab. The harness opens that for
     // real and closes it when the test ends.
     expect(page.url()).toBe(before);
-    expect(gm.openedTabs().map((t) => t.url))
+    // Polled, like the requests: SourceMonkey reports the opened tab a
+    // moment after the call, so it can trail the status text.
+    await expect.poll(() => gm.openedTabs().map((t) => t.url))
       .toEqual(['https://connect.garmin.com/signin/']);
   });
 });

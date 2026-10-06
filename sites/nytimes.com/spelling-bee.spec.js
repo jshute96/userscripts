@@ -52,6 +52,8 @@ async function lookUp(page, word) {
 // The hosts the script asked for, in order, as the harness recorded
 // them: `GM_xmlhttpRequest` really runs here, so these are the
 // requests the extension would have made.
+// Polled where it's checked: SourceMonkey reports each request a
+// moment after the script makes it.
 function requestHosts(gm) {
   return gm.requests().map((r) => new URL(r.url).hostname);
 }
@@ -70,7 +72,7 @@ test.describe('definition popup', () => {
     await expect(popup.locator('p.credit')).toContainText('Wiktionary');
     await expect(popup.locator('p.credit')).toContainText('Free Dictionary API');
 
-    expect(requestHosts(gm)).toEqual([PRIMARY_HOST]);
+    await expect.poll(() => requestHosts(gm)).toEqual([PRIMARY_HOST]);
   });
 
   test('falls back to Datamuse, then stops trying the failing source first',
@@ -88,15 +90,14 @@ test.describe('definition popup', () => {
 
     // Three attempts at the primary (initial + 2 cache-busting retries),
     // then the fallback.
-    expect(requestHosts(gm)).toEqual(
+    await expect.poll(() => requestHosts(gm)).toEqual(
       [PRIMARY_HOST, PRIMARY_HOST, PRIMARY_HOST, FALLBACK_HOST]);
 
     // The next word goes to Datamuse straight away.
     const popup2 = await lookUp(page, 'loll');
     await expect(popup2.locator('h2.word')).toHaveText('loll');
     await expect(popup2.locator('h3.pos').first()).toHaveText('verb');
-    const hosts = requestHosts(gm);
-    expect(hosts.slice(4)).toEqual([FALLBACK_HOST]);
+    await expect.poll(() => requestHosts(gm).slice(4)).toEqual([FALLBACK_HOST]);
   });
 
   test('?sbDictSource pins lookups to one source', async ({ page, loadUserscript, gm }) => {
@@ -105,7 +106,7 @@ test.describe('definition popup', () => {
 
     const popup = await lookUp(page, 'tile');
     await expect(popup.locator('.def').first()).toContainText(/slab of clay/);
-    expect(requestHosts(gm)).toEqual([FALLBACK_HOST]);
+    await expect.poll(() => requestHosts(gm)).toEqual([FALLBACK_HOST]);
   });
 
   test('reports an unknown word after asking every source', async ({ page, loadUserscript, gm }) => {
@@ -114,7 +115,7 @@ test.describe('definition popup', () => {
 
     const popup = await lookUp(page, 'xyzzyq');
     await expect(popup.locator('p.msg')).toContainText('No definition found');
-    expect(requestHosts(gm)).toEqual([PRIMARY_HOST, FALLBACK_HOST]);
+    await expect.poll(() => requestHosts(gm)).toEqual([PRIMARY_HOST, FALLBACK_HOST]);
 
     // Datamuse knows this word but has no `defs` for it.
     const popup2 = await lookUp(page, 'lalala');

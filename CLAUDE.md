@@ -700,10 +700,12 @@ this repo.
   Chromium with a persistent profile (`.playwright-profile`) and CDP
   on port 9233. Leave it running, and log in to test sites in it once.
   `sm-dev` and `pnpm test` both connect to it by default.
+  - Specs run their scripts in its SourceMonkey, so it needs the
+    extension loaded: `pnpm sm-dev manager install`, once per profile.
   - A page that needs no login can use a throwaway browser instead:
-    `sm-dev --temp-browser`, or for specs `pnpm test:temp`
-    (`TEMP_BROWSER=1`), which runs them in the harness's own hidden
-    browser with SourceMonkey loaded.
+    `sm-dev --temp-browser`, or for a spec `tempBrowserTest` (see
+    "Specs"). `pnpm test:temp` (`TEMP_BROWSER=1`) runs every spec in
+    one.
 * **Don't let Playwright launch the browser.** Both system Chrome
   (`channel: 'chrome'`) and `chromium.launchPersistentContext()` set
   automation flags that Google's bot detection trips on, blocking
@@ -731,6 +733,13 @@ this repo.
   the root for `@require` lookups, and
   prints the page's `[name]` logs and the script's start, skip and
   error reports beside the test output.
+* **A spec that needs no login imports `tempBrowserTest as test`**
+  instead of `test`, so it runs in the harness's own hidden browser
+  (SourceMonkey loaded, no logins) and needs no test browser running.
+  Use it for specs that serve their own pages or saved snapshots, or
+  run against a local server.
+  - Keep `test` for live sites that need a login, or that block a
+    hidden browser.
 * Write a spec after the user confirms the script works (see "Creating
   a new userscript"), so it encodes a known-good state.
 * Examples worth copying:

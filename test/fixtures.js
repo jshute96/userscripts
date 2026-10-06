@@ -10,34 +10,39 @@
 // against it. See docs/harness-guide.md in the SourceMonkey repo.
 //
 // What this file adds is the browser policy: we do NOT launch the
-// browser from Playwright. Google detects the automation flags and
-// blocks sign-in when launchPersistentContext is used. Instead, the
-// user starts Chromium manually with a debugging port (see
-// scripts/open-browser.sh), logs in to test sites once, and leaves it
-// running. Tests connect over CDP and reuse the existing authenticated
-// context.
+// browser through Playwright. Google detects the automation flags and
+// blocks sign-in when launchPersistentContext is used. Instead,
+// Chromium runs with a debugging port (scripts/open-browser.sh, which
+// the first spec that needs it starts if it isn't running), the user
+// logs in to test sites once, and it keeps running. Tests connect over
+// CDP and reuse the existing authenticated context.
 //
-// With TEMP_BROWSER=1, specs use the harness's own browser instead:
-// a hidden Chromium with SourceMonkey loaded, launched per Playwright
-// worker and closed after the run. It has no logins, so it suits specs
-// that serve saved pages or need no sign-in. `--headed` shows it.
+// A spec that needs no login (it serves saved pages, or its site
+// works logged out and doesn't block a hidden browser) imports
+// `tempBrowserTest` instead. That uses the harness's own browser: a
+// hidden Chromium with SourceMonkey loaded, launched per Playwright
+// worker and closed after the run. `--headed` shows it. TEMP_BROWSER=1
+// (`pnpm test:temp`) runs every spec that way.
 //
 // Tests import from this file rather than `sourcemonkey/harness`
 // directly:
 //
 //     import { test, expect } from '../../test/fixtures.js';
+//     import { tempBrowserTest as test, expect } from '../../test/fixtures.js';
 //
 // Workflow:
 //
-//     # one shell, leave running
+//     # once: open the browser and log in to the test sites
 //     scripts/open-browser.sh https://feedly.com
-//     # second shell, after logging in once
+//     # then, with it running (or it's started for you)
 //     pnpm test
 //
-//     # or, with no browser to start first
+//     # or all specs in throwaway browsers, with no browser to start first
 //     pnpm test:temp
 
+import { spawn } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { chromium } from '@playwright/test';
 import { test as harnessTest } from 'sourcemonkey/harness';
@@ -82,20 +87,66 @@ function forwardConsole(page) {
   });
 }
 
+// Whether something answers CDP at the endpoint.
+async function cdpUp() {
+  try {
+    const res = await fetch(`${CDP_ENDPOINT}/json/version`, { signal: AbortSignal.timeout(1500) });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+// Starts the test browser (scripts/open-browser.sh) when it isn't
+// running, so the first spec that needs it doesn't fail on the connect.
+// Done here rather than before the run, so a run of temp-browser specs
+// opens no window. Only for the default endpoint: PLAYWRIGHT_CDP names
+// a browser of the user's own. Detached, so the browser outlives the
+// worker and the run, and the next run reuses it.
+async function ensureSharedBrowser() {
+  if (process.env.PLAYWRIGHT_CDP || await cdpUp()) return;
+  console.log(`Test browser isn't running on ${CDP_ENDPOINT}. Launching it now.`);
+  // Its output goes to a file rather than a pipe, which would tie the
+  // browser to this worker. Read back if it doesn't come up.
+  const logFile = path.join(os.tmpdir(), 'userscripts-test-browser.log');
+  const out = fs.openSync(logFile, 'w');
+  const child = spawn('bash', [path.join(REPO_ROOT, 'scripts/open-browser.sh')], {
+    detached: true,
+    stdio: ['ignore', out, out],
+  });
+  fs.closeSync(out);
+  child.unref();
+  // open-browser.sh execs Chromium, so an exit means it failed to start.
+  let exited = false;
+  child.on('exit', () => { exited = true; });
+  const deadline = Date.now() + 15000;
+  while (!exited && Date.now() < deadline) {
+    if (await cdpUp()) return;
+    await new Promise((r) => setTimeout(r, 300));
+  }
+  const output = fs.readFileSync(logFile, 'utf8').trim().split('\n').slice(-10).join('\n');
+  throw new Error(
+    (exited ? 'scripts/open-browser.sh failed to start the test browser.'
+      : `The test browser didn't answer on ${CDP_ENDPOINT} within 15 seconds.`) +
+    ` Its output (${logFile}):\n${output}`
+  );
+}
+
 // The user-launched browser, for the default mode.
 const sharedBrowser = {
-  // Connect to the user-launched Chromium over CDP. The browser must
-  // already be running (scripts/open-browser.sh). We never close it
-  // — that would discard the manual login.
+  // Connect to the user-launched Chromium over CDP, starting it first
+  // if it isn't running. We never close it — that would discard the
+  // manual login.
   browser: [async ({}, use) => {
+    await ensureSharedBrowser();
     let browser;
     try {
       browser = await chromium.connectOverCDP(CDP_ENDPOINT);
     } catch (err) {
       throw new Error(
         `Could not connect to Chromium at ${CDP_ENDPOINT}.\n` +
-        `Run \`scripts/open-browser.sh\` in another terminal first, or set TEMP_BROWSER=1\n` +
-        `for a throwaway browser with no logins (\`pnpm test:temp\`).\n` +
+        (process.env.PLAYWRIGHT_CDP ? 'Start the browser PLAYWRIGHT_CDP names first, or set' : 'Or set') +
+        ` TEMP_BROWSER=1 for a throwaway browser with no logins (\`pnpm test:temp\`).\n` +
         `Original error: ${err.message}`
       );
     }
@@ -119,41 +170,46 @@ const sharedBrowser = {
   },
 };
 
-export const test = harnessTest.extend({
-  ...(TEMP_BROWSER ? {} : sharedBrowser),
+// The harness's `loadUserscript`, with the script's collection root
+// (plus this repo as a fallback localRoot) so a `@require` for `lib/x.js`
+// reads the local `lib/x.js`, exactly as SourceMonkey does when the
+// collection is installed as a directory. Also prints what the script
+// reports — started, skipped with the rule that missed, threw — the
+// way the console forwarding above prints its logs.
+async function loadUserscriptFixture({ loadUserscript, host }, use) {
+  host.on('start', (r) => console.log(`  script-start: ${r.name} on ${r.url}`));
+  host.on('skip', (r) => console.log(`  script-skipped: ${r.name} on ${r.url}: ${r.reason}`));
+  host.on('script-error', (r) => console.log(`  script-error: ${r.name}: ${r.message}`));
+  await use((file, options = {}) => {
+    const collectionRoot = findCollectionRoot(file);
+    const localRoots = collectionRoot !== REPO_ROOT ? [REPO_ROOT] : [];
+    return loadUserscript(file, { collectionRoot, localRoots, ...options });
+  });
+}
 
-  // A fresh page for each test, closed after, which keeps injected
-  // scripts page-scoped. In the shared browser, only the test's own
-  // page is closed: the harness's page would also close tabs the user
-  // opened by hand during the run.
-  page: TEMP_BROWSER
-    ? async ({ page }, use) => {
-      forwardConsole(page);
-      await use(page);
-    }
-    : async ({ context }, use) => {
-      const page = await context.newPage();
-      forwardConsole(page);
-      await use(page);
-      await page.close();
-    },
+// The harness opens a fresh page for each test and closes it after,
+// with any tabs opened during the test (a script's GM_openInTab, say),
+// which keeps injected scripts page-scoped. In the shared browser that
+// includes a tab the user opens by hand while a test runs.
+const page = async ({ page }, use) => {
+  forwardConsole(page);
+  await use(page);
+};
 
-  // The harness's `loadUserscript`, with the script's collection root
-  // (plus this repo as a fallback localRoot) so a `@require` for `lib/x.js`
-  // reads the local `lib/x.js`, exactly as SourceMonkey does when the
-  // collection is installed as a directory. Also prints what the script
-  // reports — started, skipped with the rule that missed, threw — the
-  // way the console forwarding above prints its logs.
-  loadUserscript: async ({ loadUserscript, host }, use) => {
-    host.on('start', (r) => console.log(`  script-start: ${r.name} on ${r.url}`));
-    host.on('skip', (r) => console.log(`  script-skipped: ${r.name} on ${r.url}: ${r.reason}`));
-    host.on('script-error', (r) => console.log(`  script-error: ${r.name}: ${r.message}`));
-    await use((file, options = {}) => {
-      const collectionRoot = findCollectionRoot(file);
-      const localRoots = collectionRoot !== REPO_ROOT ? [REPO_ROOT] : [];
-      return loadUserscript(file, { collectionRoot, localRoots, ...options });
-    });
-  },
+// In the harness's own browser.
+export const tempBrowserTest = harnessTest.extend({
+  page,
+  loadUserscript: loadUserscriptFixture,
 });
+
+// In the user-launched browser. Playwright runs the two kinds of spec
+// in separate workers, since their worker fixtures differ.
+const sharedBrowserTest = harnessTest.extend({
+  ...sharedBrowser,
+  page,
+  loadUserscript: loadUserscriptFixture,
+});
+
+export const test = TEMP_BROWSER ? tempBrowserTest : sharedBrowserTest;
 
 export { expect } from '@playwright/test';

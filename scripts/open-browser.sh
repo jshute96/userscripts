@@ -2,7 +2,8 @@
 #
 # Launch Playwright's bundled Chromium with a remote-debugging port,
 # using the project-local profile dir. Tests then attach via
-# chromium.connectOverCDP — they do NOT launch the browser themselves.
+# chromium.connectOverCDP. test/fixtures.js runs this script when no
+# browser is up, rather than launching through Playwright.
 #
 # Why: when Playwright launches Chromium itself (launchPersistentContext,
 # storageState load, etc.) Google detects the automation flags and
@@ -17,8 +18,9 @@
 # First-time setup:
 #   pnpm install
 #   pnpm exec playwright install chromium
-# Then run this script, log in to whatever sites you'll test, leave
-# the browser running, and run `pnpm test` in another terminal.
+# Then run this script, log in to whatever sites you'll test, and
+# leave the browser running for `pnpm test`, which also starts it if
+# it isn't running.
 
 set -euo pipefail
 

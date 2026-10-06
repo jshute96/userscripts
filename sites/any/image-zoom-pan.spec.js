@@ -9,7 +9,7 @@
 
 import path from 'node:path';
 import zlib from 'node:zlib';
-import { test, expect } from '../../test/fixtures.js';
+import { tempBrowserTest as test, expect } from '../../test/fixtures.js';
 
 const SCRIPT_PATH = path.join(import.meta.dirname, 'image-zoom-pan.user.js');
 const ORIGIN = 'https://image-zoom-pan.test';

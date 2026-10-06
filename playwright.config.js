@@ -2,9 +2,10 @@
 //
 // Tests for individual userscripts live next to the script itself
 // (e.g. sites/feedly.com/sort-filter-presets.spec.js). Shared fixtures
-// and helpers live in test/. Tests attach to a Chromium that the user
-// launches manually via scripts/open-browser.sh — see test/fixtures.js
-// for why (Google blocks sign-in when Playwright launches Chromium).
+// and helpers live in test/. Most tests attach to a Chromium launched
+// by scripts/open-browser.sh rather than by Playwright, and the rest
+// use a throwaway one. See test/fixtures.js for why (Google blocks
+// sign-in when Playwright launches Chromium).
 
 import { defineConfig } from '@playwright/test';
 

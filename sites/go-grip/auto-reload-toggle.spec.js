@@ -13,7 +13,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { test, expect } from '../../test/fixtures.js';
+import { tempBrowserTest as test, expect } from '../../test/fixtures.js';
 
 const SCRIPT_PATH = path.join(import.meta.dirname, 'auto-reload-toggle.user.js');
 const STORAGE_KEY = 'go-grip-auto-reload';
