@@ -8,6 +8,8 @@
 //   PLAYWRIGHT_CDP — CDP endpoint to probe (default http://127.0.0.1:9233;
 //                    must match what scripts/open-browser.sh uses and
 //                    what test/fixtures.js reads).
+//   TEMP_BROWSER   — 1: the specs launch their own throwaway browser
+//                    (see test/fixtures.js), so there's nothing to check.
 
 import { spawn } from 'node:child_process';
 import path from 'node:path';
@@ -38,6 +40,7 @@ async function waitForCdp(timeoutMs = 15000) {
 }
 
 async function main() {
+  if (process.env.TEMP_BROWSER === '1') return;
   if (await probeCdp()) return;
   console.log(`Test browser isn't running on ${CDP} — launching it now…`);
   const script = path.join(ROOT, 'scripts/open-browser.sh');

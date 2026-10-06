@@ -700,8 +700,10 @@ this repo.
   Chromium with a persistent profile (`.playwright-profile`) and CDP
   on port 9233. Leave it running, and log in to test sites in it once.
   `sm-dev` and `pnpm test` both connect to it by default.
-  - A page that needs no login can use a throwaway browser instead
-    (`sm-dev --temp-browser`, or a spec that serves its own page).
+  - A page that needs no login can use a throwaway browser instead:
+    `sm-dev --temp-browser`, or for specs `pnpm test:temp`
+    (`TEMP_BROWSER=1`), which runs them in the harness's own hidden
+    browser with SourceMonkey loaded.
 * **Don't let Playwright launch the browser.** Both system Chrome
   (`channel: 'chrome'`) and `chromium.launchPersistentContext()` set
   automation flags that Google's bot detection trips on, blocking
@@ -724,7 +726,9 @@ this repo.
   run with `pnpm test` (or `pnpm test <file>`).
 * Import `test` and `expect` from `../../test/fixtures.js`, not from
   `sourcemonkey/harness` directly. The fixture connects to the test
-  browser, uses this repo as the root for `@require` lookups, and
+  browser, uses the script's collection (the nearest
+  `script_manifest.json` above it, with this repo as a fallback) as
+  the root for `@require` lookups, and
   prints the page's `[name]` logs and the script's start, skip and
   error reports beside the test output.
 * Write a spec after the user confirms the script works (see "Creating

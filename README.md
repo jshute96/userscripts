@@ -318,6 +318,7 @@ pnpm sm-dev --help
 ```
 
 `pnpm test` runs a preflight that launches the browser if it isn't already running on CDP (Chrome DevTools Protocol) port 9233; subsequent runs reuse it.
+`pnpm test:temp` runs the specs in a throwaway hidden browser instead, with no logins, for specs that need none.
 The direct `pnpm exec playwright test …` invocations skip the preflight, so launch the browser yourself for those.
 
 See [CLAUDE.md](CLAUDE.md)'s "Testing" section for why we don't let Playwright
