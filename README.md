@@ -98,7 +98,7 @@ its own ([doc](sites/example.com/installed-list.md)).
 | --- | --- | --- | --- |
 | [example.com: Bold word on hover](sites/example.com/bold-on-hover.user.js) | [doc](sites/example.com/bold-on-hover.md) |  | Test fixture: bolds and reddens the single word under the mouse cursor while hovering over text. |
 | [example.com: Config value with context-menu update](sites/example.com/config-value.user.js) | [doc](sites/example.com/config-value.md) |  | Test fixture: adds a "the message_value is: &lt;value&gt;" bullet whose value is set via the userscript context menu and saved in GM storage. |
-| [example.com: Error button](sites/example.com/error-button.user.js) | [doc](sites/example.com/error-button.md) |  | Test fixture: adds "Error" buttons that throw when clicked — one from the script body, one from @require'd code. |
+| [example.com: Error button](sites/example.com/error-button.user.js) | [doc](sites/example.com/error-button.md) |  | Test fixture: adds "Error" buttons that throw when clicked (one from the script body, one from @require'd code), and a "Warning" button that makes the manager log a warning. |
 | [example.com: Error on load](sites/example.com/error-on-load.user.js) | [doc](sites/example.com/error-on-load.md) |  | Test fixture: throws an unhandled error during initial injection. |
 | [example.com: Show GM_info](sites/example.com/show-gm-info.user.js) | [doc](sites/example.com/show-gm-info.md) |  | Test fixture: adds a "Show GM_info" button that prints the GM_info payload under the bullet. |
 | [example.com: Updated script](sites/example.com/updated-script.user.js) | [doc](sites/example.com/updated-script.md) |  | Test fixture: bullet text includes a version constant so manual edits to the source file are visible on reload. |

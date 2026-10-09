@@ -1,14 +1,15 @@
 // ==UserScript==
 // @name         example.com: Error button
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.1.2
-// @description  Test fixture: adds "Error" buttons that throw when clicked — one from the script body, one from @require'd code.
+// @version      1.1.3
+// @description  Test fixture: adds "Error" buttons that throw when clicked (one from the script body, one from @require'd code), and a "Warning" button that makes the manager log a warning.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://example.com/*
 // @match        http://example.com/*
 // @run-at       document-idle
-// @grant        none
+// @grant        GM_download
+// @inject-into  page
 // @noframes
 // @icon         example-icon.png
 // @require      installed-list.js
@@ -21,6 +22,7 @@
   const TAG = '[error button]';
   const BUTTON_ID = 'jshute-error-button';
   const REQUIRE_BUTTON_ID = 'jshute-error-from-require-button';
+  const WARNING_BUTTON_ID = 'jshute-warning-button';
 
   console.log(TAG, 'init');
 
@@ -61,10 +63,30 @@
     jshuteThrowFromRequire('clicked');
   });
 
+  // Logs a warning without throwing. A script can't emit a warning
+  // directly (SourceMonkey doesn't capture console.warn), so this uses
+  // a download SourceMonkey refuses: a file:// URL fails with
+  // not_permitted, which it logs as a warning from this tab, and the
+  // script then shows as Warning there.
+  const warningButton = document.createElement('button');
+  warningButton.id = WARNING_BUTTON_ID;
+  warningButton.type = 'button';
+  warningButton.textContent = 'Warning';
+  warningButton.addEventListener('click', () => {
+    console.log(TAG, 'clicked — about to log a warning');
+    GM_download({
+      url: 'file:///jshute-warning-button.txt',
+      name: 'jshute-warning-button.txt',
+      onload: () => console.log(TAG, 'download unexpectedly succeeded'),
+      onerror: (e) => console.log(TAG, 'warning logged (download refused):', e && e.error),
+    });
+  });
+
   jshuteAddInstalledScript(
     'error-button.user.js',
     'adds ', button, ' and ', requireButton,
-    ' buttons that throw when clicked (the second from @require\'d code)',
+    ' buttons that throw when clicked (the second from @require\'d code), and a ',
+    warningButton, ' button that logs a warning',
   );
 
   console.log(TAG, 'ready');

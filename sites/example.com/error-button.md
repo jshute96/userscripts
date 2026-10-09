@@ -4,7 +4,8 @@
 
 Test fixture. Adds two "Error" buttons to example.com whose click
 handlers throw unhandled exceptions — one thrown from the script
-body, one from `@require`'d library code.
+body, one from `@require`'d library code. A third, "Warning", makes
+the manager log a warning for the script, without throwing.
 
 Exercises how a userscript manager reports an error thrown at
 runtime, and in particular whether a stack frame originating in
@@ -15,11 +16,14 @@ numbers, or to an offset into the combined injected source.
 
 - A bullet under "Installed userscripts" reads
   `error-button.user.js: adds [Error] and [Error from @require] buttons
-  that throw when clicked (the second from @require'd code)`, where
-  both `[…]` are real `<button>` elements embedded inline in the
-  bullet text. The filename is rendered as inline `<code>`.
-- Clicking either button does nothing visible; DevTools console shows
-  the thrown error.
+  that throw when clicked (the second from @require'd code), and a
+  [Warning] button that logs a warning`, where each
+  `[…]` is a real `<button>` element embedded inline in the bullet
+  text. The filename is rendered as inline `<code>`.
+- Clicking either Error button does nothing visible; DevTools console
+  shows the thrown error.
+- Clicking Warning does nothing visible either. In SourceMonkey the
+  script's popup row turns to Warning and its Log gets a warning.
 
 ## Implementation
 
@@ -47,6 +51,18 @@ entry's source map) may differ from what a manager's own log pane shows
 (it parses raw `err.stack` strings, and may not). Record the observed
 results here once you've run it.
 
+### The Warning button
+
+- A script can't emit a warning directly: SourceMonkey doesn't capture
+  `console.warn`, and `GM_log` is always info.
+- So it calls `GM_download` with a `file://` URL, which SourceMonkey
+  refuses (`not_permitted`) and logs as a warning from the tab.
+- `@grant GM_download` would normally move the script to the isolated
+  world, so `@inject-into page` keeps it in the page, where the Error
+  buttons have always run. SourceMonkey and Violentmonkey honor that;
+  Tampermonkey ignores `@inject-into` and runs the script in its
+  sandbox.
+
 ### How the buttons are built
 
 Both buttons are passed as DOM nodes directly into
@@ -56,9 +72,9 @@ elements elsewhere on the page.
 
 The script is idempotent on `BUTTON_ID`: if that button is already
 present (e.g. a re-injection), it logs and returns before
-re-registering either button. `REQUIRE_BUTTON_ID` is not guarded
-separately — both buttons are created together in a single pass, so
-the first ID's presence implies the second's. Since
+re-registering any button. `REQUIRE_BUTTON_ID` and `WARNING_BUTTON_ID`
+are not guarded separately — all the buttons are created together in a
+single pass, so the first ID's presence implies the others'. Since
 `jshuteAddInstalledScript` is itself not idempotent on the bullet
 content, that one guard is also what keeps the bullet from
 duplicating.
