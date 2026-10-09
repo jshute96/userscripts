@@ -34,6 +34,9 @@
       }
     },
     {
+      "path": "sites/developers.google.com/api-explorer-response-controls.user.js"
+    },
+    {
       "path": "sites/example.com/bold-on-hover.user.js",
       "category": "examples"
     },
