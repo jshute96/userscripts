@@ -1,12 +1,12 @@
 // ==UserScript==
-// @name         Google APIs Explorer: Save, copy, and fullscreen response buttons
+// @name         Google APIs Explorer: Save / copy / fullscreen buttons for JSON response
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.1.0
-// @description  Break out of the tiny "Try this method" response pane by expanding JSON results to fill the tab, or copying and downloading them with one click.
+// @version      0.1.1
+// @description  The API explorer shows a huge JSON response in a tiny box. This makes it easier to see or get the content.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
 // @match        https://developers.google.com/*
-// @match        https://explorer.apis.google.com/*
+// @match        https://explorer.apis.google.com/embedded.html*
 // @run-at       document-idle
 // @grant        none
 // ==/UserScript==
@@ -22,9 +22,54 @@
   const MSG_TYPE = 'jshute-apix-fullscreen';
   const FULLTAB_CLASS = 'jshute-apix-fulltab';
   const STYLE_ATTR = 'data-jshute-apix-response-styles';
+  const ANCESTOR_CLASS = 'jshute-apix-fulltab-ancestor';
   const ACTIONS_CLASS = 'jshute-apix-response-actions';
 
+  const SAVE_MSG = 'jshute-apix-save';
+  const HOST_ORIGIN = 'https://developers.google.com';
+  const EXPLORER_ORIGIN = 'https://explorer.apis.google.com';
+
   const log = (...args) => console.log(TAG, ...args);
+
+  // Shows a save dialog and writes the text. Resolves to 'saved',
+  // 'cancelled', or 'failed' (no picker API, or it threw).
+  async function saveWithPicker(text, filename) {
+    if (typeof window.showSaveFilePicker !== 'function') {
+      log('showSaveFilePicker is not available');
+      return 'failed';
+    }
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [{ description: 'JSON', accept: { 'application/json': ['.json'] } }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(text);
+      await writable.close();
+      log(`saved response (${text.length} chars) as ${handle.name}`);
+      return 'saved';
+    } catch (e) {
+      if (e.name === 'AbortError') return 'cancelled';
+      log('save dialog failed:', e);
+      return 'failed';
+    }
+  }
+
+  // Plain download with the suggested name, no dialog. Fallback for
+  // browsers without showSaveFilePicker.
+  function downloadText(text, filename) {
+    const blob = new Blob([text], { type: 'application/json;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    log(`downloaded response (${text.length} chars) as ${filename}`);
+  }
 
   function ensureStyles(cssText) {
     if (document.querySelector(`style[${STYLE_ATTR}]`)) return;
@@ -50,10 +95,6 @@
       .apis-explorer.${FULLTAB_CLASS} {
         position: fixed !important;
         inset: 0 !important;
-        top: 0 !important;
-        left: 0 !important;
-        right: 0 !important;
-        bottom: 0 !important;
         width: 100vw !important;
         height: 100vh !important;
         max-width: none !important;
@@ -66,11 +107,14 @@
         overflow: hidden !important;
         z-index: 100000 !important;
       }
+      .${ANCESTOR_CLASS} {
+        z-index: 100000 !important;
+      }
       div.devsite-apix.${FULLTAB_CLASS} > .devsite-apix-controls {
         display: none !important;
       }
       div.devsite-apix.${FULLTAB_CLASS} .apis-explorer,
-      div.devsite-apix.${FULLTAB_CLASS} .apis-explorer iframe,
+      div.devsite-apix.${FULLTAB_CLASS} iframe,
       .apis-explorer.${FULLTAB_CLASS} iframe {
         width: 100vw !important;
         height: 100vh !important;
@@ -98,10 +142,18 @@
       const container = findApixContainer(sourceWindow);
       if (container) {
         container.classList.toggle(FULLTAB_CLASS, want);
+        // The container can sit inside a positioned wrapper with its own
+        // z-index (e.g. the devsite-concierge side panel, z-index 1006),
+        // which caps it below the site header. Raise those wrappers too.
+        if (want) {
+          for (let el = container.parentElement; el && el !== document.body; el = el.parentElement) {
+            if (getComputedStyle(el).zIndex !== 'auto') el.classList.add(ANCESTOR_CLASS);
+          }
+        }
       }
       if (!want) {
-        for (const el of document.querySelectorAll(`.${FULLTAB_CLASS}`)) {
-          el.classList.remove(FULLTAB_CLASS);
+        for (const el of document.querySelectorAll(`.${FULLTAB_CLASS}, .${ANCESTOR_CLASS}`)) {
+          el.classList.remove(FULLTAB_CLASS, ANCESTOR_CLASS);
         }
       }
       document.documentElement.classList.toggle(FULLTAB_CLASS, want);
@@ -109,16 +161,31 @@
       log(want ? 'host container expanded to full tab' : 'host container restored');
     }
 
-    window.addEventListener('message', (event) => {
-      if (event.origin !== 'https://explorer.apis.google.com') return;
+    window.addEventListener('message', async (event) => {
+      if (event.origin !== EXPLORER_ORIGIN) return;
       const data = event.data;
+      if (data?.type === SAVE_MSG && typeof data.text === 'string') {
+        // The explorer frame can't open a file picker itself (cross-origin
+        // subframes aren't allowed), so it hands the text to us. The click's
+        // user activation also applies to ancestor frames.
+        event.source?.postMessage(
+          { type: SAVE_MSG, id: data.id, status: 'received' },
+          EXPLORER_ORIGIN
+        );
+        const status = await saveWithPicker(data.text, data.filename);
+        event.source?.postMessage(
+          { type: SAVE_MSG, id: data.id, status },
+          EXPLORER_ORIGIN
+        );
+        return;
+      }
       if (!data || data.type !== MSG_TYPE || data.ack) return;
       setHostFullscreen(data.fullscreen, event.source);
       requestAnimationFrame(() => {
         try {
           event.source?.postMessage(
             { type: MSG_TYPE, fullscreen: Boolean(data.fullscreen), ack: true },
-            'https://explorer.apis.google.com'
+            EXPLORER_ORIGIN
           );
         } catch {
           // Ignore if frame navigated away.
@@ -139,7 +206,7 @@
             try {
               iframe.contentWindow?.postMessage(
                 { type: MSG_TYPE, fullscreen: false },
-                'https://explorer.apis.google.com'
+                EXPLORER_ORIGIN
               );
             } catch {
               // Ignore cross-origin postMessage errors if any.
@@ -185,10 +252,12 @@
         gap: 4px;
         height: 22px;
         padding: 0 8px;
-        border: 1px solid rgba(32, 33, 36, 0.35);
+        /* Tints of the status bar's own text color, so the buttons work in
+           both light and dark themes. */
+        border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
         border-radius: 4px;
-        background: rgba(255, 255, 255, 0.28);
-        color: #202124;
+        background: color-mix(in srgb, currentColor 4%, transparent);
+        color: inherit;
         font-family: Roboto, Arial, sans-serif;
         font-size: 12px;
         font-weight: 500;
@@ -200,11 +269,11 @@
         white-space: nowrap;
       }
       .jshute-apix-btn:hover {
-        background: rgba(255, 255, 255, 0.48);
-        border-color: rgba(32, 33, 36, 0.55);
+        background: color-mix(in srgb, currentColor 12%, transparent);
+        border-color: color-mix(in srgb, currentColor 55%, transparent);
       }
       .jshute-apix-btn:active {
-        background: rgba(0, 0, 0, 0.12);
+        background: color-mix(in srgb, currentColor 20%, transparent);
       }
       .jshute-apix-btn .material-icons {
         font-size: 15px;
@@ -215,24 +284,38 @@
       body.${FULLTAB_CLASS} {
         overflow: hidden !important;
       }
+      body:not(.${FULLTAB_CLASS}) api-response .single-tab-response .jshute-apix-btn {
+        padding: 0 4px;
+      }
+      body:not(.${FULLTAB_CLASS}) api-response .single-tab-response .jshute-apix-btn-label {
+        display: none;
+      }
       body.${FULLTAB_CLASS} api-response .single-tab-response,
       body.${FULLTAB_CLASS} api-response .multi-tab-response {
         position: fixed !important;
-        inset: 0 !important;
-        width: 100vw !important;
-        height: 100vh !important;
+        inset: 8px !important;
+        width: auto !important;
+        height: auto !important;
         max-width: none !important;
         max-height: none !important;
         margin: 0 !important;
-        border: 0 !important;
-        border-radius: 0 !important;
         z-index: 9999 !important;
-        background: var(--apix-background-1, #fff) !important;
         box-sizing: border-box !important;
+        display: flex !important;
+        flex-direction: column !important;
+        /* Covers the rest of the explorer, around the 8px margin. */
+        box-shadow: 0 0 0 100vmax var(--apix-background-1, #fff) !important;
       }
       body.dark-theme.${FULLTAB_CLASS} api-response .single-tab-response,
       body.dark-theme.${FULLTAB_CLASS} api-response .multi-tab-response {
-        background: var(--apix-background-1, #202124) !important;
+        box-shadow: 0 0 0 100vmax var(--apix-background-1, #202124) !important;
+      }
+      body.${FULLTAB_CLASS} api-response .single-tab-response > code-viewer {
+        flex: 1 1 auto !important;
+        min-height: 0 !important;
+      }
+      body.${FULLTAB_CLASS} api-response .single-tab-response > code-viewer .CodeMirror {
+        height: 100% !important;
       }
       body.${FULLTAB_CLASS} api-response .multi-tab-response .mat-mdc-tab-body-wrapper {
         flex: 1 1 auto !important;
@@ -246,6 +329,7 @@
     let isFullscreen = false;
     let lastCopiedText = null;
     let lastSavedFilename = null;
+    let saveInProgress = false;
 
     function refreshCodeMirror() {
       for (const cmEl of document.querySelectorAll('api-response .CodeMirror')) {
@@ -278,8 +362,8 @@
       document.body.classList.toggle(FULLTAB_CLASS, isFullscreen);
       document.documentElement.dataset.jshuteApixFullscreen = String(isFullscreen);
       updateFullscreenButtons();
-      if (window.parent && window.parent !== window) {
-        window.parent.postMessage({ type: MSG_TYPE, fullscreen: isFullscreen }, '*');
+      if (location.ancestorOrigins?.[0] === HOST_ORIGIN) {
+        window.parent.postMessage({ type: MSG_TYPE, fullscreen: isFullscreen }, HOST_ORIGIN);
       }
       refreshCodeMirror();
       requestAnimationFrame(() => refreshCodeMirror());
@@ -306,6 +390,34 @@
         return [...lines].map((l) => l.textContent).join('\n');
       }
       return '';
+    }
+
+    // Asks the host page to show the save dialog, since this cross-origin
+    // frame can't. Resolves to the host's status ('saved', 'cancelled',
+    // 'failed'). The host acks with 'received' first; without that ack
+    // (the host half isn't running), resolves 'failed' after a second.
+    let nextSaveId = 1;
+    function saveViaHost(text, filename) {
+      const id = nextSaveId++;
+      return new Promise((resolve) => {
+        function finish(status) {
+          clearTimeout(ackTimer);
+          window.removeEventListener('message', onMessage);
+          resolve(status);
+        }
+        function onMessage(event) {
+          if (event.origin !== HOST_ORIGIN) return;
+          if (event.data?.type !== SAVE_MSG || event.data.id !== id) return;
+          if (event.data.status === 'received') clearTimeout(ackTimer);
+          else finish(event.data.status);
+        }
+        const ackTimer = setTimeout(() => {
+          log('host page did not answer the save request');
+          finish('failed');
+        }, 1000);
+        window.addEventListener('message', onMessage);
+        window.parent.postMessage({ type: SAVE_MSG, id, text, filename }, HOST_ORIGIN);
+      });
     }
 
     function getSuggestedFilename() {
@@ -391,25 +503,27 @@
         'download',
         'Save',
         'Save JSON response to disk',
-        (btn) => {
+        async (btn) => {
+          if (saveInProgress) return;
           const text = getResponseText(statusBar);
           if (!text) {
             log('save clicked, but response text was empty');
             return;
           }
           const filename = getSuggestedFilename();
-          const blob = new Blob([text], { type: 'application/json;charset=utf-8' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = filename;
-          a.style.display = 'none';
-          document.body.appendChild(a);
-          a.click();
-          a.remove();
-          setTimeout(() => URL.revokeObjectURL(url), 1000);
+          saveInProgress = true;
+          let status;
+          try {
+            status =
+              location.ancestorOrigins?.[0] === HOST_ORIGIN
+                ? await saveViaHost(text, filename)
+                : await saveWithPicker(text, filename);
+          } finally {
+            saveInProgress = false;
+          }
+          if (status === 'cancelled') return;
+          if (status !== 'saved') downloadText(text, filename);
           lastSavedFilename = filename;
-          log(`saved response (${text.length} chars) as ${filename}`);
           flashButtonFeedback(btn, 'check', 'Saved');
         }
       );
@@ -481,24 +595,6 @@
       }
     }
 
-    // While in full-tab mode, clicking the 'X' (.close) button in the top-right
-    // corner exits full-tab mode back to the normal view instead of clearing
-    // the response.
-    document.addEventListener(
-      'click',
-      (e) => {
-        if (!isFullscreen) return;
-        const closeBtn = e.target.closest && e.target.closest('api-response .close');
-        if (closeBtn) {
-          e.preventDefault();
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          setFullscreen(false);
-        }
-      },
-      true
-    );
-
     document.addEventListener(
       'keydown',
       (e) => {
@@ -512,6 +608,7 @@
     );
 
     window.addEventListener('message', (event) => {
+      if (event.origin !== HOST_ORIGIN) return;
       const data = event.data;
       if (!data || data.type !== MSG_TYPE) return;
       if (data.ack) {
@@ -521,7 +618,15 @@
       }
     });
 
-    const observer = new MutationObserver(() => scan());
+    let scanQueued = false;
+    const observer = new MutationObserver(() => {
+      if (scanQueued) return;
+      scanQueued = true;
+      requestAnimationFrame(() => {
+        scanQueued = false;
+        scan();
+      });
+    });
     observer.observe(document.documentElement, { childList: true, subtree: true });
     scan();
 
