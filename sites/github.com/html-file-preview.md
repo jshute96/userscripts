@@ -10,15 +10,17 @@ This script adds a **Preview** view to `.html` files, selected by
 default, showing the page rendered below the file header, just like
 Markdown is. Code and Blame views work as before.
 
-The page is shown without its scripts, so it can't do anything on
-github.com:
+The page is shown in a sandbox, without its scripts or your GitHub
+login, so it can't do anything on github.com.
 
-* Its scripts and forms don't run. Links work when clicked: they open
-  in the GitHub tab, or a new tab when the page asks for one.
-* Images and styles from the same repository load, as do links to
-  other files in it, which open GitHub's view of them.
-* Fonts, styles and images from other sites mostly don't load.
-* In-page links (like a table of contents) work.
+What works:
+* Links, styles, images from public repos, links inside the page.
+
+What's blocked:
+* Scripts, forms, images and other files from private repos (no
+  GitHub cookies), fonts and styles from other sites.
+
+The page is shown in a scrolling box, and its in-page links scroll within it.
 
 Static pages (reports, docs, generated tables) look as they should.
 Pages that use JavaScript won't show their dynamic content.
@@ -26,11 +28,14 @@ Pages that use JavaScript won't show their dynamic content.
 ## Visible changes
 
 * A Preview item at the start of the Preview / Code / Blame switch on
-  `.html` and `.htm` files, selected when the file opens. It stays in
+  `.html` and `.htm` files, selected when the file opens, unless the
+  file would show nothing without its scripts. It stays in
   the Blame view too, where it goes back to the file with the preview
   on.
-* The rendered page in place of the code while Preview is selected,
-  sized to its full length.
+* The rendered page in place of the code while Preview is selected, in
+  a box that fills the rest of the window and scrolls. The GitHub page
+  around it stops scrolling, unless the window is too short to leave
+  the box 400px.
 
 ## Implementation
 
@@ -94,37 +99,63 @@ Pages that use JavaScript won't show their dynamic content.
     shadowrootmode>`) lose that attribute, so they stay inert templates
     and every link is in reach of the rewrite.
   - Our `<base>` is the raw file's directory, so relative images load
-    from `github.com/<owner>/<repo>/raw/...`, which sends the user's
-    cookies and so works for private repos.
+    from `github.com/<owner>/<repo>/raw/...`. The frame's requests go
+    without the user's cookies, so this works only for public repos.
   - Stylesheets from the same repo are fetched and inlined as `<style>`,
-    since the CSP blocks linked ones. At most 20, one at a time: each is
-    a request with the user's cookies, made just by viewing the file.
+    since the CSP blocks linked ones. We fetch them from the GitHub page,
+    so they load from private repos too. At most 20, one at a time: each
+    is a request with the user's cookies, made just by viewing the file.
     Relative `url()`s in them are rebased onto the stylesheet's own
-    `github.com/.../raw/` URL. Other sites' stylesheets, and `@import`s,
-    stay blocked.
+    `github.com/.../raw/` URL, and `</style` becomes `<\/style`, so the
+    text can't end its tag and slip markup past the rewrite. Other
+    sites' stylesheets, and `@import`s, stay blocked.
   - Links (`<a>`, `<area>`, and SVG `<a>`, set with `setAttribute`
     since SVG's `href`/`target` properties are read-only): relative ones
     resolve against the file's own GitHub page
     (`/<owner>/<repo>/blob/<ref>/<dir>/`), so they open GitHub's view
     of the file they name. Only `http(s)`, `mailto` and `#` links are
-    kept; others (`javascript:`, `data:`, ...) lose their `href`. `ping`
-    attributes (a POST on click) are removed. Links
-    get `target="_top"` (the frame can't load github.com pages itself),
-    or keep `_blank` if they had it.
-* **The frame**: `<iframe sandbox="allow-same-origin allow-popups
+    kept; others (`javascript:`, `data:`, ...) lose their `href`. `#x`
+    links become `about:srcdoc#x`, since against our `<base>` they would
+    load the raw file; this way they scroll the frame's own document. `ping`
+    attributes (a POST on click) are removed. Links get `target="_top"`,
+    so they open in the whole tab as on any page (the frame can't load
+    github.com pages itself), or keep `_blank` if they had it.
+* **The frame**: `<iframe sandbox="allow-popups
   allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation"
   srcdoc=...>`. With no `allow-scripts`, nothing in it runs and forms
   are off; only a real click can follow a link, which the other three
-  let through. `allow-same-origin` is safe without scripts, and
-  lets us size the frame to its content (`ResizeObserver` on its root)
-  and turn `#` link clicks into scrolling the GitHub page. The frame has
-  `scrolling="no"` and its scroll position is reset on each resize:
-  once it was seen left scrolled part-way down, hiding the top of the
-  page, and there's no reason for it ever to scroll.
-  - Content sized by the viewport (`min-height: 100vh` plus a margin)
-    grows each time the frame does. After 30 growths in 2 seconds we
-    stop resizing and go back to the height before the run started;
-    the frame never exceeds 50,000px.
+  let through: into the GitHub tab, or a new tab that isn't sandboxed. With no `allow-same-origin`, the frame gets an origin of
+  its own: even a sandbox bug couldn't reach the GitHub page or the
+  user's session, and its requests carry no GitHub cookies.
+  - So we can't read the frame's document to size it to its content,
+    and it has no scripts to report its height. It scrolls itself.
+  - Its height fills the window from the frame's top down, less what's
+    below it in GitHub's box around the file (measured) and 8px. A
+    `<style>` of ours (`html { overflow: hidden }`, switched with
+    `media`) stops the GitHub page scrolling meanwhile. Under 400px of
+    room, the frame gets 400px and the page scrolls as usual.
+    Recomputed on resize and on the page's DOM changes.
+* **Blank pages**: when the preview is on by default (not clicked),
+  we check the file's `<body>` first. With scripts, styles and
+  templates left out, no text and no images, media, frames or form
+  controls means nothing would show, so we switch to Code instead.
+  Clicking Preview on such a file shows an italic note in place of the
+  frame: "No visible content to preview without running scripts.", or
+  without "without running scripts" if the file has none (an empty page,
+  or a redirect stub whose `<meta http-equiv="refresh">` we strip).
+* **Start time**: `@run-at document-start`, and on an `.html` file the
+  preview's `<style>` is on from the start, so a full page load (such as
+  a link from one preview to another file) never shows the code first.
+  The pane and an empty frame, already full height, go in as soon as the
+  code section exists, so the box never starts short and grows. The
+  frame gets its content once the document has finished parsing, since
+  the file's textarea may be incomplete before then.
+  - GitHub's React redraws the file area once during load, which takes
+    our pane out. We put the same pane back rather than building it
+    again.
+  - While previewing with no pane in the page, the `MutationObserver`
+    acts at once rather than on the next animation frame, so no frame is
+    drawn without it.
 * **In-page navigation**: the pane is only built once the Raw link
   names the current file (the header can briefly still be the previous
   file's), and a build that finishes after the user moved on is
