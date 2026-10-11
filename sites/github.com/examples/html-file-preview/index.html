@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>HTML preview demo</title>
+<link rel="stylesheet" href="css/demo.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap">
+</head>
+<body>
+
+<header class="banner">
+  <img class="logo" src="logo.svg" alt="Logo (a same-repo image)" width="72" height="72">
+  <div>
+    <h1>HTML preview demo</h1>
+    <p>A plain HTML page, for trying out the
+      <a href="../../html-file-preview.md">GitHub: View HTML files inline</a> userscript.</p>
+  </div>
+</header>
+
+<nav class="toc">
+  <a href="#works">What works</a>
+  <a href="#links">Links</a>
+  <a href="#blocked">What's blocked</a>
+  <a href="#table">A table</a>
+</nav>
+
+<main>
+
+<section id="works">
+  <h2>What works</h2>
+  <div class="cards">
+    <div class="card">
+      <h3>Same-repo stylesheet</h3>
+      <p>This page's layout and colors come from <code>css/demo.css</code>, linked from the page.</p>
+    </div>
+    <div class="card striped">
+      <h3>Image in that stylesheet</h3>
+      <p>The stripes behind this card are <code>css/stripes.svg</code>, named relative to the stylesheet.</p>
+    </div>
+    <div class="card">
+      <h3>Same-repo image</h3>
+      <p>The logo above is <code>logo.svg</code>, beside this file. In a private repo it doesn't load.</p>
+    </div>
+    <div class="card" style="background: linear-gradient(135deg, #fde68a, #fca5a5)">
+      <h3>Inline styles</h3>
+      <p>Gradients, grid layout and custom fonts: nothing Markdown can do.</p>
+    </div>
+  </div>
+</section>
+
+<section id="links">
+  <h2>Links</h2>
+  <ul>
+    <li><a href="other.html">A page beside this one</a> opens GitHub's view of it.</li>
+    <li><a href="../../html-file-preview.user.js">A file two directories up</a>, the same.</li>
+    <li><a href="https://github.com/jshute96/userscripts">A GitHub page</a>, the repo's home.</li>
+    <li><a href="https://example.com/">An outside site</a>.</li>
+    <li><a href="https://example.com/" target="_blank">An outside site in a new tab</a>.</li>
+    <li><a href="mailto:someone@example.com">An email link</a>.</li>
+    <li><a href="#table">A link within this page</a> scrolls to the table.</li>
+  </ul>
+</section>
+
+<section id="blocked">
+  <h2>What's blocked</h2>
+  <p>Each of these looks different when the file is opened directly in a browser.</p>
+  <table class="checks">
+    <tr>
+      <th>Script output</th>
+      <td><span id="script-status" class="off">Scripts didn't run: this text is as written.</span></td>
+    </tr>
+    <tr>
+      <th>Button with a script</th>
+      <td><button id="counter" type="button">Clicked 0 times</button></td>
+    </tr>
+    <tr>
+      <th>Form</th>
+      <td>
+        <form action="https://example.com/search">
+          <input name="q" placeholder="Search example.com"> <button>Search</button>
+        </form>
+      </td>
+    </tr>
+    <tr>
+      <th><code>javascript:</code> link</th>
+      <td><a href="javascript:alert('Scripts ran')">Show an alert</a></td>
+    </tr>
+    <tr>
+      <th>Font from another site</th>
+      <td><span class="fancy">This line is in Pacifico from Google Fonts.</span></td>
+    </tr>
+    <tr>
+      <th>Image from another site</th>
+      <td><img src="https://upload.wikimedia.org/wikipedia/commons/9/99/Unofficial_JavaScript_logo_2.svg"
+        alt="(blocked: Wikimedia image)" width="40" height="40"></td>
+    </tr>
+  </table>
+</section>
+
+<section id="table">
+  <h2>A table</h2>
+  <table class="data">
+    <thead><tr><th>Day</th><th>Distance</th><th>Climb</th><th>Effort</th></tr></thead>
+    <tbody>
+      <tr><td>Monday</td><td>12.4 km</td><td>180 m</td><td><span class="bar" style="--w: 40%"></span></td></tr>
+      <tr><td>Wednesday</td><td>21.0 km</td><td>420 m</td><td><span class="bar" style="--w: 75%"></span></td></tr>
+      <tr><td>Saturday</td><td>35.2 km</td><td>910 m</td><td><span class="bar" style="--w: 100%"></span></td></tr>
+    </tbody>
+  </table>
+  <p><a href="#works">Back to the top</a></p>
+</section>
+
+</main>
+
+<script>
+  const status = document.getElementById('script-status');
+  status.textContent = 'Scripts ran: a script replaced this text.';
+  status.className = 'on';
+  let clicks = 0;
+  document.getElementById('counter').addEventListener('click', (e) => {
+    clicks++;
+    e.target.textContent = `Clicked ${clicks} time${clicks === 1 ? '' : 's'}`;
+  });
+</script>
+</body>
+</html>

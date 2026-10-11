@@ -373,6 +373,11 @@ skill). Differences we've hit:
   child of `<html>` when it client-renders the document. DOM state that
   must persist should be re-created when it's removed, as
   `lib/keyboard-shortcuts.js` does for its registry.
+  - GitHub's React drops attributes we set on `<html>` when it takes
+    over the server-rendered page (our `<style>` children survive).
+    Keep page-wide state in an element we own, such as a `<style>`
+    switched with its `media` attribute (`disabled` does nothing until
+    the element is in the document), not in an `<html>` attribute.
 * **`@inject-into` is ignored by TM**; see the CSP `sandbox` tip below.
 * **Other browsers are untested.** Our tools only drive Chromium, so
   Firefox and Safari behavior is unverified. Where a script leans on a
