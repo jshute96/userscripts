@@ -2,28 +2,29 @@
 
 ## Summary
 
-GitHub shows `.md` files rendered, with a Preview / Code / Blame
-switch, but has no way to show rendered `.html` files. Even the Raw
-button shows the HTML source, not the rednered page.
+GitHub shows `.md` files rendered, but doesn't render `.html` files.
+Even the Raw button shows HTML source, not a rendered page.
 
-This script adds a **Preview** view to `.html` files, selected by
-default, showing the page rendered below the file header, just like
-Markdown is. Code and Blame views work as before.
+This script adds an **HTML viewer that works inline, like the Markdown
+viewer**. HTML gets the same *Preview&nbsp;|&nbsp;Code&nbsp;|&nbsp;Blame*
+switch that Markdown has. *Preview* is selected by default.
 
-The page is shown in a sandbox, without its scripts or your GitHub
-login, so it can't do anything on github.com.
+The HTML is rendered in a sandbox, without its scripts and without
+your GitHub cookies, so it can only access github.com like a logged-out user.
 
 What works:
-* Links, styles, images from public repos, links inside the page.
+* Links (to other files and sites), links inside the page, same-repo styles, images from public repos.
 
 What's blocked:
-* Scripts, forms, images and other files from private repos (no
-  GitHub cookies), fonts and styles from other sites.
+* Scripts, forms, images from private repos (they require GitHub cookies),
+  fonts and styles loaded from other sites.
 
-The page is shown in a scrolling box, and its in-page links scroll within it.
-
-Static pages (reports, docs, generated tables) look as they should.
+Static pages (reports, docs, generated tables) look as expected.
 Pages that use JavaScript won't show their dynamic content.
+
+**Example:**
+
+![Example](screenshots/html-file-preview.png)
 
 ## Visible changes
 
