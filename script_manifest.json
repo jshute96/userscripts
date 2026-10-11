@@ -75,6 +75,9 @@
       }
     },
     {
+      "path": "sites/github.com/commit-list-line-counts.user.js"
+    },
+    {
       "path": "sites/go-grip/auto-reload-toggle.user.js"
     },
     {
