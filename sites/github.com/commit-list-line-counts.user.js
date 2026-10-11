@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitHub: Show line counts for each commit
 // @namespace    https://github.com/jshute96/userscripts
-// @version      0.1.0
+// @version      0.1.1
 // @description  Shows lines added and removed for each commit, in commit history, pull request, and issue pages. Merge commits are grayed out.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -107,7 +107,7 @@
     // Issue timeline (React): "added a commit that references this issue",
     // with the short-sha link at the right. Its href is absolute, and may
     // name another repo.
-    for (const shaLink of document.querySelectorAll('[class*="ReferencedEventInner-module__commitActions"] a[href*="/commit/"]')) {
+    for (const shaLink of document.querySelectorAll('[class*="ReferencedEventInner-module"][class*="commitActions"] a[href*="/commit/"]')) {
       const m = new URL(shaLink.href).pathname.match(/^(\/[^/]+\/[^/]+)\/commit\/([0-9a-f]{40})$/);
       if (m) rows.push({ row: shaLink.parentElement, repoPath: m[1], sha: m[2], before: shaLink });
     }

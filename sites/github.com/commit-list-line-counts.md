@@ -71,7 +71,7 @@ need.
   the short-sha link at the right of each pushed commit. The "merged
   commit ... into main" event isn't matched; its count would just repeat
   the PR's total. The counts go before its `.text-right` wrapper.
-* **Issue timeline** (React): `[class*="ReferencedEventInner-module__commitActions"]
+* **Issue timeline** (React): `[class*="ReferencedEventInner-module"][class*="commitActions"]
   a[href*="/commit/"]`, the short-sha link on each "added a commit that
   references this issue" event. Its href is absolute
   (`https://github.com/<owner>/<repo>/commit/<sha>`), and the commit can
