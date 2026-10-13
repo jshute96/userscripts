@@ -18,17 +18,12 @@ the only place to update.
 
 ## Pushing a script for a quick try
 
-Installing is for a script the user keeps. While iterating, push it in
-instead: `pnpm sm-dev start <script> --extension --solo --detach` hands
-the file's text to SourceMonkey, registers it before the page opens,
-replaces it on the next push, and logs the script's Log tab entries
-(`pnpm sm-dev stop` ends the run). `--solo` silences
-the user's other collections for the run. `pnpm sm-dev clear
---extension` removes the pushed scripts and puts the collections back.
-
-Nothing on disk is scanned for these, so no refresh command applies to
-them, and they show up in a "Pushed scripts" collection the user can
-remove like any other.
+Installing is for a script the user keeps. While iterating, run it
+with `pnpm sm-dev start <script> --detach` instead (see the
+`SourceMonkey-dev` skill): it pushes the file's text into a test
+collection of the run's own, which only the run's tabs use and which
+is removed when the run ends. Nothing on disk is scanned for it, so no
+refresh command applies.
 
 ## Available actions
 

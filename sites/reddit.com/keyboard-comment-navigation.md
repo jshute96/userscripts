@@ -129,10 +129,11 @@ avatar/username row sits above the body).
 
 ### Testing notes
 
-* Use the regular test browser (`scripts/open-browser.sh`). A headless
-  `sm-dev --temp-browser` gets Reddit's bot check
-  (`?js_challenge=1&jsc_token=...`). The script still starts on the
-  check page, so `start` looks fine, but no posts or comments load.
+* Use the regular test browser (`scripts/open-browser.sh`, with
+  `sm-dev --existing-browser`). sm-dev's temp browser, headless or
+  headed, gets Reddit's bot check ("Prove your humanity"). The script
+  still starts on the check page, so `start` looks fine, but no posts
+  or comments load.
 * Logged out, a post shows only top-level comments, with replies behind
   "N more replies" buttons. Click one to test nested navigation (`p`,
   `r`, `h`/`l` below the top level).

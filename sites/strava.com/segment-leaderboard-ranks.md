@@ -194,8 +194,9 @@ is configured that way.
 
 Two consequences worth knowing:
 
-* **This needs page-context access.** `@grant none` runs the script in the
-  page's own world, which is what makes `window.Strava` reachable. If the patch
+* **This needs page-context access.** The script runs in the page's own
+  world, and `@grant none` makes its `window` the page's, which is what makes
+  `window.Strava` reachable. If the patch
   fails, `canExtendDropdown` stays false and the options are *not* injected — a
   "This Month" that quietly showed This Year would be worse than not offering
   it. The rest of the panel still works. `sweep` retries the patch, since
@@ -273,8 +274,10 @@ Three consequences:
 Not yet done, but the obvious mitigations: send requests through one queue with
 a gap between them instead of four in parallel; back off exponentially rather
 than retrying after a fixed minute; and persist the cooldown across reloads
-(which would mean `GM_setValue`, and so giving up `@grant none` — see
-"Extending Strava's dropdown" for why page-context access matters).
+(which would mean `GM_setValue`, and so giving up `@grant none`: the script
+would then read `unsafeWindow.Strava`, since a granted script's `window` is its
+own sandbox — see "Extending Strava's dropdown" for why page-context access
+matters).
 
 ### Filling in Strava's own rank
 

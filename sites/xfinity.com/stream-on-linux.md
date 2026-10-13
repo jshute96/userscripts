@@ -59,10 +59,7 @@ reloads of a cached page.
 
 ### Testing note
 
-* The script must run before the page's inline scripts. sm-dev's
-  default (push) backend injects too late for that on this page, so the
-  redirect still happens there. Test with `--extension`, or with a
-  Playwright `page.addInitScript` of the script file.
-* A headless browser (`--temp-browser`) redirects anyway: its user agent
-  says `HeadlessChrome`, which `isValidNextGenBrowser` doesn't allow.
-  Use the `--open-browser` browser.
+* The script must run before the page's inline scripts. sm-dev runs it
+  early enough, in a temp browser too: with the script, `/stream` stays
+  put; without it, the page redirects to `/stream/upgrade`. (The
+  spoofed user agent also hides a headless browser's `HeadlessChrome`.)

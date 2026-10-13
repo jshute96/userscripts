@@ -45,14 +45,14 @@ link just reformats them:
 
 **Trailforks** exposes its Mapbox GL map as a global, `window.map`
 (`getCenter()`, `getZoom()`), on every page that has a map. The script
-uses `@grant none` so it runs in the page's world and can see it.
+uses `@grant none`, so its `window` is the page's and `window.map` is
+reachable.
 
 **Strava** draws its maps with its own WebGL engine (there's no Mapbox
 object, and the canvas has no exposed API). The React component that owns
 the canvas keeps the engine in its context, so the script walks up the
 React fiber tree from the `<canvas>` (the `__reactFiber$…` expando
-property React puts on DOM nodes, which is why `@grant none` matters here
-too) until it finds a `stateNode.context.terrainEngine`. Its
+property React puts on DOM nodes, which only the page's world sees) until it finds a `stateNode.context.terrainEngine`. Its
 `getCamera()` gives:
 
 * `getTarget().lookAtPoint` — `{latitude, longitude}` of the view center.

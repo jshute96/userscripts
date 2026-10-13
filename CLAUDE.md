@@ -92,7 +92,7 @@ what it is, imports this file, and lists what differs there. In short:
     **`browser-compatibility.md`** — load on demand when the question
     is specifically about that area.
 * `SourceMonkey-dev` is how to run, drive, debug and test a script:
-  `sm-dev` (inject a script into the test browser, drive and inspect
+  `sm-dev` (run a script in a browser, drive and inspect
   the page, read the script's logs, state and stored values), raw CDP
   for what `sm-dev` can't do (window size, real wheel input), and the
   Playwright harness for specs. **Load it before running a script in a
@@ -122,11 +122,16 @@ what it is, imports this file, and lists what differs there. In short:
 When the user describes a new userscript (usually a site, screenshot,
 maybe HTML), follow this flow:
 
-1. **Reproduce the starting state.** Drive the test browser (see
-   "Testing" below) to the page they're asking about with `sm-dev`, and confirm you can see and inspect the controls they want
-   to change. If the persistent profile isn't logged in to the
-   target site, **stop and ask the user to log in** in that
-   window — don't try to automate the login.
+1. **Reproduce the starting state.** Open the page they're asking
+   about with `sm-dev`, and confirm you can see and inspect the
+   controls they want to change.
+   - Use a temp browser (`sm-dev`'s default) when the page needs no
+     login.
+   - For a page that needs a login, or a site that blocks the temp
+     browser, use the test browser (`--existing-browser`; see
+     "Browsers" below). If its profile isn't logged in to the target
+     site, **stop and ask the user to log in** in that window — don't
+     try to automate the login.
 2. **Capture the DOM you'll depend on.** Per "Iterating on DOM-heavy
    userscripts" below, snapshot every relevant state up front
    (closed, each menu open, hover/focus). This avoids multiple
@@ -140,7 +145,9 @@ maybe HTML), follow this flow:
    Only set a `category` if the user asks for one.
 5. **Run it against the page** with `sm-dev`, following the
    `SourceMonkey-dev` skill's core loop: `validate`, `start --watch
-   --detach` in the test browser, drive and check it, then `stop`. If
+   --detach` (in a temp browser, or the test browser with
+   `--existing-browser` when the page needs a login), drive and check
+   it, then `stop`. If
    you get stuck, stop and report exactly where — don't guess.
 6. **Suggest install**
    - If using SourceMonkey (the default), the directory should be installed
@@ -364,7 +371,8 @@ skill). Differences we've hit:
   SourceMonkey and TM; in VM it stays `undefined` and `urlchange` never
   fires. Test `window.onurlchange === null`, and otherwise listen for the
   Navigation API's `currententrychange`, which fires on the same history
-  changes, including in a granted script's isolated world. See the
+  changes, including in an `@inject-into content` script's isolated
+  world. See the
   snippet under "SPA sites" above.
 * **Start time differs.** TM and VM can start a `document-idle` script
   earlier than an sm-dev SourceMonkey run does (a run delays every
@@ -398,10 +406,10 @@ re-deriving the script from scratch:
      installed-scripts page, and whether the header changed since the
      script was installed (header changes need a refresh or
      reinstall).
-   - Absent, but the header matches and the manager says it should
-     run (SourceMonkey's badge shows MISSING) → the page may be
-     blocking page-world scripts. See "Pages sent with a CSP
-     `sandbox` header" under Tips.
+   - Absent under Tampermonkey, but the header matches → the page
+     may be blocking page-world scripts. SourceMonkey runs them
+     isolated there instead, and says so in the script's Log. See
+     "Pages sent with a CSP `sandbox` header" under Tips.
 
 2. **Find the first log line that *should* fire but doesn't.** Each
    step in the script logs on success; the gap between the last
@@ -502,6 +510,18 @@ if it's missing; it makes the next break diagnose itself.
   with its own sandbox and its own storage. Without `copy` the second
   load replaces the first.
 
+* **Leave `@grant` out unless the script uses `GM_*` APIs**, and then
+  list just those. Don't add `@grant none` by default. Every script
+  runs in the page's world either way, but without `@grant none`, its
+  `window` is its own sandbox, as in Tampermonkey and Violentmonkey:
+  what it or a `@require`d library writes on `window` stays off the
+  page.
+  - Read page globals by bare name (`Strava`, `pageView`) or as
+    `unsafeWindow.x`; `window.x` is the sandbox's and reads
+    `undefined`.
+  - Use `@grant none` only when the script needs `window` itself to be
+    the page's.
+
 * Default to `@noframes` in the header. Sites often embed hidden
   iframes; without `@noframes` the script
   runs in those too and you'll see init logs from contexts you
@@ -511,11 +531,11 @@ if it's missing; it makes the next break diagnose itself.
 * **Scripts for an open-ended set of sites: add `// @inject-into
   content` up front**, unless the script needs page globals. This
   means any-site patterns (`*://*/*`, broad `@include` regexes), or a
-  URL shape like `*/_next/image?*` on any host. Some hosts block
-  page-world scripts (see "Pages sent with a CSP `sandbox` header"
-  below), and we'll never test every host such a script lands on, so
-  don't wait for a broken one. Scripts for one known site don't need
-  it; testing on that site catches the problem.
+  URL shape like `*/_next/image?*` on any host. In the isolated world
+  the page's own Trusted Types, CSP and changes to built-ins don't
+  reach the script, and we'll never test every host such a script
+  lands on, so don't wait for a broken one. Scripts for one known site
+  don't need it; testing on that site catches the problem.
 
 * When inserting a button into a host site that uses CSS-modules
   (class names like `Button_btn__g8LLk Button_secondary__8WBFj`
@@ -532,9 +552,9 @@ if it's missing; it makes the next break diagnose itself.
   *upgrade* the className when a better reference appears.
 
 * **Reading React internals (`__reactFiber$…` expandos on DOM nodes)
-  needs `@grant none`.** The expando lives in the page's world; from an
-  isolated world it's simply `undefined`, with no error, so the script
-  silently finds nothing. Worked example of the fiber walk itself:
+  needs the page's world**, so no `@inject-into content`. The expando
+  lives in the page's world; from an isolated world it's simply
+  `undefined`, with no error, so the script silently finds nothing. Worked example of the fiber walk itself:
   `sites/www.trailforks.com/strava-map-crosslink.md`.
 
 * React menu items often render as plain `<div>`s with `onClick`
@@ -656,40 +676,27 @@ if it's missing; it makes the next break diagnose itself.
   never replace or clone its `<img>`: the clone has no bitmap. Details
   in `sites/any/image-zoom-pan.md`.
 
-* **Pages sent with a CSP `sandbox` header silently skip `@grant none`
+* **Pages sent with a CSP `sandbox` header turn off page-world
   scripts.** `Content-Security-Policy: sandbox` (without
   `allow-scripts`) turns off JavaScript in the page's own world, so
-  Chrome never injects page-world scripts there. Scripts in the
-  isolated world still run. Sites serving user uploads or raw files
-  send this header to block XSS, including on direct image URLs.
-  - Most likely to bite any-site scripts (broad `@include` regexes,
-    `*://*/*`, `<all_urls>`), since they land on hosts nobody checked.
-  - Which world a script gets: `@grant none` (or no `@grant`, or
-    `unsafeWindow`) → page world. Any other grant → isolated world.
-    `@inject-into page` / `content` overrides both.
-  - Symptoms: the header matches (`sm-dev match` agrees), but there's
-    no init log and no `[SourceMonkey]` line in the page console,
-    SourceMonkey's badge shows the script as MISSING, and
-    `typeof __smRun` in the page console is `"undefined"`. Other
-    scripts with real grants still run on the same page.
-  - What the tools say:
-    - SourceMonkey's Log for the script gets a warning a few seconds
-      after the page loads: `Matched <url> but never started there`,
-      plus a hint. When another script in the isolated world ran on
-      the page, the hint says the page is sandboxed; otherwise it says
-      the page may be blocking scripts, and which header to check.
-    - `sm-dev start` (both backends) prints a warning on each load of
-      such a page, naming the loaded page-world scripts it blocks.
-      sm-dev's own injection is blocked there too, so they also show
-      as not started after the 10s wait.
+  Chrome never injects page-world scripts there. Sites serving user
+  uploads or raw files send this header to block XSS, including on
+  direct image URLs.
+  - Which world a script gets: the page's, unless it has
+    `@inject-into content` (or `@sandbox DOM`), which puts it in the
+    isolated world.
+  - SourceMonkey and Violentmonkey run page-world scripts in the
+    isolated world on such a page instead. SourceMonkey's Log for the
+    script says so, and `sm-dev start` notes it on each load. A script
+    that needs page globals (e.g. React internals) runs but can't find
+    them.
+  - Tampermonkey ignores `@inject-into` and doesn't run page-world
+    scripts there at all: no init log. `sm-dev --manager tm` warns on
+    each load of such a page, naming the scripts it blocks.
   - Confirm it: in the Network tab, the document's response has
     `sandbox` in its `Content-Security-Policy` header. In the console,
     `self.origin` is `"null"` (sandboxed documents get an opaque
     origin).
-  - Fix: add `// @inject-into content` when the script only needs the
-    DOM, not page globals. SourceMonkey and Violentmonkey honor it;
-    Tampermonkey ignores it. A script that needs page globals (e.g.
-    React internals) can't run on such a page at all.
 
 ## Testing
 
@@ -699,18 +706,23 @@ skill.** It covers `sm-dev`, raw CDP, the Playwright harness, and the
 gotchas that go with them. This section only has what's specific to
 this repo.
 
-### The test browser
+### Browsers
 
-* `scripts/open-browser.sh [url]` launches Playwright's bundled
-  Chromium with a persistent profile (`.playwright-profile`) and CDP
-  on port 9233. Leave it running, and log in to test sites in it once.
-  `sm-dev` and `pnpm test` both connect to it by default.
-  - Specs run their scripts in its SourceMonkey, so it needs the
-    extension loaded: `pnpm sm-dev manager install`, once per profile.
-  - A page that needs no login can use a throwaway browser instead:
-    `sm-dev --temp-browser`, or for a spec `tempBrowserTest` (see
-    "Specs"). `pnpm test:temp` (`TEMP_BROWSER=1`) runs every spec in
-    one.
+* **Prefer a temp browser** when the page needs no login: `sm-dev`
+  launches one by default (with SourceMonkey loaded, closed when the
+  run ends), and a spec gets one with `tempBrowserTest` (see "Specs").
+  It needs no setup, and runs alongside other agents.
+* **The test browser is for sites that need a login**, or that block
+  the temp browser (Reddit does).
+  - `scripts/open-browser.sh [url]` launches Playwright's bundled
+    Chromium with a persistent profile (`.playwright-profile`) and CDP
+    on port 9233. Leave it running, and log in to test sites in it once.
+  - `sm-dev` uses it with `--existing-browser` first:
+    `pnpm sm-dev --existing-browser start ...`.
+  - Specs that import `test` connect to it. `pnpm test:temp`
+    (`TEMP_BROWSER=1`) runs every spec in a temp browser instead.
+  - It needs SourceMonkey loaded, once per profile:
+    `pnpm sm-dev --existing-browser manager install`.
 * **Don't let Playwright launch the browser.** Both system Chrome
   (`channel: 'chrome'`) and `chromium.launchPersistentContext()` set
   automation flags that Google's bot detection trips on, blocking
@@ -779,12 +791,13 @@ this repo.
 
 ### Lesson: where a request comes from matters
 
-The harness sends a `GM_xmlhttpRequest` from Node with the browser's
-cookies, not from the extension, which sends different cookies, no
-`Origin`, and `Sec-Fetch-Site: none` (a value no page can produce, and
-that some firewalls reject). **When a change moves where a request
-comes from, send one real request from the new place first**, in the
-real extension (`--extension`, see the skill).
+A `GM_xmlhttpRequest` goes from the extension, not the page, with
+different cookies, no `Origin`, and `Sec-Fetch-Site: none` (a value no
+page can produce, and that some firewalls reject). sm-dev and the
+harness send it from the real extension, as an installed script does,
+but a page-context `fetch` (from `eval`) doesn't. **When a change moves
+where a request comes from, send one real request from the new place
+first.**
 
 This cost a 1100-line rewrite once: the Garmin to Strava script was
 rebuilt around "the Strava page can fetch from Garmin now", checked

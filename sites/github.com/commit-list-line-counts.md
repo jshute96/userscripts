@@ -51,9 +51,8 @@ isMerge]`. A commit is fetched once, then served from storage in any
 tab, after reloads. Nothing is ever evicted; at ~60 bytes an entry,
 that only matters after many thousands of commits.
 
-The `@grant`s put the script in the isolated world. Its `fetch` is
-still same-origin and sends the page's cookies, which private repos
-need.
+Its `fetch` is same-origin and sends the page's cookies, which
+private repos need.
 
 ### Rows we annotate
 

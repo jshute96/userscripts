@@ -73,11 +73,13 @@ first paint.
 The header sets `@inject-into content`, so the script runs in the
 isolated world rather than the page's. Many hosts of raw files and user
 uploads send image responses with `Content-Security-Policy: sandbox`,
-which turns off JavaScript in the page world, so a page-world script
-never starts there (SourceMonkey shows it as MISSING). The script only
-touches the DOM, so the isolated world is enough. SourceMonkey and
-Violentmonkey honor `@inject-into`; Tampermonkey ignores it, so under
-Tampermonkey the script still doesn't run on those pages.
+which turns off JavaScript in the page world. SourceMonkey and
+Violentmonkey would run a page-world script isolated there anyway, but
+the isolated world also keeps each host's Trusted Types, CSP and
+changes to built-ins away from a script that lands on any site. The
+script only touches the DOM, so the isolated world is enough.
+Tampermonkey ignores `@inject-into`, so under Tampermonkey the script
+still doesn't run on those pages.
 
 The header sets `@icon` to Chrome's own favicon
 (`google.com/chrome/static/images/favicons/favicon-96x96.png`).

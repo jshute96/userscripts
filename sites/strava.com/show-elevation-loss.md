@@ -306,8 +306,8 @@ Giving up is logged rather than silent.
 
 Activity pages:
 
-* `pageView` exists in page scope — the script must be `@grant none` to
-  see it.
+* `pageView` exists in page scope. The script reads `window.pageView`, so
+  it must be `@grant none` (a granted script's `window` is its own sandbox).
 * `pageView.segmentEfforts()` (Backbone collection, plus
   `.hiddenSegmentEfforts`) with `start_index`, `end_index`, `elev_gain`
   and `elev_difference` per effort.

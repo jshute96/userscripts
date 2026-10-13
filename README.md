@@ -281,8 +281,10 @@ One-time setup:
 ```
 pnpm install
 pnpm exec playwright install chromium
-scripts/open-browser.sh &          # the test browser (see below)
-pnpm sm-dev manager install        # load SourceMonkey into it, once
+
+# Only for sites that need a login: the test browser (see below).
+scripts/open-browser.sh &
+pnpm sm-dev --existing-browser manager install   # load SourceMonkey into it, once
 ```
 
 `sourcemonkey` is a dev dependency, taken from a sibling SourceMonkey
@@ -300,8 +302,9 @@ about that, in `package.json` and `pnpm-workspace.yaml`:
 To run tests:
 
 ```
-# Open the browser the tests use, with a persistent session.
-# You may need to log in to sites the tests need to access.
+# Specs that need a login use the test browser, with a persistent
+# session. They start it when it isn't running; log in to the sites
+# they need there, once. To open it yourself:
 scripts/open-browser.sh
 
 pnpm test                                                       # all tests
@@ -310,15 +313,19 @@ pnpm exec playwright test sites/feedly.com/sort-filter-presets.spec.js  # one fi
 pnpm exec playwright test -g "Newest preset"                    # by test name
 ```
 
-To drive a script in that browser without writing a spec:
+To drive a script without writing a spec. `sm-dev` launches a
+throwaway browser of its own, with SourceMonkey loaded;
+`--existing-browser` uses the test browser instead, for a site that
+needs a login:
 
 ```
-pnpm sm-dev start sites/feedly.com/sort-filter-presets.user.js --watch --detach
-pnpm sm-dev probe '.FeedPage header'   # which selectors match
-pnpm sm-dev click '.FeedPage header button'
+pnpm sm-dev start sites/news.ycombinator.com/keyboard-comment-navigation.user.js https://news.ycombinator.com/item?id=1 --watch --detach
+pnpm sm-dev probe '.comtr'             # which selectors match
+pnpm sm-dev key j                      # next comment
 pnpm sm-dev stop
+pnpm sm-dev --existing-browser start sites/feedly.com/sort-filter-presets.user.js --watch --detach   # a site with a login
+pnpm sm-dev -i start sites/news.ycombinator.com/keyboard-comment-navigation.user.js https://news.ycombinator.com/item?id=1 --watch   # or: a prompt to type commands at
 pnpm sm-dev validate sites
-pnpm sm-dev -i start sites/feedly.com/sort-filter-presets.user.js --watch   # or: a prompt to type commands at
 pnpm sm-dev --help
 ```
 
