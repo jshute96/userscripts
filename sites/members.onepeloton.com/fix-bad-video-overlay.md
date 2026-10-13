@@ -50,6 +50,12 @@ and are unaffected.)
   - `-1` (e.g. `jzUDu`): full player size, `background-image:
     url('.../cf_video_overlay_with_timeline.<hash>.png')` — the
     cinematic vignette. This is what we remove.
+- The `background-image` comes from the props class's rule (e.g.
+  `.jzUDu { ...; background-image: url(...); width: 100vw; height:
+  100vh }`), which styled-components 5 adds with `insertRule` to the
+  `<style data-styled>` sheet, so the tag's text is empty. A change in
+  props gives a new class and a new rule. The divs' parent has a plain
+  class, `player-overlay-wrapper`.
 - The PNG is a vignette: dark perimeter, transparent oval in the
   middle. Natural size **1920×1080**, applied with `background-size:
   auto` (i.e. natural) and `background-position: 0 0`.
@@ -82,39 +88,45 @@ it falls apart on any non-1080p viewing.
   (`.6c8a2f88.png` at time of writing) changes when Peloton rebuilds.
   Identifying by filename substring is therefore stable across
   deploys but breaks if Peloton renames or splits the asset.
-- The PNG continues to be applied as a `background-image` on a
-  regular `<div>` (not as an `<img>` element, an inline SVG, or
-  a CSS pseudo-element). `getComputedStyle(...).backgroundImage`
-  on `div`s will find it.
+- The PNG continues to be applied as a `background-image` from a
+  CSS rule the page can read (styled-components' sheet is same-origin).
+  The fallback element scan also covers it being set inline on a
+  regular `<div>`, but not an `<img>`, an inline SVG, or a
+  pseudo-element.
 - The player is a SPA route under `members.onepeloton.com/*` —
   history-API navigation, not document reloads — so the script
   must re-scan on URL change.
 
 ### How we modify the page
 
-- Walk every `<div>` in the document, read its computed
-  `backgroundImage`, and if the URL contains
-  `cf_video_overlay_with_timeline`, set
-  `background-image: none !important` inline on that element. We
-  also stamp it with `data-jshute-overlay-hidden` so the next sweep
-  can skip it cheaply.
-- When it finds the element, it also adds a `<style
-  id="jshute-peloton-overlay-style">` rule setting `background-image:
-  none !important` on that element's class names
-  (`div.sc-b919e837-1.jzUDu`). The scan below only runs for a while,
-  but Peloton can re-mount the player without a URL change: the
-  vignette came back once after switching windows mid-class (not
-  reproduced). A re-mounted element gets the same classes until the
-  next deploy, so the rule covers it without further scanning.
-- The element is rendered after route navigation completes, so the
-  initial `document-idle` sweep usually misses it. We instead poll
-  every 250ms for up to 10s, stopping as soon as the element is
-  found and marked. If the user navigates to a non-player page,
-  the poll harmlessly finds nothing and gives up.
-- Peloton is a SPA; we hook `pushState`/`replaceState` and
-  `popstate` to detect URL changes, clear the marker on previously
-  hidden elements (the div is re-mounted across navigation), and
-  re-arm the poll.
+- Find every CSS rule whose `background-image` contains
+  `cf_video_overlay_with_timeline` and set `background-image: none
+  !important` on the rule itself. That covers every element using it,
+  including ones mounted later, whatever their class names.
+  - At startup, and on each tick of the poll below, we walk
+    `document.styleSheets` (including rules nested in `@media`).
+  - We wrap `CSSStyleSheet.prototype.insertRule` (the script is
+    `@grant none`, so it patches the page's own prototype) to fix
+    matching rules as styled-components adds them, such as the new
+    rule from a props change.
+  - A `MutationObserver` on `<head>` checks new `<style>`/`<link>`
+    sheets and text added to them, in case rules arrive as text.
+- Earlier versions only scanned elements, for a while after load or a
+  URL change, and later added a rule on the element's exact class
+  names. The vignette still came back after going fullscreen again
+  mid-class, with no URL change (not reproduced), probably from a
+  re-mount with a new props class.
+- Fallback: walk every `<div>`, and if its computed `backgroundImage`
+  still contains the filename, set `background-image: none !important`
+  inline and stamp it with `data-jshute-overlay-hidden`. This only
+  finds anything when the rule fix didn't apply (a sheet we can't
+  read, or an inline style).
+- The element is rendered after route navigation completes, so we
+  poll every 250ms for up to 10s, stopping once a rule has been fixed
+  or an element marked. If no overlay is found on a player page, we
+  log "gave up". The poll is re-armed on URL changes (hooked
+  `pushState`/`replaceState` and `popstate`); once a rule is fixed,
+  it stops on its first tick.
 - We deliberately *don't* hide `cf_metrics_overlay_v_2.png` — a
   smaller (960×178) gradient PNG used as the backdrop for the
   metrics widget. The user only flagged the main vignette.
