@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitHub: View HTML files inline
 // @namespace    https://github.com/jshute96/userscripts
-// @version      2.0.0
+// @version      2.0.1
 // @description  Adds a Preview view to .html files, next to Code and Blame, just like Markdown files have. The HTML is sandboxed and doesn't run scripts.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -36,9 +36,9 @@
   // most third-party loads on its own.
   const SANDBOX = 'allow-popups allow-popups-to-escape-sandbox allow-top-navigation-by-user-activation';
 
-  // CSS-module class names come in two forms depending on GitHub's build
-  // (Module__name__hash and Module_hash_name), so match the parts.
-  const SECTION = 'section[class*="BlobContent-module"][class*="blobContentSection"]';
+  // CSS-module class names vary with GitHub's build (Module__name__hash,
+  // Module_hash_name, name__hash), so match just the name.
+  const SECTION = 'section[class*="blobContentSection"]';
 
   // The file's page (/blob/) or its Blame view (/blame/), which share the
   // Preview / Code / Blame switch.

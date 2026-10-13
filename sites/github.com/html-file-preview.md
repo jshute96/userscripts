@@ -51,10 +51,12 @@ Pages that use JavaScript won't show their dynamic content.
   `data-selected`, and its `.segmentedControl-content` has
   `anchor-name: --segmented-control-current-item`, which the white knob
   is positioned against (CSS anchor positioning).
-* **The code** is in `section[class*="BlobContent-module"]
-  [class*="blobContentSection"]`. GitHub's CSS-module class names come
-  in two forms depending on the build (`Module__name__hash` and
-  `Module_hash_name`), so selectors match the two parts separately.
+* **The code** is in `section[class*="blobContentSection"]`. GitHub's
+  CSS-module class names vary with the build, and logged-in and
+  logged-out pages can get different ones
+  (`BlobContent-module_3JdjHW_blobContentSection` logged in,
+  `blobContentSection__g1-z7P` logged out, in October 2026), so the
+  selector matches just the name.
 * **Raw** is `a[data-testid="raw-button"]`, with a
   `/<owner>/<repo>/raw/<ref>/<path>` href. Its directory is the base for
   the page's images and styles.

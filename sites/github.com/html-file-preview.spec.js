@@ -16,7 +16,7 @@ const DEMO = `${DIR}/index.html`;
 // A file that is all script: an empty body and one <script>.
 const BLANK = 'https://github.com/jshute96/SeeWhatISee/blob/main/src/offscreen.html';
 
-const SECTION = 'section[class*="BlobContent-module"][class*="blobContentSection"]';
+const SECTION = 'section[class*="blobContentSection"]';
 const TAB = '#gh-html-preview-tab';
 const FRAME = '#gh-html-preview-pane iframe';
 
