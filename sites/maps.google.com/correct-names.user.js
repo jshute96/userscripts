@@ -1,11 +1,10 @@
 // ==UserScript==
 // @name         Google Maps: Correct names: Lake Ontario & Gulf of Mexico
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.0
+// @version      1.0.1
 // @description  Google shows wrong place names for US users. Use the correct labels the rest of the world sees.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
-// @match        https://maps.google.com/*
 // @match        https://www.google.com/maps*
 // @run-at       document-start
 // @grant        none
