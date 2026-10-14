@@ -1,4 +1,4 @@
-# Pinkbike: Auto-close the floating footer ads
+# <img src="../../site-icons/pinkbike.com.ico" width="24" height="24" alt=""> Pinkbike: Auto-close the floating footer ads
 
 ## Summary
 

@@ -1,4 +1,4 @@
-# Feedly: Add Oldest/Newest buttons for single-click order toggle
+# <img src="../../site-icons/feedly.com.png" width="24" height="24" alt=""> Feedly: Add Oldest/Newest buttons for single-click order toggle
 
 ## Summary
 

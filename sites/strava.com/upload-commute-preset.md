@@ -1,4 +1,4 @@
-# Strava Upload: One-click defaults for my preferred commute settings
+# <img src="../../site-icons/strava.com_upload.png" width="24" height="24" alt=""> Strava Upload: One-click defaults for my preferred commute settings
 
 ## Summary
 

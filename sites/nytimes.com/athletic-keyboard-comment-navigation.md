@@ -1,4 +1,4 @@
-# The Athletic: Keyboard comment navigation
+# <img src="../../site-icons/nytimes.com.ico" width="24" height="24" alt=""> The Athletic: Keyboard comment navigation
 
 ## Summary
 

@@ -5,8 +5,8 @@ Each table in README.md sits under a placeholder comment. Script tables
 name the category they hold:
 
   <!-- update_readme.py category=default -->
-  | Script | Doc | GF | Description |
-  | --- | --- | --- | --- |
+  | Site | Script | Doc | GF | Description |
+  | :---: | --- | --- | --- | --- |
   | ... |
 
 and the one table of shared `@require` libraries is marked:
@@ -24,18 +24,23 @@ table; entries with no `category` go in `default`. The set of categories
 used in the manifest must match the set of placeholders in README.md
 exactly.
 
+A script entry's `site_icons` (written by update_site_icons.py) are shown
+as small images before its name, in the README and on the `#` title line
+of its doc, which is rewritten as the icons followed by `@name`.
+
 For a library — an entry in the manifest's `libraries` list — there is
 no metadata block to read, so the row's name is the filename and its
 description is the file's first line (see `read_library_metadata`).
 
 Usage:
   update_readme.py                  # rewrite README.md in place
-  update_readme.py --check          # exit 1 if README.md is out of date
+  update_readme.py --check          # exit 1 if README.md or a doc title is out of date
   update_readme.py --root DIR       # another collection repo with the same layout
 """
 
 import argparse
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -47,8 +52,24 @@ README = REPO_ROOT / 'README.md'
 PLACEHOLDER_RE = re.compile(
     r'<!--\s*update_readme\.py\s+(?:category=([\w-]+)|(libraries))\s*-->')
 
-SCRIPT_HEADER = ['| Script | Doc | GF | Description |',
-                 '| --- | --- | --- | --- |']
+SCRIPT_HEADER = ['| {icons} | Script | Doc | GF | Description |',
+                 '| :---: | --- | --- | --- | --- |']
+
+
+def icon_column_header(rows):
+  """`Site`, padded to hold the most icons in one of these rows.
+
+  GitHub's `img { max-width: 100% }` makes an image in a table count as
+  zero width when the column is sized, so only the header text holds
+  the icon column open; with too little, the icons wrap or get squashed.
+  "Site" alone fits one icon; two need an &nbsp; each side, and each one
+  after that 3 more each side.
+  """
+  most = max((row.count('<img ') for row in rows), default=1)
+  pad = '&nbsp;' * (3 * most - 5) if most > 1 else ''
+  return f'{pad}Site{pad}'
+
+
 LIBRARY_HEADER = ['| Library | Doc | GF | Description |',
                   '| --- | --- | --- | --- |']
 
@@ -120,6 +141,37 @@ def gf_cell(entry):
   return f'[GF]({gf["url"]})' if gf else ''
 
 
+def icons_html(entry, size, base='.', sep=' '):
+  """The entry's site icons as <img> tags (with a trailing space), or ''.
+
+  `base` is the directory the HTML is in, relative to the repo root.
+  """
+  tags = [f'<img src="{os.path.relpath(icon, base)}" width="{size}" height="{size}" alt="">'
+          for icon in entry.get('site_icons', [])]
+  return sep.join(tags) + ' ' if tags else ''
+
+
+def doc_title_updates(scripts):
+  """Return {doc path: new text} for docs whose title line is stale.
+
+  The title is the doc's first line: `# `, the script's site icons, then
+  its `@name`.
+  """
+  updates = {}
+  for entry in scripts:
+    rel = entry['path']
+    doc = REPO_ROOT / sibling_doc(rel, '.user.js')
+    name, _ = read_metadata(REPO_ROOT / rel)
+    title = f'# {icons_html(entry, 24, os.path.dirname(rel))}{name}'
+    text = doc.read_text(encoding='utf-8')
+    first, sep, rest = text.partition('\n')
+    if not first.startswith('# '):
+      sys.exit(f'{doc.relative_to(REPO_ROOT)}: first line should be the "# " title')
+    if first != title:
+      updates[doc] = title + sep + rest
+  return updates
+
+
 def sort_key(name):
   """Sort by the site part of `Site: title`, then the title, ignoring case.
 
@@ -144,7 +196,8 @@ def build_rows(scripts):
       sys.exit(f'{rel}: listed in the manifest but not found')
     doc = sibling_doc(rel, '.user.js')
     name, description = read_metadata(script)
-    row = (f'| [{escape_cell(name)}]({rel}) | [doc]({doc}) '
+    # Joined by &nbsp;, so the icons don't wrap onto separate lines.
+    row = (f'| {icons_html(entry, 16, sep="&nbsp;").strip()} | [{escape_cell(name)}]({rel}) | [doc]({doc}) '
            f'| {gf_cell(entry)} | {escape_cell(description)} |')
     rows.setdefault(entry.get('category', 'default'), []).append((sort_key(name), row))
   return {category: [row for _, row in sorted(named)]
@@ -187,8 +240,14 @@ def render(readme_text, rows, library_rows):
       libraries_seen += 1
     while i < len(lines) and lines[i].strip():  # drop the old table
       i += 1
-    out.extend(SCRIPT_HEADER if category else LIBRARY_HEADER)
-    out.extend(rows.get(category, []) if category else library_rows)
+    if category:
+      table = rows.get(category, [])
+      out.append(SCRIPT_HEADER[0].format(icons=icon_column_header(table)))
+      out.extend(SCRIPT_HEADER[1:])
+      out.extend(table)
+    else:
+      out.extend(LIBRARY_HEADER)
+      out.extend(library_rows)
 
   manifest_categories = set(rows)
   readme_categories = set(seen)
@@ -235,14 +294,21 @@ def main():
   scripts, libraries = load_manifest()
   old = README.read_text(encoding='utf-8')
   new = render(old, build_rows(scripts), build_library_rows(libraries))
+  docs = doc_title_updates(scripts)
 
-  if new == old:
-    print('README.md is up to date.')
+  if new == old and not docs:
+    print('README.md and doc titles are up to date.')
     return
   if args.check:
-    sys.exit('README.md is out of date; run scripts/update_readme.py.')
-  README.write_text(new, encoding='utf-8')
-  print('README.md updated.')
+    stale = (['README.md'] if new != old else []) + [
+        str(d.relative_to(REPO_ROOT)) for d in docs]
+    sys.exit(f'Out of date: {", ".join(stale)}; run scripts/update_readme.py.')
+  if new != old:
+    README.write_text(new, encoding='utf-8')
+    print('README.md updated.')
+  for doc, text in docs.items():
+    doc.write_text(text, encoding='utf-8')
+    print(f'{doc.relative_to(REPO_ROOT)}: title updated.')
 
 
 if __name__ == '__main__':

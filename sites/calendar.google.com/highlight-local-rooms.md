@@ -1,4 +1,4 @@
-# Google Calendar: Highlight matching meeting rooms
+# <img src="../../site-icons/calendar.google.com.png" width="24" height="24" alt=""> Google Calendar: Highlight matching meeting rooms
 
 ## Summary
 

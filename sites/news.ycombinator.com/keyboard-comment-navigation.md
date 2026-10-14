@@ -1,4 +1,4 @@
-# Hacker News: Keyboard comment navigation
+# <img src="../../site-icons/news.ycombinator.com.svg" width="24" height="24" alt=""> Hacker News: Keyboard comment navigation
 
 ## Summary
 

@@ -1,4 +1,4 @@
-# Strava: Rescale segment my-efforts graph to handle outliers better
+# <img src="../../site-icons/strava.com.png" width="24" height="24" alt=""> Strava: Rescale segment my-efforts graph to handle outliers better
 
 ## Summary
 

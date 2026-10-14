@@ -1,4 +1,4 @@
-# Reddit: Keyboard comment navigation
+# <img src="../../site-icons/reddit.com.png" width="24" height="24" alt=""> Reddit: Keyboard comment navigation
 
 ## Summary
 

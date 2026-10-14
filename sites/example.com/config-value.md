@@ -1,4 +1,4 @@
-# example.com: Config value with context-menu update
+# <img src="example-icon.png" width="24" height="24" alt=""> example.com: Config value with context-menu update
 
 ## Summary
 

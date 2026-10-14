@@ -1,4 +1,4 @@
-# Feedly: Scroll Index page to top
+# <img src="../../site-icons/feedly.com.png" width="24" height="24" alt=""> Feedly: Scroll Index page to top
 
 ## Summary
 

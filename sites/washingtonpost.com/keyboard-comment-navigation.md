@@ -1,4 +1,4 @@
-# Washington Post: Keyboard comment navigation
+# <img src="../../site-icons/washingtonpost.com.ico" width="24" height="24" alt=""> Washington Post: Keyboard comment navigation
 
 ## Summary
 

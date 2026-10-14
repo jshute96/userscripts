@@ -1,4 +1,4 @@
-# Strava: Show elevation gain *and loss* for each segment
+# <img src="../../site-icons/strava.com.png" width="24" height="24" alt=""> Strava: Show elevation gain *and loss* for each segment
 
 ## Summary
 

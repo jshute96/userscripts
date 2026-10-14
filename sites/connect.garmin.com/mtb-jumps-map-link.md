@@ -1,4 +1,4 @@
-# Garmin Connect: Improve UI in MTB Dynamics jumps view
+# <img src="../../site-icons/connect.garmin.com_app.ico" width="24" height="24" alt=""> Garmin Connect: Improve UI in MTB Dynamics jumps view
 
 ## Summary
 

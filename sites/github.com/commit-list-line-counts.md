@@ -1,4 +1,4 @@
-# GitHub: Show line counts for each commit
+# <img src="../../site-icons/github.com.png" width="24" height="24" alt=""> GitHub: Show line counts for each commit
 
 ## Summary
 

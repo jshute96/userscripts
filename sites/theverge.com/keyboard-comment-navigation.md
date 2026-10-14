@@ -1,4 +1,4 @@
-# The Verge: Keyboard comment navigation
+# <img src="../../site-icons/theverge.com.png" width="24" height="24" alt=""> The Verge: Keyboard comment navigation
 
 ## Summary
 

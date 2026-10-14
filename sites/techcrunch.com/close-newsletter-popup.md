@@ -1,4 +1,4 @@
-# TechCrunch: Auto-close the newsletter popup
+# <img src="../../site-icons/techcrunch.com.png" width="24" height="24" alt=""> TechCrunch: Auto-close the newsletter popup
 
 ## Summary
 

@@ -1,4 +1,4 @@
-# Strava: Show multiple rank summaries on segment leaderboard pane
+# <img src="../../site-icons/strava.com.png" width="24" height="24" alt=""> Strava: Show multiple rank summaries on segment leaderboard pane
 
 ## Summary
 

@@ -1,4 +1,4 @@
-# Instagram: Fullscreen images and video, video seek bar, keyboard shortcuts
+# <img src="../../site-icons/instagram.com.ico" width="24" height="24" alt=""> Instagram: Fullscreen images and video, video seek bar, keyboard shortcuts
 
 ## Summary
 

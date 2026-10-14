@@ -1,4 +1,4 @@
-# Trailforks Map: Show star rating in trail popups
+# <img src="../../site-icons/trailforks.com.png" width="24" height="24" alt=""> Trailforks Map: Show star rating in trail popups
 
 ## Summary
 

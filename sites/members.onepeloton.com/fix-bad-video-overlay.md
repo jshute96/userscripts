@@ -1,4 +1,4 @@
-# Peloton Player: Fix bad video overlay on tall screens
+# <img src="../../site-icons/members.onepeloton.com.png" width="24" height="24" alt=""> Peloton Player: Fix bad video overlay on tall screens
 
 ## Summary
 

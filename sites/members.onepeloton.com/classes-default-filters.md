@@ -1,4 +1,4 @@
-# Peloton: Default filters on class lists
+# <img src="../../site-icons/members.onepeloton.com.png" width="24" height="24" alt=""> Peloton: Default filters on class lists
 
 ## Summary
 

@@ -1,4 +1,4 @@
-# The Atlantic Games: Link to today's puzzle
+# <img src="../../site-icons/theatlantic.com_games.ico" width="24" height="24" alt=""> The Atlantic Games: Link to today's puzzle
 
 ## Summary
 

@@ -1,4 +1,4 @@
-# NYTimes Spelling Bee: Word definitions and other tweaks
+# <img src="../../site-icons/nytimes.com_puzzles_spelling-bee.ico" width="24" height="24" alt=""> NYTimes Spelling Bee: Word definitions and other tweaks
 
 ## Summary
 

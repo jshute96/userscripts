@@ -1,4 +1,4 @@
-# Pinkbike: Keyboard comment navigation
+# <img src="../../site-icons/pinkbike.com_news.ico" width="24" height="24" alt=""> Pinkbike: Keyboard comment navigation
 
 ## Summary
 

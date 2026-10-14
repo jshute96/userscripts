@@ -1,4 +1,4 @@
-# Peloton Player: Keep the Now-Playing song visible
+# <img src="../../site-icons/members.onepeloton.com.png" width="24" height="24" alt=""> Peloton Player: Keep the Now-Playing song visible
 
 ## Summary
 

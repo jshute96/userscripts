@@ -1,4 +1,4 @@
-# Substack: Auto-close the subscribe, referral, and sign-in popups
+# <img src="../../site-icons/substack.com.ico" width="24" height="24" alt=""> Substack: Auto-close the subscribe, referral, and sign-in popups
 
 ## Summary
 

@@ -1,4 +1,4 @@
-# Google Maps: Correct names: Lake Ontario & Gulf of Mexico
+# <img src="../../site-icons/google.com_maps.ico" width="24" height="24" alt=""> Google Maps: Correct names: Lake Ontario & Gulf of Mexico
 
 ## Summary
 

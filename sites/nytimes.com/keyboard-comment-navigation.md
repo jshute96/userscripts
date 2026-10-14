@@ -1,4 +1,4 @@
-# NYTimes: Keyboard comment navigation
+# <img src="../../site-icons/nytimes.com.ico" width="24" height="24" alt=""> NYTimes: Keyboard comment navigation
 
 ## Summary
 

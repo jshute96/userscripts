@@ -1,4 +1,4 @@
-# NOAA CNRFC: Default precipitation map view (Bay Area, 24-hour)
+# <img src="../../site-icons/cnrfc.noaa.gov_ol.php.png" width="24" height="24" alt=""> NOAA CNRFC: Default precipitation map view (Bay Area, 24-hour)
 
 ## Summary
 

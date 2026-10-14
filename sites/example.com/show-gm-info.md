@@ -1,4 +1,4 @@
-# example.com: Show GM_info
+# <img src="example-icon.png" width="24" height="24" alt=""> example.com: Show GM_info
 
 ## Summary
 

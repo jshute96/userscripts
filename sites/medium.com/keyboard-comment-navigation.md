@@ -1,4 +1,4 @@
-# Medium: Keyboard comment navigation
+# <img src="../../site-icons/medium.com.png" width="24" height="24" alt=""> Medium: Keyboard comment navigation
 
 ## Summary
 

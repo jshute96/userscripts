@@ -1,4 +1,4 @@
-# Garmin Connect → Strava: Upload new activities with one click
+# <img src="../../site-icons/connect.garmin.com.ico" width="24" height="24" alt=""> <img src="../../site-icons/strava.com.png" width="24" height="24" alt=""> Garmin Connect → Strava: Upload new activities with one click
 
 ## Summary
 

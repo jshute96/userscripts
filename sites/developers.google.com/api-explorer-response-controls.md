@@ -1,4 +1,4 @@
-# Google APIs Explorer: Save / copy / fullscreen buttons for JSON response
+# <img src="../../site-icons/developers.google.com.png" width="24" height="24" alt=""> Google APIs Explorer: Save / copy / fullscreen buttons for JSON response
 
 ## Summary
 

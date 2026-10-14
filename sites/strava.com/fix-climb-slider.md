@@ -1,4 +1,4 @@
-# Strava: Fix the broken climb filter on segment search
+# <img src="../../site-icons/strava.com.png" width="24" height="24" alt=""> Strava: Fix the broken climb filter on segment search
 
 ## Summary
 

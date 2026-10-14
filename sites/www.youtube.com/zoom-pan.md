@@ -1,4 +1,4 @@
-# YouTube: Simple zoom and pan
+# <img src="../../site-icons/youtube.com.png" width="24" height="24" alt=""> YouTube: Simple zoom and pan
 
 ## Summary
 

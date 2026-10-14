@@ -1,4 +1,4 @@
-# Strava: Segment search location filter and unpaged view
+# <img src="../../site-icons/strava.com.png" width="24" height="24" alt=""> Strava: Segment search location filter and unpaged view
 
 ## Summary
 

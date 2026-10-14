@@ -1,4 +1,4 @@
-# GitHub: View HTML files inline
+# <img src="../../site-icons/github.com.png" width="24" height="24" alt=""> GitHub: View HTML files inline
 
 ## Summary
 

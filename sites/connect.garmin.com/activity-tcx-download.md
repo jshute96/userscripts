@@ -1,4 +1,4 @@
-# Garmin Connect: One-click TCX download
+# <img src="../../site-icons/connect.garmin.com_app.ico" width="24" height="24" alt=""> Garmin Connect: One-click TCX download
 
 ## Summary
 

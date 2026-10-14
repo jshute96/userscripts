@@ -1,4 +1,4 @@
-# Xfinity Stream: Allow watching on Linux
+# <img src="../../site-icons/xfinity.com_stream.png" width="24" height="24" alt=""> Xfinity Stream: Allow watching on Linux
 
 ## Summary
 

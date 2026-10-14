@@ -1,4 +1,4 @@
-# Chrome Image Viewer: Simple zoom and pan
+# <img src="../../site-icons/script-any_image-zoom-pan.png" width="24" height="24" alt=""> Chrome Image Viewer: Simple zoom and pan
 
 ## Summary
 

@@ -1,4 +1,4 @@
-# Spotify: Mark recently played tracks, from last.fm history
+# <img src="../../site-icons/open.spotify.com.png" width="24" height="24" alt=""> <img src="../../site-icons/last.fm.png" width="24" height="24" alt=""> Spotify: Mark recently played tracks, from last.fm history
 
 ## Summary
 
