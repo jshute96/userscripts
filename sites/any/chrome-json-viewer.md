@@ -6,9 +6,10 @@ Chrome has a built-in JSON viewer, but it only works on `application/json`
 pages, and it shows the JSON unformatted (sometimes one long line) until you
 tick its Pretty-print checkbox.
 
-This replaces that with a viewer that pretty-prints by default, with a
-checkbox to show the raw file. It also works on `.json` files served as
-`text/plain` (like those served on raw.githubusercontent.com).
+This replaces that with a viewer that pretty-prints by default, with
+a checkbox to show the raw file, and with syntax highlighting. It runs on URLs
+ending in `.json`, including `.json` files served as `text/plain` (like
+those on raw.githubusercontent.com).
 
 For it to work on `file://` URLs, "Allow access to file URLs" needs to be
 enabled for your userscript manager in `chrome://extensions`.
@@ -17,6 +18,8 @@ enabled for your userscript manager in `chrome://extensions`.
 
 * JSON pages open indented, under a blue Pretty-print bar that replaces
   Chrome's grey one.
+* Keys, strings, numbers, `true`/`false`/`null` and comments are colored,
+  in light and dark mode.
 * `.json` files shown as plain text get the bar and formatting too.
 * Invalid or already formatted JSON is left as it was, with the checkbox
   greyed out and "Parsing failed" or "Already formatted" beside it.
@@ -60,7 +63,14 @@ How we change it:
   checkbox swaps the `<pre>` text between the original and the formatted
   copy. It's disabled when the formatted copy matches the original
   (trimmed), or when parsing failed.
+* Highlight whichever text is shown by wrapping tokens in `jv-*` spans,
+  found with a regex tokenizer rather than the parse, so JSON that fails to
+  parse (like JSON with comments) is highlighted too. Text over 3M
+  characters is left plain, to keep the page fast.
 
-The script matches every URL but returns at once on non-JSON documents. It
-runs isolated (`@inject-into content`), since it needs nothing from the
-page's world.
+A regex `@include` limits the script to URLs whose path ends in `.json`
+(any case, with or without a query or fragment) over `http`, `https` and
+`file`; regex `@include`s ignore case in every manager, and none accepts a
+`/i` flag. On those, it acts on `application/json` and `text/plain`
+documents, and leaves an HTML page alone. It runs isolated
+(`@inject-into content`), since it needs nothing from the page's world.
