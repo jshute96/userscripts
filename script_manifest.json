@@ -3,8 +3,16 @@
     {
       "path": "sites/any/image-zoom-pan.user.js",
       "site_icons": [
-        "site-icons/script-any_image-zoom-pan.png"
-      ]
+        "site-icons/chrome-logo.png"
+      ],
+      "site_icons_pinned": true
+    },
+    {
+      "path": "sites/any/chrome-json-viewer.user.js",
+      "site_icons": [
+        "site-icons/chrome-logo.png"
+      ],
+      "site_icons_pinned": true
     },
     {
       "path": "sites/calendar.google.com/highlight-local-rooms.user.js",
