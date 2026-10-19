@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Pinkbike: Keyboard navigation for article photos
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.1.1
+// @version      1.2.0
 // @description  Adds i and Shift-I shortcuts that jump from photo to photo through an article, for nicer viewing in photo-heavy stories.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -40,6 +40,14 @@
   // "anchor line" is considered already at the top, and pressing `i`
   // skips past it to the next one.
   const EPSILON = 5;
+
+  // Our own scroll animation, faster than the browser's native smooth
+  // scroll, so paging through back-to-back photos stays quick. The
+  // duration grows with distance (MS_PER_PX), between MIN and MAX, so
+  // jumping over a block of text still reads as a longer move.
+  const SCROLL_MIN_MS = 300;
+  const SCROLL_MAX_MS = 600;
+  const SCROLL_MS_PER_PX = 0.4;
 
   console.log(TAG, 'initializing');
 
@@ -93,6 +101,51 @@
     return m.kind;
   }
 
+  // The scroll animation in progress, or null.
+  let anim = null;
+
+  function targetScrollY(el) {
+    return Math.round(el.getBoundingClientRect().top + window.scrollY) - SCROLL_BUFFER;
+  }
+
+  // Ease-out (cubic): starts at full speed and slows into the target,
+  // so the page responds to the key press at once.
+  function easeOut(t) {
+    return 1 - Math.pow(1 - t, 3);
+  }
+
+  function animateScrollTo(el) {
+    if (anim) cancelAnimationFrame(anim.frame);
+    const startY = window.scrollY;
+    const distance = Math.abs(targetScrollY(el) - startY);
+    const duration = Math.min(SCROLL_MAX_MS,
+      Math.max(SCROLL_MIN_MS, distance * SCROLL_MS_PER_PX));
+    const startTime = performance.now();
+    anim = { el, frame: 0 };
+    const step = (now) => {
+      const t = Math.min(1, (now - startTime) / duration);
+      // Re-measure every frame, so content loading above the image
+      // mid-scroll doesn't leave us short of it.
+      const y = startY + (targetScrollY(el) - startY) * easeOut(t);
+      // 'instant', so a page-level `scroll-behavior: smooth` doesn't
+      // animate each step.
+      window.scrollTo({ top: y, behavior: 'instant' });
+      if (t < 1) anim.frame = requestAnimationFrame(step);
+      else anim = null;
+    };
+    anim.frame = requestAnimationFrame(step);
+  }
+
+  // Let the user's own scrolling take over from an animation.
+  function cancelScroll() {
+    if (!anim) return;
+    cancelAnimationFrame(anim.frame);
+    anim = null;
+  }
+  for (const type of ['wheel', 'touchstart', 'mousedown']) {
+    window.addEventListener(type, cancelScroll, { passive: true, capture: true });
+  }
+
   function jumpImage(direction) {
     const media = findArticleMedia();
     const label = direction === 'next' ? 'i' : 'I';
@@ -101,8 +154,11 @@
       return;
     }
     // Current anchor line — where the next-placed image's top would
-    // land if we ran `i` from this position.
-    const anchor = window.scrollY + SCROLL_BUFFER;
+    // land if we ran `i` from this position. Mid-animation, measure
+    // from where the scroll is headed, so quick repeated presses each
+    // advance one more image.
+    const fromY = anim ? targetScrollY(anim.el) : window.scrollY;
+    const anchor = fromY + SCROLL_BUFFER;
     let target;
     if (direction === 'next') {
       target = media.find(m => m.absTop > anchor + EPSILON);
@@ -113,12 +169,11 @@
       }
     }
     if (!target) {
-      console.log(TAG, `${label}: no ${direction === 'next' ? 'next' : 'previous'} image (scrollY=${Math.round(window.scrollY)})`);
+      console.log(TAG, `${label}: no ${direction === 'next' ? 'next' : 'previous'} image (scrollY=${Math.round(fromY)})`);
       return;
     }
-    const targetY = target.absTop - SCROLL_BUFFER;
     console.log(TAG, `${label} -> ${describeMedia(target)} @ y=${target.absTop}`);
-    window.scrollTo({ top: targetY, behavior: 'smooth' });
+    animateScrollTo(target.el);
   }
 
   // Modifier filtering, the "is the user typing?" guard, and the

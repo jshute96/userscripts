@@ -130,7 +130,18 @@ top.
 - `Shift-I` picks the last qualifying image whose `absTop` is
   strictly less than `anchor - EPSILON`.
 
-`window.scrollTo({ top, behavior: 'smooth' })` does the scroll.
+The scroll is our own `requestAnimationFrame` animation rather than
+`behavior: 'smooth'`, which is too slow for paging through back-to-back
+photos:
+
+- Ease-out cubic, lasting `distance * 0.4` ms, clamped to 300 to 600 ms.
+  Consecutive photos are quick; jumping over text takes a bit longer.
+- The target is re-measured each frame, so content that loads above
+  it mid-scroll doesn't leave the image short of the top.
+- A key press during an animation measures from its target, not the
+  current position, so rapid presses each advance one more image.
+- `wheel`, `touchstart` and `mousedown` cancel the animation, so the
+  user's own scrolling takes over.
 
 ### What we assume stays stable
 
@@ -185,7 +196,7 @@ to start triage.
    the wrapper class has changed — re-run the probe to find the new
    article body container.
 3. If `i` logs `i -> img(...) @ y=…` but the viewport doesn't move,
-   the smooth-scroll target is being preempted by another script —
-   try a non-smooth scroll to confirm.
+   something is fighting the scroll animation (another script, or
+   the page resetting `scrollY`); try a plain `window.scrollTo` to confirm.
 4. If a video plays inline but `i` skips it, check what tag/host the
    embed uses and extend the selector accordingly.
