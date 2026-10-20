@@ -5,14 +5,22 @@
       "site_icons": [
         "site-icons/chrome-logo.png"
       ],
-      "site_icons_pinned": true
+      "site_icons_pinned": true,
+      "greasyfork": {
+        "id": 601159,
+        "url": "https://greasyfork.org/scripts/601159-chrome-image-viewer-simple-zoom-and-pan"
+      }
     },
     {
       "path": "sites/any/chrome-json-viewer.user.js",
       "site_icons": [
         "site-icons/chrome-logo.png"
       ],
-      "site_icons_pinned": true
+      "site_icons_pinned": true,
+      "greasyfork": {
+        "id": 601162,
+        "url": "https://greasyfork.org/scripts/601162-chrome-better-json-viewer"
+      }
     },
     {
       "path": "sites/calendar.google.com/highlight-local-rooms.user.js",
@@ -65,7 +73,11 @@
       "path": "sites/developers.google.com/api-explorer-response-controls.user.js",
       "site_icons": [
         "site-icons/developers.google.com.png"
-      ]
+      ],
+      "greasyfork": {
+        "id": 601163,
+        "url": "https://greasyfork.org/scripts/601163-google-apis-explorer-save-copy-fullscreen-buttons-for-json-response"
+      }
     },
     {
       "path": "sites/example.com/bold-on-hover.user.js",
@@ -133,13 +145,21 @@
       "path": "sites/github.com/commit-list-line-counts.user.js",
       "site_icons": [
         "site-icons/github.com.png"
-      ]
+      ],
+      "greasyfork": {
+        "id": 601164,
+        "url": "https://greasyfork.org/scripts/601164-github-show-line-counts-for-each-commit"
+      }
     },
     {
       "path": "sites/github.com/html-file-preview.user.js",
       "site_icons": [
         "site-icons/github.com.png"
-      ]
+      ],
+      "greasyfork": {
+        "id": 601165,
+        "url": "https://greasyfork.org/scripts/601165-github-view-html-files-inline"
+      }
     },
     {
       "path": "sites/go-grip/auto-reload-toggle.user.js"
@@ -157,7 +177,11 @@
       "path": "sites/instagram.com/fullscreen-and-keyboard.user.js",
       "site_icons": [
         "site-icons/instagram.com.ico"
-      ]
+      ],
+      "greasyfork": {
+        "id": 601161,
+        "url": "https://greasyfork.org/scripts/601161-instagram-fullscreen-images-and-video-video-seek-bar-keyboard-shortcuts"
+      }
     },
     {
       "path": "sites/maps.google.com/correct-names.user.js",
@@ -473,13 +497,22 @@
       "path": "sites/xfinity.com/stream-on-linux.user.js",
       "site_icons": [
         "site-icons/xfinity.com_stream.png"
-      ]
+      ],
+      "greasyfork": {
+        "id": 601166,
+        "url": "https://greasyfork.org/scripts/601166-xfinity-stream-allow-watching-on-linux"
+      }
     }
   ],
   "libraries": [
     {
       "path": "lib/image-zoom-pan.js",
-      "github_url": "https://raw.githubusercontent.com/jshute96/userscripts/main/lib/image-zoom-pan.js"
+      "github_url": "https://raw.githubusercontent.com/jshute96/userscripts/main/lib/image-zoom-pan.js",
+      "greasyfork": {
+        "id": 601158,
+        "url": "https://greasyfork.org/scripts/601158-image-zoom-pan",
+        "latest_version_url": "https://update.greasyfork.org/scripts/601158/1968439/image-zoom-pan.js"
+      }
     },
     {
       "path": "lib/keyboard-comment-nav.js",
@@ -496,7 +529,7 @@
       "greasyfork": {
         "id": 592123,
         "url": "https://greasyfork.org/scripts/592123-keyboard-shortcuts",
-        "latest_version_url": "https://update.greasyfork.org/scripts/592123/1907419/keyboard-shortcuts.js"
+        "latest_version_url": "https://update.greasyfork.org/scripts/592123/1968420/keyboard-shortcuts.js"
       }
     }
   ]

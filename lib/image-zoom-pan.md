@@ -10,7 +10,7 @@ A shared `@require` helper for userscripts that add mouse-wheel, trackpad, drag,
 
 Provides a single `ImageZoomPan.create(options)` entry point that supports two viewer modes with the same transform, clamping, and input handling:
 
-1. **Chrome's standalone image viewer (`ImageDocument`)**: detected automatically whenever `document.contentType` starts with `image/` (excluding `image/svg+xml`). See [`sites/any/image-zoom-pan.md`](../sites/any/image-zoom-pan.md) for how that page is restyled and what it depends on.
+1. **Chrome's standalone image viewer (`ImageDocument`)**: detected automatically whenever `document.contentType` starts with `image/` (excluding `image/svg+xml`). See [`sites/any/image-zoom-pan.md`](https://github.com/jshute96/userscripts/blob/main/sites/any/image-zoom-pan.md) for how that page is restyled and what it depends on.
 2. **Framed web-app image viewer**: an image inside a site's own viewer, located with CSS selectors (`viewport`, `content`, `img`).
 
 `create()` returns `null` without registering anything when there's nothing to do (no `viewport` and not an image document), or when another script already called it on this page.
