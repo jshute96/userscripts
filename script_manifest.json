@@ -162,6 +162,16 @@
       }
     },
     {
+      "path": "sites/github.com/github-pages-link.user.js",
+      "site_icons": [
+        "site-icons/github.com.png"
+      ],
+      "greasyfork": {
+        "id": 602798,
+        "url": "https://greasyfork.org/scripts/602798-github-link-to-github-io-pages"
+      }
+    },
+    {
       "path": "sites/go-grip/auto-reload-toggle.user.js"
     },
     {
