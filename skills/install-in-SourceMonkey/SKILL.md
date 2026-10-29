@@ -9,7 +9,7 @@ SourceMonkey's control page is at the URL below. Every command in this
 skill is written against `$SM`, so set it first in the same shell:
 
 ```sh
-SM=chrome-extension://bkgahdlbeddjginplgbipcefkefaflfa/collections.html
+SM=chrome-extension://cgeoigcimmclmhiamjicgccmojfdgkkd/collections.html
 ```
 
 The host is the extension ID and should be consistent for any
