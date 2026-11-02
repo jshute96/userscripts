@@ -5,7 +5,7 @@ description: Interact with the Tampermonkey chrome extension for installing or e
 
 ## Target page
 
-Tampermonkeys control page is avaialable at
+Tampermonkey's control page is available at
 `chrome-extension://dhdgffkkebhmkfjojejmpbldmpobfkfo/options.html`
 
 The site name is a hash of the extension ID and should be consistent for everyone and across versions.

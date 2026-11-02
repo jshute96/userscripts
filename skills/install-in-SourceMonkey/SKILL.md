@@ -31,12 +31,12 @@ refresh command applies.
   - Run `google-chrome "$SM"`
 
 * `install`: Add a new script, pointing at an individual script's file.
-  - Run `google-chrome "$SM?add_source=/path/file.user.js"`
+  - Run `google-chrome "$SM?add=/path/file.user.js"`
   - Point the filename at the absolute path.
   - Update the manifest file if it exists (see below).
 
 * `install-directory`: Add a directory source. SourceMonkey will add all scripts under that directory (up to two levels down).
-  - Run `google-chrome "$SM?add_source=/path/directory"`
+  - Run `google-chrome "$SM?add=/path/directory"`
   - Point the filename at the absolute path.
   - Typically, we'd run this once, for the `userscripts` directory covering this repo.
   - After adding or removing scripts under this directory, use the
