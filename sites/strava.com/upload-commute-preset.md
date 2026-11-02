@@ -94,7 +94,7 @@ the script picks the first `.action-button` with a non-zero height. Those
 buttons stay hidden until the activity is ready to save, so on each observer
 tick it recomputes the classes and restyles any button it already inserted —
 the "upgrade the className when a better reference appears" pattern from
-`CLAUDE.md`.
+the `SourceMonkey-userscripts` skill's `references/generated-class-names.md`.
 
 A few things also have to be set explicitly:
 

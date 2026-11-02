@@ -4,10 +4,17 @@ We're iteratively improving how we build userscripts here. Whenever
 we learn something non-obvious, set up new tooling, or settle a
 recurring decision, record it so the next session benefits:
 
-* **Generic conventions, workflows, and gotchas** → add a section or
-  bullet to this file (`CLAUDE.md`).
-* **Reusable how-to-do-X procedures** → add or extend a skill under
-  `.claude/skills/`.
+* **General userscript tips and workflow** (what sites do that breaks
+  scripts, how to build one) → the `SourceMonkey-userscripts` skill,
+  in the SourceMonkey checkout at `../SourceMonkey/skills/`. It's
+  public and generic: no personal details, and examples that stand on
+  their own.
+* **How to use `sm-dev` and the harness** → the `SourceMonkey-dev`
+  skill, in the same place.
+* **Conventions and workflows specific to this repo** (layout,
+  manifest, README, docs, publishing) → this file (`CLAUDE.md`).
+* **Reusable how-to-do-X procedures for this repo** → a skill under
+  `skills/`.
 * **Per-script details (selectors, assumptions, observed DOM)** →
   the script's sibling `.md` doc file.
 * **Cross-project lessons that apply outside this repo** → save to
@@ -34,7 +41,8 @@ to add an entry to the friction log, without being asked. The log is
 * Save userscripts for domain `example.com` in a subdirectory called `sites/example.com`.
 * The filename should briefly state the main purpose.
 * Each userscript has a sibling `.md` doc file with the same basename
-  (e.g. `foo.user.js` and `foo.md`). See "Doc files" below.
+  (e.g. `foo.user.js` and `foo.md`). See "Documentation files for each
+  userscript" below.
 
 ## Other script collections
 
@@ -73,25 +81,13 @@ what it is, imports this file, and lists what differs there. In short:
 
 ## Skills
 
-* `tampermonkey` is a public plugin with general guidance on userscript
-  syntax and development. Read it (via `/tampermonkey:tampermonkey` or
-  by reading `SKILL.md`) whenever writing or reviewing userscripts —
-  its `references/` directory has focused, well-organized material we
-  shouldn't duplicate here.
-  - **`references/common-pitfalls.md`** — `@match` too broad, not
-    waiting for elements (SPA), memory leaks in observers,
-    over-aggressive DOM modifications, hardcoded selectors, sandbox
-    context confusion, CSP, etc. Skim it before writing a new
-    script, and again when reviewing one that misbehaves.
-  - **`references/patterns.md`** — Canonical idioms: `waitForElement`,
-    SPA URL-change detection (both the `window.onurlchange` grant and
-    History-API interception), route-based handlers, debounced
-    observer, custom styles, persistent settings, keyboard shortcuts.
-  - **`references/url-matching.md`** — `@match` / `@include` /
-    `@exclude` semantics and corner cases.
-  - **`references/header-reference.md`**, **`sandbox-modes.md`**,
-    **`browser-compatibility.md`** — load on demand when the question
-    is specifically about that area.
+* **`SourceMonkey-userscripts`: load it whenever writing, changing,
+  reviewing or debugging a userscript.** It has the workflow for a new
+  script, triage when one stops working, header and logging defaults,
+  and topic references for things sites do (single-page apps, React,
+  CSP-sandboxed pages, hashed class names, scrolling, shared `@require`
+  code, user settings, `@name` / `@description`). This file only adds
+  what's specific to this repo.
 * `SourceMonkey-dev` is how to run, drive, debug and test a script:
   `sm-dev` (run a script in a browser, drive and inspect
   the page, read the script's logs, state and stored values), raw CDP
@@ -100,17 +96,27 @@ what it is, imports this file, and lists what differs there. In short:
   browser or writing a spec**, rather than working from memory: the
   tool changes, and the skill tracks it. `pnpm sm-dev help` is the
   current reference.
+* `tampermonkey` is a public plugin with general guidance on userscript
+  syntax and development. `SourceMonkey-userscripts` says which of its
+  references to read when.
 * `SourceMonkey-friction` records problems with those tools in the
   friction log. See "SourceMonkey friction log" above.
-* `install-in-SourceMonkey` is my skill commands to install scripts in SourceMonkey,
-  my preferred userscript manager.
-* `install-in-tampermonkey` is my skill commands to install scripts in Tampermonkey,
-  an alternative userscript manager.
+* `install-in-SourceMonkey` installs and refreshes scripts in
+  SourceMonkey, my preferred userscript manager.
+* `install-in-Tampermonkey` installs scripts in Tampermonkey, an
+  alternative userscript manager.
+* `add-comment-navigation-script` writes a keyboard comment-navigation
+  script for a new site, using our shared libraries.
 * `publish-on-GreasyFork` publishes a script to Greasy Fork (the
   userscript repository site) and updates its description and
-  screenshots there. **Run it only when I ask** — it's an
+  screenshots there. **Run it only when I ask**: it's an
   outward-facing action, and every step ends with me reviewing and
   submitting the form myself.
+
+The SourceMonkey skills are symlinks into
+`node_modules/sourcemonkey/skills/`, a copy of `../SourceMonkey` taken
+at install time. After editing them in `../SourceMonkey`, run
+`pnpm install` here (and in other collections) to pick the edit up.
 
 ## Git workflow
 
@@ -120,48 +126,29 @@ what it is, imports this file, and lists what differs there. In short:
 
 ## Creating a new userscript
 
-When the user describes a new userscript (usually a site, screenshot,
-maybe HTML), follow this flow:
+Follow the `SourceMonkey-userscripts` skill's "Writing a new script"
+steps, with these specifics for this repo:
 
-1. **Reproduce the starting state.** Open the page they're asking
-   about with `sm-dev`, and confirm you can see and inspect the
-   controls they want to change.
-   - Use a temp browser (`sm-dev`'s default) when the page needs no
-     login.
-   - For a page that needs a login, or a site that blocks the temp
-     browser, use the test browser (`--existing-browser`; see
-     "Browsers" below). If its profile isn't logged in to the target
-     site, **stop and ask the user to log in** in that window — don't
-     try to automate the login.
-2. **Capture the DOM you'll depend on.** Per "Iterating on DOM-heavy
-   userscripts" below, snapshot every relevant state up front
-   (closed, each menu open, hover/focus). This avoids multiple
-   fix-and-fail cycles.
-3. **Write the script** under `sites/<site>/`, with its sibling
-   `.md` doc. Name and describe it per "Naming and describing a
-   script" below.
-4. **List it.** Add an entry to `script_manifest.json`, in site
-   order, then run `scripts/update_site_icons.py <script>` and
-   `scripts/update_readme.py` to fill in its icons and regenerate the
-   README tables — see "Keeping the script list current" below.
-   Only set a `category` if the user asks for one.
-5. **Run it against the page** with `sm-dev`, following the
-   `SourceMonkey-dev` skill's core loop: `validate`, `start --watch
-   --detach` (in a temp browser, or the test browser with
-   `--existing-browser` when the page needs a login), drive and check
-   it, then `stop`. If
-   you get stuck, stop and report exactly where — don't guess.
-6. **Suggest install**
-   - If using SourceMonkey (the default), the directory should be installed
-     already, and the manifest entry was added in step 4. Run the
-     `install-in-SourceMonkey` skill's `refresh-file` command once,
-     naming the new script's path, so SourceMonkey picks up the new script.
-   - If using Tampermonkey, use the `install-in-tampermonkey` skill's
-     `install-pointer` action, so the user can iterate by reloading.
-7. **Write a Playwright spec** (`<name>.spec.js`) once the user
-   confirms it works in their normal browser. The spec is for
-   reproducible regression — write it after the human-confirmed pass,
-   not before, so that the spec encodes a known-good state.
+* **Browser for a login:** use the test browser (`--existing-browser`;
+  see "Browsers" below) rather than `--open-browser`. It's this repo's
+  own profile (`.playwright-profile`), where I've signed in to test
+  sites, and the one specs connect to.
+* **Write the script** under `sites/<site>/`, with its sibling `.md`
+  doc (see "Documentation files" below). Name and describe it per
+  "Naming and describing a script" below.
+* **List it** before running it: add an entry to
+  `script_manifest.json`, in site order, then run
+  `scripts/update_site_icons.py <script>` and `scripts/update_readme.py`
+  to fill in its icons and regenerate the README tables. See "Keeping
+  the script list current" below. Only set a `category` if I ask for
+  one.
+* **Install:** SourceMonkey (the default) already has this directory
+  installed, and the manifest entry adds the script. Run the
+  `install-in-SourceMonkey` skill's `refresh-file` command once, naming
+  the new script's path. For Tampermonkey, use `install-in-Tampermonkey`'s
+  `install-pointer` action, so I can iterate by reloading.
+* **Spec:** `sites/<site>/<name>.spec.js`, once I confirm the script
+  works in my normal browser (see "Specs" below).
 
 ### Keeping the script list current
 
@@ -268,455 +255,67 @@ If the user asks you to put the script in a particular category, add
 the `category` tag. This should match some existing `category` in the
 manifest (and a placeholder in `README.md`).
 
-### State-checking for option-change scripts
-
-If the userscript's job is to set an option to a target value (rather
-than perform a one-shot action), **read the current state first** and
-skip the change if it already matches:
-
-* Toggling an option that's already in the desired state often has
-  side effects — focus jumps, network calls, animations, dirty
-  flags, telemetry events.
-* The check is cheap and gives a useful log line ("already in target
-  state, skipping") for debugging.
-
-Pure action buttons (download, navigate, submit) have no current
-state to compare against — this guideline doesn't apply to them.
-
-## SPA sites: broaden `@match`, gate inside the script
-
-Most modern sites we target (Peloton, Garmin Connect, Feedly, NYT, …)
-are single-page applications: the browser fetches one HTML document
-on initial load, and from then on in-page JS swaps content and calls
-`history.pushState()` to update the URL. The browser never loads a
-new document, so userscripts only ever get one chance to inject — at
-the initial document load.
-
-That has a consequence for `@match`:
-
-* If `@match` is narrow (e.g. only `/app/activity/*`) and the user
-  starts on a different page (`/app/home`), then SPA-navigates into
-  an activity, **the script never runs** — its `@match` was checked
-  once, against the initial document URL, and the URL has since
-  changed without a document reload.
-* Reloading the page fixes it (the new URL now matches at document
-  load), but expecting the user to reload before every interesting
-  page is a bad UX.
-
-The fix is to **broaden `@match` to the site root** and gate behavior
-inside the script:
-
-1. `@match https://site.com/*` (or the smallest prefix that covers
-   every page the script *might* care about).
-2. Add `@grant window.onurlchange` and listen for the native
-   `urlchange` event. The manager fires it on any history mutation —
-   `pushState`, `replaceState`, `popstate` — so there's nothing to
-   monkey-patch. Violentmonkey doesn't support it, so add the
-   fallback shown below (see "Portability across userscript managers").
-3. Dispatch on `location.pathname`, both initially and on every
-   `urlchange`.
-
-```js
-// @grant window.onurlchange
-
-function onUrlChange() {
-    // dispatch on location.pathname; idempotent — handlers must
-    // tolerate being called repeatedly on the same URL.
-}
-// Violentmonkey has no window.onurlchange (it stays undefined, where
-// managers that support it set it to null); the Navigation API's
-// currententrychange fires on the same history changes.
-if (window.onurlchange === null) window.addEventListener('urlchange', onUrlChange);
-else if (window.navigation) window.navigation.addEventListener('currententrychange', onUrlChange);
-else log('no urlchange event or Navigation API; in-page navigation is not tracked');
-onUrlChange(); // initial
-```
-
-The handler fires on *any* history mutation, including same-path
-query-string rewrites that sites use for transient UI state (open
-modal, selected tab). If it only cares about the path, compare
-against the previous `location.pathname` and return early when it's
-unchanged.
-
-Doing the broadening without the re-dispatch is its own bug, and an
-easy one to ship: the script silently does nothing whenever the tab's
-*initial* document was outside the gate, no matter where the user
-navigates afterwards.
-
-(The tampermonkey skill's `patterns.md` → "SPA Navigation Handling"
-covers the History-API interception fallback, for managers without
-the grant.)
-
-What this implies for the rest of the script:
-
-* **Idempotency is mandatory.** Anything that runs on URL change
-  must check "is my work already done?" before doing it — anchor
-  rewrites should skip already-rewritten anchors, button inserters
-  should bail if `document.getElementById(BUTTON_ID)` exists, style
-  injection should check for an existing `<style>` it owns (e.g.
-  via a stable `data-<script-slug>` marker on the element).
-  Otherwise you'll multiply state on every in-app navigation.
-* **Listeners are global, not per-page.** Register
-  `document.addEventListener('click', …, true)` once at script init,
-  not inside `onUrlChange()`. The listener self-gates by reading
-  `location.pathname` (or by checking which element the click hit).
-* **MutationObservers also self-gate.** When the SPA tears down and
-  rebuilds the DOM on navigation, the observer fires; have the
-  callback re-check the URL before acting.
-* **Don't rely on `@exclude` to keep the script off a sibling page.**
-  If a script is `@match site.com/*` but `@exclude /classes/player/*`,
-  it will still run on `/home`, and from `/home` the user can
-  SPA-navigate into `/classes/player/123` with the script already
-  loaded. `@exclude` only filters initial-document loads — once the
-  script is running, *it* must decide whether to act based on the
-  current path.
-* **One script per site, dispatching by path** is often cleaner than
-  N narrow-match scripts. They'd all need this same SPA dance
-  individually, and broadening their `@match` makes them all load on
-  every page anyway.
-
-Cost: the script's init runs on every page of the site, not just the
-relevant ones. For our scripts that's ~1ms of JS plus a couple of
-event listeners; almost always fine.
-
-## Portability across userscript managers
-
-Our scripts should work in SourceMonkey, Tampermonkey (TM) and
-Violentmonkey (VM), when that can be achieved easily. Check with
-`sm-dev --manager tm` / `--manager vm` (see the `SourceMonkey-dev`
-skill). Differences we've hit:
-
-* **`window.onurlchange`: VM doesn't support it.** `@grant
-  window.onurlchange` defines `window.onurlchange` as `null` in
-  SourceMonkey and TM; in VM it stays `undefined` and `urlchange` never
-  fires. Test `window.onurlchange === null`, and otherwise listen for the
-  Navigation API's `currententrychange`, which fires on the same history
-  changes, including in an `@inject-into content` script's isolated
-  world. See the
-  snippet under "SPA sites" above.
-* **Start time differs.** TM and VM can start a `document-idle` script
-  earlier than an sm-dev SourceMonkey run does (a run delays every
-  script until the extension's check). Anything the page does after
-  load can undo our early work: Medium's React 19 strips every extra
-  child of `<html>` when it client-renders the document. DOM state that
-  must persist should be re-created when it's removed, as
-  `lib/keyboard-shortcuts.js` does for its registry.
-  - GitHub's React drops attributes we set on `<html>` when it takes
-    over the server-rendered page (our `<style>` children survive).
-    Keep page-wide state in an element we own, such as a `<style>`
-    switched with its `media` attribute (`disabled` does nothing until
-    the element is in the document), not in an `<html>` attribute.
-* **`@inject-into` is ignored by TM**; see the CSP `sandbox` tip below.
-* **Other browsers are untested.** Our tools only drive Chromium, so
-  Firefox and Safari behavior is unverified. Where a script leans on a
-  newer web API (like the Navigation API above), feature-check it and
-  log when it's missing, rather than failing silently.
-
-## When a script stops working
-
-Sites change. Triage in this order — it converges fast and avoids
-re-deriving the script from scratch:
-
-1. **Open DevTools on the affected page and look for the `[name]
-   init` log.**
-   - Present → @match is fine, the IIFE ran. Skip to step 2.
-   - Absent → it's an installation, `@match`, or grant issue.
-     `pnpm sm-dev match <script> <url>` says whether the header covers
-     the URL, and which rule decided. Otherwise check the manager's
-     installed-scripts page, and whether the header changed since the
-     script was installed (header changes need a refresh or
-     reinstall).
-   - Absent under Tampermonkey, but the header matches → the page
-     may be blocking page-world scripts. SourceMonkey runs them
-     isolated there instead, and says so in the script's Log. See
-     "Pages sent with a CSP `sandbox` header" under Tips.
-
-2. **Find the first log line that *should* fire but doesn't.** Each
-   step in the script logs on success; the gap between the last
-   present log and the missing next log is where it broke. If the
-   only log is `init`, the failure is in the very next step
-   (usually the first selector lookup or the MutationObserver
-   callback).
-
-3. **Treat the sibling `.md` doc's "What we assume stays stable"
-   section as the selector checklist.** Probe each assumed selector
-   on the live page; the first one that's missing is your answer.
-   `sm-dev probe` does it in one call:
-   ```sh
-   pnpm sm-dev probe '.FeedPage' '.FeedPage header' \
-     'header button[aria-haspopup="listbox"]' 'button[aria-label="Mark as read"]'
-   ```
-
-4. **Once you've identified the changed selector, look for a more
-   resilient anchor on or near the target.** Prefer something on
-   the element itself over its wrapper (`header.Header` is harder
-   to break than `.SomeWrapper header`). If you switch from a
-   wrapper-based anchor to a leaf-based one, update the doc's
-   stability assumptions to match.
-
-A silent retry-forever path (e.g. a `MutationObserver` whose
-`findX()` returns null and bails) looks identical to "page still
-loading" from the outside — see the logging tip below about
-periodic "still waiting" logs for poll loops. Add that log first
-if it's missing; it makes the next break diagnose itself.
-
-## Tips and rules
+## Repo conventions
 
 * Use two-space indents.
-
 * **US spelling** everywhere we write English.
-
-* When writing userscripts, add `console.log` logging to give more debugging visibility.
-  - Use a short `[name]` prefix, two words at most.
-  - Log when the script initializes.
-  - Log when it detects the activity or finds the element it's trying to fix.
-  - Log when it successfully makes a change.
-  - Log any failures.
-  - If a `MutationObserver` or poll loop is *also* the normal
-    startup path (every tick "selector not found yet" is expected
-    on first paint), log once after N seconds of continued failure
-    so a permanent break is distinguishable from "still loading."
-    Otherwise a renamed selector looks identical to a slow SPA.
-
-* Do not include any personal data, user content, account IDs, etc in tests, scripts, or docs. (Script author info is okay.)
-
-* **Getting an edit to take effect depends on the userscript manager —
-  defer to the relevant skill** (e.g. `install-in-SourceMonkey` or
-  `install-in-tampermonkey`) for how to trigger refresh. None of this
-  applies while iterating with `pnpm sm-dev start`, which injects the
-  file as it is on disk.
-  - Under SourceMonkey (our default), editing the body of an
-    already-installed local script needs **nothing** — it re-reads the
-    file on every page load, so the user just reloads the page. Don't
-    fire a refresh after an ordinary edit. A refresh is only needed for
-    changes to *which* scripts run where: a new or deleted script file,
-    a manifest change, or edited targeting headers. When one is needed,
-    use the skill's `refresh-file` on the changed path — the plain
-    `refresh` re-fetches every remote collection too.
-
-* To get scripts to update from github, increment the `@version` (in the last number field) before final commit and push.
-
-* After creating the first version of a userscript, suggest the user install it.
-  Use the `install-in-tampermonkey` skill, and do `install-pointer` action for this script.
-  Then the user can get incremental updates just by doing Reload in the browser.
-
-* NOTE: Changing the header — especially the targeting rules
-  (`@match` / `@include` / `@exclude`) — is the case most likely to
-  need a refresh or reinstall rather than just a page reload. See the
-  installer skill for your manager.
-
 * Include `// @license MIT` in every userscript header, on the
   line after `@author`. The repo's `LICENSE` file is MIT, and the
   header makes that visible anywhere the script is installed or
   published.
 
-* **Two installed copies of a script get two separate GM storages.**
-  Easy to end up with (two managers, or a manager copy plus a
-  local-file pointer) and normally invisible, since idempotent-by-id
-  inserters just find the other copy's elements. It shows when the
-  copies disagree about stored state and each "corrects" the DOM: one
-  adds a marker, the other's `MutationObserver` removes it, forever.
-  If DOM changes flap in a steady alternating rhythm, count the `init`
-  log lines before debugging the logic. Guard scripts that write
-  persistent state by claiming the page at startup — a
-  `data-<script-slug>` attribute on `<html>`, since the sandboxes
-  share only the live document — and have later copies stand down
-  *with an on-screen error*: which copy wins is load order decided per
-  tab, so cross-tab state can still land in a storage the other tab
-  isn't reading, and the script stays broken until one is uninstalled.
-  Our Playwright harness covers this:
-  `loadUserscript(PATH, { copy: 'second' })` beside a plain
-  `loadUserscript(PATH)` is a second installed copy in one document,
-  with its own sandbox and its own storage. Without `copy` the second
-  load replaces the first.
+## Shared code: `lib/` and `@require`
 
-* **Leave `@grant` out unless the script uses `GM_*` APIs**, and then
-  list just those. Don't add `@grant none` by default. Every script
-  runs in the page's world either way, but without `@grant none`, its
-  `window` is its own sandbox, as in Tampermonkey and Violentmonkey:
-  what it or a `@require`d library writes on `window` stays off the
-  page.
-  - Read page globals by bare name (`Strava`, `pageView`) or as
-    `unsafeWindow.x`; `window.x` is the sandbox's and reads
-    `undefined`.
-  - Use `@grant none` only when the script needs `window` itself to be
-    the page's.
+The `SourceMonkey-userscripts` skill's
+`references/shared-code-and-collaboration.md` covers how `@require`
+helpers load and how scripts cooperate through the DOM. Here:
 
-* Default to `@noframes` in the header. Sites often embed hidden
-  iframes; without `@noframes` the script
-  runs in those too and you'll see init logs from contexts you
-  didn't expect. Drop it only when the script genuinely needs to
-  run inside iframes.
-
-* **Scripts for an open-ended set of sites: add `// @inject-into
-  content` up front**, unless the script needs page globals. This
-  means any-site patterns (`*://*/*`, broad `@include` regexes), or a
-  URL shape like `*/_next/image?*` on any host. In the isolated world
-  the page's own Trusted Types, CSP and changes to built-ins don't
-  reach the script, and we'll never test every host such a script
-  lands on, so don't wait for a broken one. Scripts for one known site
-  don't need it; testing on that site catches the problem.
-
-* When inserting a button into a host site that uses CSS-modules
-  (class names like `Button_btn__g8LLk Button_secondary__8WBFj`
-  with build-hash suffixes), don't hardcode the suffixes — they
-  rotate every deploy. Instead, find a reference button on the page
-  that already has the styling you want and copy its `className` to
-  your new button. Match references by class-prefix attribute
-  selectors, e.g.
-  `button[class*="Button_btn"][class*="Button_secondary"][class*="Button_medium"]`,
-  excluding variants you don't want
-  (`:not([class*="iconButton"])`). If the reference button might
-  not be in the DOM yet at insertion time (e.g. it lives below the
-  toolbar you're attaching to), have your `MutationObserver`
-  *upgrade* the className when a better reference appears.
-
-* **Reading React internals (`__reactFiber$…` expandos on DOM nodes)
-  needs the page's world**, so no `@inject-into content`. The expando
-  lives in the page's world; from an isolated world it's simply
-  `undefined`, with no error, so the script silently finds nothing. Worked example of the fiber walk itself:
-  `sites/www.trailforks.com/strava-map-crosslink.md`.
-
-* React menu items often render as plain `<div>`s with `onClick`
-  handlers, not `<button>`/`<a>`. From in-page JS (i.e. inside the
-  userscript), calling `.click()` on the element reliably fires
-  React's onClick, including for the parent menu trigger. Use this
-  to chain "open menu, find item, click it" without simulating
-  pointer events. (From a Playwright test runner the same
-  `.click()` may not toggle the menu — keyboard activation
-  `focus()` + `Enter` works there as a fallback when needed.)
-
-* **Rearranging a React-rendered list: don't move React's nodes.**
-  React keeps references to its DOM nodes and later calls
-  `insertBefore`/`removeChild` on them against the parent it expects,
-  which throws (and can break the page) if we moved them.
-  - To reorder or regroup items in a flex/grid container, set
-    `style.order` on each item instead. The DOM order, and so Tab
-    order, stays the site's.
-  - Adding *our own* element inside React's container (a heading as a
-    full-width flex item, `flex: 0 0 100%`) is safe; React ignores
-    children it didn't create.
-  - To show an item in a second place, `cloneNode(true)` it into a
-    container of our own, and replay clicks on the copy onto the
-    original: find the clicked element's child-index path within the
-    copy, follow it in the original, and `.click()` the nearest
-    button there. Rebuild the copies when the originals change.
-  - Re-apply from a `MutationObserver` on `childList` (plus
-    `characterData` if you track text React rewrites, like a
-    quantity). Leave out `attributes`, so our own `style.order` writes
-    don't retrigger it.
-  - Copy the site's generated class names (JSS `jss32`, MUI) from a
-    live element at runtime rather than hardcoding them. Measure
-    offsets that change with the window width (e.g. a grid's negative
-    margin) instead of assuming one.
-
-* `@require` for helpers shared **across sites**: put a plain `.js`
-  file (no UserScript header) in `lib/`, alongside `sites/`, with a
-  sibling `.md` doc. Reference it by its full
-  `https://raw.githubusercontent.com/.../main/lib/<name>.js` URL —
-  SourceMonkey maps that back to the local file when the script is
-  installed from a local directory, matching on the common parent
-  path, so one line covers both install modes. `lib/` files go in the
-  manifest's `libraries` list, not `scripts`, and get their own README table.
-  - Multiple `@require`s run in order, in the userscript's own
-    sandbox, so a library may call one required earlier.
-  - **Greasy Fork won't accept a GitHub `@require`** — it wants
-    libraries published on Greasy Fork or an allowlisted CDN. Our
-    `lib/` files are now published there (see `libraries` in
-    `script_manifest.json`), but the scripts still `@require` the
-    GitHub raw URLs, so **a script using `lib/` can't use Greasy
-    Fork's import-from-GitHub auto-update** — the copy it fetches is
-    the one with the GitHub `@require`s. Publish these by posting the
-    code instead (`greasyfork-url.py new`/`update --code-file`), which
-    rewrites each `lib/` `@require` to that library's
-    `latest_version_url` on the way, matching it by the library's
-    `github_url` in the manifest. The checked-in file is untouched —
-    it keeps the GitHub URLs a local install needs — so every version
-    is still posted by hand.
+* **Helpers shared across sites** are plain `.js` files (no UserScript
+  header) in `lib/`, alongside `sites/`, each with a sibling `.md` doc.
+  Scripts reference them by their full
+  `https://raw.githubusercontent.com/jshute96/userscripts/main/lib/<name>.js`
+  URL, which SourceMonkey maps back to the local file for a local
+  install. `lib/` files go in the manifest's `libraries` list, not
+  `scripts`, and get their own README table.
+* **Helpers shared within one site** sit next to the scripts that need
+  them, with a bare relative `@require` (`// @require installed-list.js`).
+* **Greasy Fork won't accept a GitHub `@require`**: it wants
+  libraries published on Greasy Fork or an allowlisted CDN. Our
+  `lib/` files are published there (see `libraries` in
+  `script_manifest.json`), but the scripts still `@require` the
+  GitHub raw URLs, so **a script using `lib/` can't use Greasy
+  Fork's import-from-GitHub auto-update**: the copy it fetches is
+  the one with the GitHub `@require`s. Publish these by posting the
+  code instead (`greasyfork-url.py new`/`update --code-file`), which
+  rewrites each `lib/` `@require` to that library's
+  `latest_version_url` on the way, matching it by the library's
+  `github_url` in the manifest. The checked-in file is untouched
+  (it keeps the GitHub URLs a local install needs), so every version
+  is still posted by hand.
   - **A relative-path `@require` can't be published at all**: it only
     resolves against a local install's directory, so a Greasy Fork
     install gets a script whose helper never loads. Publishing such a
     script means inlining the helper into the posted copy.
-  - `greasyfork-url.py` checks for both before it builds a form URL —
+  - `greasyfork-url.py` checks for both before it builds a form URL:
     on `import` and `--code-upload`, which hand Greasy Fork the file
     as-is, and on `--code-file` after its rewrite. A script it stops
     on is one that would have been published broken.
   - A library is published on the same forms as a script, choosing the
-    `library` script type, which adds Name and Description fields — a
-    `lib/` file has no metadata block to fill them from.
+    `library` script type, which adds Name and Description fields (a
+    `lib/` file has no metadata block to fill them from).
     `greasyfork-url.py --library lib/<name>.js` derives both from the
     file (basename, and its first `//` line) along with Additional info
     from the sibling `.md`. There's no import-from-GitHub for libraries
     at all, so every version is posted this way.
-  - Existing libraries: `lib/keyboard-shortcuts.js` (key registration
-    + a cross-script `?` help overlay) and `lib/keyboard-comment-nav.js`
-    (the comment-navigation behavior shared by every site that has it).
-
-* `@require` for shared helpers within a single site: drop a plain
-  `.js` file (no UserScript header) next to the scripts that need it
-  and reference it with a bare relative path, e.g.
-  `// @require installed-list.js`. SourceMonkey resolves it relative
-  to the userscript's source URL, so the same line works for a
-  github-raw install (sibling file in the same directory) and an
-  `install-pointer` install (sibling file in the local directory).
-  The helper runs in each userscript's sandbox
-  immediately before the body, so top-level `function`s and `const`s
-  in the helper are visible to the script body. Per-userscript state
-  is sandboxed; cross-script collaboration goes through the live DOM
-  (use stable IDs / `data-` markers, and have helpers be idempotent
-  by ID lookup).
-  - `scripts/convert-to-file-pointer.py` preserves any existing
-    `@require` lines verbatim and adds its own `file://` `@require`
-    for the body, so a script with a shared-helper `@require` still
-    installs cleanly as a local-file pointer.
-  - `sm-dev` and the spec harness resolve `@require` the way
-    SourceMonkey does, reading local copies of `lib/` and relative
-    files, so there's nothing to stub.
-
-* **Cross-userscript collaboration goes through the DOM.** Each
-  script is sandboxed, so a `@require`d library runs once per script
-  with its own private state — two scripts on a page cannot see each
-  other's variables. What they share is the document. The pattern
-  that works: a hidden host element created idempotently by whoever
-  loads first, one child per script keyed by `GM_info.script.name`,
-  carrying JSON metadata. Only serializable data crosses; live
-  closures (predicates, handlers) stay in their own sandbox, so
-  design the feature to need only data from the other scripts.
-  `GM_info` is populated even under `@grant none`, so the script's
-  own name is available without changing sandbox mode.
-  - **Hang the shared host off `document.documentElement`, not
-    `document.body`.** Scripts register once at load and stay
-    resident across SPA navigation; if the site ever replaced its
-    `<body>`, the host would go with it and nothing would rebuild
-    it, because the other sandboxes finished registering long ago.
-
-* **Scripts matching a site also run on its direct image URLs**, in
-  Chrome's standalone image viewer (`ImageDocument`, where
-  `document.contentType` starts with `image/`). To change that viewer,
-  never replace or clone its `<img>`: the clone has no bitmap. Details
-  in `sites/any/image-zoom-pan.md`.
-
-* **Pages sent with a CSP `sandbox` header turn off page-world
-  scripts.** `Content-Security-Policy: sandbox` (without
-  `allow-scripts`) turns off JavaScript in the page's own world, so
-  Chrome never injects page-world scripts there. Sites serving user
-  uploads or raw files send this header to block XSS, including on
-  direct image URLs.
-  - Which world a script gets: the page's, unless it has
-    `@inject-into content` (or `@sandbox DOM`), which puts it in the
-    isolated world.
-  - SourceMonkey and Violentmonkey run page-world scripts in the
-    isolated world on such a page instead. SourceMonkey's Log for the
-    script says so, and `sm-dev start` notes it on each load. A script
-    that needs page globals (e.g. React internals) runs but can't find
-    them.
-  - Tampermonkey ignores `@inject-into` and doesn't run page-world
-    scripts there at all: no init log. `sm-dev --manager tm` warns on
-    each load of such a page, naming the scripts it blocks.
-  - Confirm it: in the Network tab, the document's response has
-    `sandbox` in its `Content-Security-Policy` header. In the console,
-    `self.origin` is `"null"` (sandboxed documents get an opaque
-    origin).
+* Existing libraries: `lib/keyboard-shortcuts.js` (key registration
+  and a cross-script `?` help overlay), `lib/keyboard-comment-nav.js`
+  (the comment-navigation behavior shared by every site that has it),
+  and `lib/image-zoom-pan.js` (zoom and pan for standalone images and
+  framed image viewers).
+* `install-in-Tampermonkey`'s `convert-to-file-pointer.py` keeps
+  existing `@require` lines as they are and adds its own `file://`
+  `@require` for the body, so a script with a shared-helper `@require`
+  still installs as a local-file pointer.
 
 ## Testing
 
@@ -783,153 +382,36 @@ this repo.
   - `sites/any/image-zoom-pan.spec.js`: no site at all. It serves
     generated images at made-up URLs with `page.route`, sets the window
     size, and tests URL matching with `loadUserscript(path, { url })`.
-* **Waiting for a smooth scroll to settle: poll the target element's
-  `getBoundingClientRect().top`, not `window.scrollY`.** On ad-heavy,
-  lazy-loading pages, content above the target keeps growing, so
-  `scrollY` can sit still while the element is still moving, and a
-  scrollY-based settle measures too early. (Scripts have the
-  mirror-image problem; see the drift correction in
-  `sites/pinkbike.com/keyboard-comment-navigation.md`.)
-
 * **A spec that times out in `page.goto` on a site with a service
   worker may be the test browser's profile, not the script.** In the
-  shared profile, nytimes.com and youtube.com loads took about 6.5s to
-  start, and every other one stalled, while a fresh profile started
-  them in well under a second. The sites' own service workers were the
-  cause (not SourceMonkey, nor site isolation). See TODO.md.
-  - Check: a fresh tab of that site in the test browser is slow or
-    never loads.
-  - Fix: clear that site's service workers and cache storage in the
-    profile (cookies and logins stay), then rerun. In the test
-    browser, DevTools → Application → Storage → "Clear site data" with
-    only those two boxes ticked; or over CDP, from a page's session,
-    `Storage.clearDataForOrigin` with
-    `storageTypes: 'service_workers,cache_storage'`.
-  - It can come back once the site registers its worker again
-    (YouTube did). A spec that needs no login avoids it by using
-    `tempBrowserTest`.
-
-### Lesson: where a request comes from matters
-
-A `GM_xmlhttpRequest` goes from the extension, not the page, with
-different cookies, no `Origin`, and `Sec-Fetch-Site: none` (a value no
-page can produce, and that some firewalls reject). sm-dev and the
-harness send it from the real extension, as an installed script does,
-but a page-context `fetch` (from `eval`) doesn't. **When a change moves
-where a request comes from, send one real request from the new place
-first.**
-
-This cost a 1100-line rewrite once: the Garmin to Strava script was
-rebuilt around "the Strava page can fetch from Garmin now", checked
-with a page-context `fetch`, and then every API call returned 403. A
-403 the page can't reproduce is probably the site's edge, not its
-server: with Cloudflare, the failing response lacks the
-`cf-cache-status` header the working one has.
-
-## Iterating on DOM-heavy userscripts
-
-If the script will walk popovers, menus, or other dynamic UI, capture
-HTML snapshots of *every* relevant state up front — closed, each menu
-open, each submenu expanded, hover/focus states. Doing this before
-writing the script saves multiple fix-and-fail cycles. Common things
-that surprise:
-
-* Submenus may *replace* the main menu rather than stack alongside it.
-* ARIA role names are inconsistent within the same site (e.g. one
-  popup uses `role="menuitemradio"`, a sibling popup uses bare
-  `role="checkbox"`).
-* Visible text capitalization may vary across UI surfaces; match
-  case-insensitively when querying by label.
-* Attributes like `aria-controls` are often only set while the popup
-  is open — don't include them in selectors meant to find the
-  trigger button when it's collapsed.
-
-### Selector preference: semantic over visual
-
-When you have a choice of selectors for the same element, pick the
-most semantic one. Stable preference order, best to worst:
-
-1. Stable IDs / `data-*` attributes the site authors put there.
-2. Semantic CSS-module class **prefixes**
-   (`ActivitySettingsMenu_menuContainer__*`) and meaningful
-   `aria-label` / `title` strings — they describe *purpose*, not
-   how the element is drawn.
-3. Generic role/tag selectors with disambiguating text content
-   (e.g. `[role="menuitem"]` matching `/^export to tcx$/i`).
-4. Visual identifiers — SVG `<path d="…">` geometry, exact pixel
-   positions, icon dimensions. Last resort; brittle to any rebrand
-   or icon refresh.
-
-When the leaf element you want to click looks generic but its
-ancestors carry semantic class names, walk *up* the DOM until you
-find a meaningful container, then re-find your leaf relative to it.
-A 460-character minified `<path d="…">` prefix is a code smell —
-look up the tree.
+  shared profile, nytimes.com and youtube.com loads stalled while a
+  fresh profile started them in well under a second. The fix (clearing
+  that site's service workers and cache storage) is in the
+  `SourceMonkey-dev` skill's Troubleshooting. See also TODO.md.
 
 ## Naming and describing a script
 
 Every script is described at three levels of increasing length, each
 written for a reader who may never see the others. All three are
-user-facing — they're what shows up in the userscript manager, in
-search results, and on the script's page when it's published to a
-repository site like [Greasy Fork](https://greasyfork.org/).
+user-facing: they're what shows up in the userscript manager, in
+search results, and on the script's page when it's published to
+[Greasy Fork](https://greasyfork.org/).
+
+1. **`@name`**: follow the `SourceMonkey-userscripts` skill's
+   `references/naming-and-describing.md`.
+2. **`@description`**: the same reference.
+3. **The doc's `Summary` section**: below.
 
 Write all three as a set, and keep them consistent: the doc's `#`
 title must match the `@name` (after its icons), and the doc's
 `Summary` should include more details on what's in the `@description`.
 
 When any of them changes on an existing script, update the `.md`
-title and run `scripts/update_readme.py` in the same edit — see
-"Keeping the script list current" above — and bump the `@version`, so
+title and run `scripts/update_readme.py` in the same edit (see
+"Keeping the script list current" above), and bump the `@version`, so
 installed copies pick the new text up.
 
-### 1. `@name` — one line, "Site Name: title"
-
-Many tools show *only* the `@name`, so on its own it has to say what
-site the script is for and what it does, and ideally
-be interesting enough that someone who has that problem stops and
-reads further.
-
-The `@name` is also what search typically match on: Greasy Fork's script
-search appears to look at little more than the name, so treat
-words in it as search keywords and include the words someone looking
-for this script would actually type.
-
-* **Site name**, then a colon. Use the site's own brand name, not its
-  domain — `Google Calendar`, not `calendar.google.com`. Use the
-  fullest common form of that name rather than an abbreviation
-  (`NYTimes`, not `NYT`), since the abbreviation someone searches for
-  may not be the one we picked.
-  - `Site Name Section/Feature:` is preferred, when the
-    script only applies to one section or feature of a large site:
-    `Peloton Player`, `NYTimes Spelling Bee`, `The Atlantic Games`.
-    Scripts covering the site as a whole keep the plain site name
-* **Title** after the colon: sentence case, no trailing period.
-  Describe the change or the feature, not the mechanism. Prefer a
-  verb phrase (`Show elevation loss as well as gain`,
-  `Auto-close the newsletter popup`) or a plain noun phrase for a
-  thing that's added (`Keyboard comment navigation`).
-* Keep the whole thing under about 70 characters so it doesn't wrap
-  or get truncated in a script list.
-* Don't put "userscript", "script", or "Tampermonkey" in the name.
-* Where several scripts do the same job on different sites, use the
-  *same* title on each (`Keyboard comment navigation`).
-
-### 2. `@description` — 1–2 sentences, up to ~160 characters
-
-Answers "what is this actually for, and what does it actually add or
-change?" in general terms. This is the blurb shown under the name in
-script lists and search results.
-
-* Say what the script does and, where it's the point of the script,
-  what was wrong or missing without it. A bug-fix script should describe
-  the bug.
-* General terms only — no selectors, no key-by-key listings, no
-  configuration syntax. Those live in the doc.
-* Don't restate the `@name`; assume the reader just read it.
-* No trailing "…on this site" filler, and no first person.
-
-### 3. The doc's `Summary` section — free-form, user-facing
+### The doc's `Summary` section
 
 The `.md` file's first `##` section. This is what gets posted as the
 script's description on repository sites, so write it for a stranger

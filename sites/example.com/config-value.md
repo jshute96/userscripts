@@ -6,7 +6,7 @@ Test fixture. Adds a bullet to example.com showing a
 user-configurable string, set from the userscript manager's menu and
 stored in GM storage.
 
-Exercises the `add-config-setting` pattern at its simplest — one
+Exercises the `SourceMonkey-userscripts` skill's config-settings pattern at its simplest — one
 scalar value, one menu command to set it, one to clear it — covering
 GM storage round-trips and menu commands that appear and disappear
 with the stored state.

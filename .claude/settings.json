@@ -2,7 +2,6 @@
   "permissions": {
     "allow": [
       "Bash(google-chrome *)",
-      "Bash(scripts/convert-to-file-pointer.py:*)",
       "Bash(xclip -selection clipboard)",
       "Skill(tampermonkey:tampermonkey)"
     ]

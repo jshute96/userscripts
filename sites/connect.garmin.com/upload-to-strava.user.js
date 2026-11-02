@@ -825,8 +825,8 @@
     // initial document can easily be somewhere else — the root, or the
     // sign-in page — and Garmin's SPA then routes into /app/* by
     // pushState with no reload. Without re-dispatching on URL changes the
-    // buttons would never appear in that tab, which is the trap CLAUDE.md
-    // describes under "SPA sites: broaden @match, gate inside the script".
+    // buttons would never appear in that tab, which is the trap the
+    // SourceMonkey-userscripts skill's references/spa-navigation.md describes.
     // Outside the /app/* gate below: the page we send a signed-out user
     // to is /signin/, which onGarminUrl() returns early for. Gating this
     // on /app/* means the note explaining why they're looking at a login
@@ -861,7 +861,7 @@
     // fully rendered with no further mutation to retry on, so the item
     // silently never appears. Retrying briefly after a click on the gear
     // closes that window without polling. Registered once, globally, and
-    // self-gating on the path (CLAUDE.md → SPA sites).
+    // self-gating on the path (see spa-navigation.md).
     document.addEventListener('click', (event) => {
       if (!ACTIVITY_PATH_RE.test(location.pathname)) return;
       const container = document.querySelector(GEAR_CONTAINER_SELECTOR);

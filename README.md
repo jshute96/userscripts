@@ -174,7 +174,7 @@ To refine or fix anything, now or later: I send more annotated screenshots and
 instructions, or just ask in Claude directly.  Claude updates the code, tests
 the new behavior, and updates the documentation; I reload and try the site again.
 
-Eventually I'd like to extract `CLAUDE.md` and these skills into a packaged template that's easy to clone when starting a new userscript repo.
+The general workflow and tips now ship with SourceMonkey as skills (below). Eventually I'd like to extract the rest of `CLAUDE.md` and these skills into a packaged template that's easy to clone when starting a new userscript repo.
 
 ### Claude Code
 
@@ -196,13 +196,14 @@ Install in Claude:
 /plugin install tampermonkey@wookstar-claude-plugins
 ```
 
-### Skills for userscript manager interaction
+### Skills for writing scripts and managing them
 
-I have skills for interacting with userscript managers (currently SourceMonkey or Tampermonkey), for workflows like installing or updating scripts.
+I have skills for the general workflow of building userscripts, and for interacting with userscript managers (currently SourceMonkey or Tampermonkey), for workflows like installing or updating scripts. These live in the SourceMonkey repo, linked into this one's skills directory:
 
-- [install-in-SourceMonkey](.claude/skills/install-in-SourceMonkey/SKILL.md)
-- [SourceMonkey-dev](https://github.com/jshute96/SourceMonkey/tree/main/skills/SourceMonkey-dev) — running, debugging and testing a script with SourceMonkey's `sm-dev` tool and test harness (see [Test harness](#test-harness)). It lives in the SourceMonkey repo, linked into this one's skills directory.
-- [install-in-tampermonkey](.claude/skills/install-in-tampermonkey/SKILL.md) — automates the copy-paste flow, putting the script on the clipboard and opening Tampermonkey's script page ready to paste.
+- [SourceMonkey-userscripts](https://github.com/jshute96/SourceMonkey/tree/main/skills/SourceMonkey-userscripts): the workflow for building a script, and tips for things sites do that break scripts (single-page apps, React, CSP-sandboxed pages, hashed class names, and more).
+- [SourceMonkey-dev](https://github.com/jshute96/SourceMonkey/tree/main/skills/SourceMonkey-dev): running, debugging and testing a script with SourceMonkey's `sm-dev` tool and test harness (see [Test harness](#test-harness)).
+- [install-in-SourceMonkey](https://github.com/jshute96/SourceMonkey/tree/main/skills/install-in-SourceMonkey): installing and refreshing scripts in SourceMonkey.
+- [install-in-Tampermonkey](https://github.com/jshute96/SourceMonkey/tree/main/skills/install-in-Tampermonkey): automates the copy-paste flow, putting the script on the clipboard and opening Tampermonkey's script page ready to paste.
 
 ### Skills for repeated patterns
 
@@ -210,7 +211,7 @@ Skills can be used to automate building similar userscript features applied acro
 
 For example, I wrote a script to add keyboard navigation on one forum site, and then decided I wanted the same keyboard navigation on many other sites.  The [add-comment-navigation-script](.claude/skills/add-comment-navigation-script/SKILL.md) skill describes my desired keyboard actions, and some patterns I found were required for this on different sites.  Now looking at any other forum site, I can ask for a userscript to add my keyboard navigation features, and Claude can usually one-shot a working script from a one-line prompt.
 
-Another example is [add-config-setting](.claude/skills/add-config-setting/SKILL.md), which adds a user-configurable setting to an existing script, stored in the userscript manager's storage and edited from the script's context menu.
+Another example is the [config-settings](https://github.com/jshute96/SourceMonkey/blob/main/skills/SourceMonkey-userscripts/references/config-settings.md) reference in SourceMonkey-userscripts, which adds a user-configurable setting to an existing script, stored in the userscript manager's storage and edited from the script's context menu.
 
 The same could apply for other common patterns: adding dark mode, clearing popups, etc.
 
@@ -249,7 +250,7 @@ There's no published extension yet, so it has to be built from source.
 
 My workflow also works with Tampermonkey, with a bit more friction pasting new scripts into Tampermonkey and managing updates.
 
-One useful shortcut during development: create a stub script whose body is just a `@require` pointing at the local file, so each run picks up the newest version without re-pasting.  My [install-in-tampermonkey](.claude/skills/install-in-tampermonkey/SKILL.md) skill can do this transformation automatically.
+One useful shortcut during development: create a stub script whose body is just a `@require` pointing at the local file, so each run picks up the newest version without re-pasting.  My [install-in-Tampermonkey](https://github.com/jshute96/SourceMonkey/tree/main/skills/install-in-Tampermonkey) skill can do this transformation automatically.
 
 ### Test harness
 

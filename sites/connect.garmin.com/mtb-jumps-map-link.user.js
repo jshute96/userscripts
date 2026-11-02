@@ -31,9 +31,10 @@
   // theirs, keyed to connect.garmin.com. Hence the prefix on the key —
   // we're sharing a namespace with the site.
   //
-  // GM_setValue would be script-scoped and is what this repo's
-  // add-config-setting skill uses, but that's for user *settings*; this
-  // is a derived cache that can be relearned at any time from the table.
+  // GM_setValue would be script-scoped and is what the
+  // SourceMonkey-userscripts skill's config-settings reference uses, but
+  // that's for user *settings*; this is a derived cache that can be
+  // relearned at any time from the table.
   // Granting a GM API also moves the whole script into the userscript
   // manager's sandbox, which is a real risk for a script that walks React
   // fibers and Leaflet internals — not worth it to protect a unit string.

@@ -136,15 +136,15 @@ paths under `/athletic/`. The script always registers its keydown
 listener; the handler queries the DOM on every keypress, so on
 non-article pages it simply logs `no comments on page` and does
 nothing. NYT navigates between articles client-side, so a narrow
-article-only `@match` would miss in-app navigations (see the SPA
-notes in the repo's `CLAUDE.md`); the broad `@match` plus
+article-only `@match` would miss in-app navigations (see the
+`SourceMonkey-userscripts` skill's `references/spa-navigation.md`); the broad `@match` plus
 DOM-time gating avoids that problem without needing URL-change
 detection.
 
 ### If this breaks in the future
 
-Triage in order (see `CLAUDE.md` → "When a script stops working"
-for the general process):
+Triage in order (see the `SourceMonkey-userscripts` skill's "When a
+script stops working" for the general process):
 
 1. Open DevTools, look for `[athletic nav] initializing`. Missing
    → `@match` or install issue.

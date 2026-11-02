@@ -112,7 +112,8 @@ document):
    endsheet can be dismissed and shown again within one page load.
 5. **URL changes.** The games section is a Next.js app, so we also
    re-run on `popstate` and on a `pushState`/`replaceState` wrapper
-   event, per the SPA idiom in `CLAUDE.md`. This only matters for
+   event, per the SPA idiom in the `SourceMonkey-userscripts` skill's
+   `references/spa-navigation.md`. This only matters for
    keeping the `href` current — endsheet detection is already covered
    by the observer.
 

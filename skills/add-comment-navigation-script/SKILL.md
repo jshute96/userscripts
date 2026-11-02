@@ -187,29 +187,13 @@ Verify by pressing `p` on a *third*-level reply if you can find one.
 
 ## Site investigation
 
-Snapshot every state you'll depend on before writing anything —
-closed, each menu open, hover/focus. Recurring surprises:
-
-* CSS-module class names carry build hashes that rotate every deploy.
-  **Never hardcode the full class**; use `[class*="Comment_Base"]`
-  prefixes and record the prefix in the doc.
-* An id may be reused across elements rather than unique, and may
-  carry a per-instance suffix. Match with `[id^="prefix"]`, not
-  `getElementById`.
-* Capitalization of visible text varies across surfaces; match
-  case-insensitively.
-* Attributes like `aria-controls` often exist only while a popup is
-  open.
-
-### Selector preference
-
-1. Stable ids / `data-*` the site authors put there.
-2. Semantic CSS-module class **prefixes** and meaningful
-   `aria-label` / `title` strings.
-3. Role/tag selectors disambiguated by text content.
-4. Visual identifiers — SVG path geometry, pixel positions. Last
-   resort. A 460-character minified `<path d="…">` is a code smell;
-   walk up the tree for a semantic container instead.
+Snapshot every state you'll depend on before writing anything, and
+pick selectors as the `SourceMonkey-userscripts` skill describes
+("Before writing", "Selectors", and `references/generated-class-names.md`
+for CSS-module class names). Record the class prefixes you rely on in
+the doc. Its `references/scrolling.md` covers sticky and hide-on-scroll
+headers in general; the sections below are what they mean for a
+comment-nav config.
 
 ## Remaining site-specific concerns
 
@@ -350,8 +334,8 @@ keypress, so no `urlchange` listener is needed.
 * `@require` both library files, keyboard-shortcuts first, using the
   full `raw.githubusercontent.com` URL. SourceMonkey maps it to the
   local file for a local install. **Greasy Fork will not accept a
-  GitHub `@require`** — publishing needs the libraries hosted
-  somewhere it allows, which is unsolved.
+  GitHub `@require`**: publish a standalone copy, which rewrites them
+  to the libraries' Greasy Fork URLs (see `publish-on-GreasyFork`).
 * The Playwright fixture resolves `@require` and synthesizes `GM_info`
   from the metadata block. Loading two scripts into one page gives
   each its own library copy with the DOM registry shared, which is how

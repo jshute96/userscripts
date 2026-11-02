@@ -212,7 +212,8 @@ def unpublishable_requires(source: str) -> list:
     elif "://" not in url:
       problems.append((url, "a relative path, which only resolves for a local install"))
     elif not url.lower().startswith(("http://", "https://")):
-      # `file://`, most likely — convert-to-file-pointer.py writes those,
+      # `file://`, most likely — install-in-Tampermonkey's
+      # convert-to-file-pointer.py writes those,
       # and a pointer copy is easy to hand to the wrong command.
       problems.append((url, "not an http(s) URL, so no one but this machine can fetch it"))
   return problems

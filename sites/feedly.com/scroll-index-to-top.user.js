@@ -82,7 +82,8 @@
   }
 
   // SPA navigation: pushState/replaceState don't fire popstate, so patch
-  // them to emit our own event. See CLAUDE.md "SPA sites" for the idiom.
+  // them to emit our own event. See the SourceMonkey-userscripts
+  // skill's references/spa-navigation.md for the idiom.
   for (const m of ['pushState', 'replaceState']) {
     const orig = history[m];
     history[m] = function (...args) {
