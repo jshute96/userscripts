@@ -38,11 +38,12 @@ to add an entry to the friction log, without being asked. The log is
 
 ## Organization
 
-* Save userscripts for domain `example.com` in a subdirectory called `sites/example.com`.
-* The filename should briefly state the main purpose.
-* Each userscript has a sibling `.md` doc file with the same basename
-  (e.g. `foo.user.js` and `foo.md`). See "Documentation files for each
-  userscript" below.
+This repo is a userscript collection, laid out as the
+`userscript-collections` skill describes: scripts in `sites/<site>/`,
+each with a sibling `.md` doc, listed in `script_manifest.json`, with
+generated README tables and site icons. **Load that skill when adding,
+renaming, removing or documenting a script.** "Our collection" below
+has what's specific to this one.
 
 ## Other script collections
 
@@ -74,7 +75,9 @@ what it is, imports this file, and lists what differs there. In short:
   spec.
 * `scripts/update_readme.py --root <collection>` regenerates its
   README, and `scripts/update_site_icons.py --root <collection>` its
-  icons (into its own `site-icons/`).
+  icons (into its own `site-icons/`). Both work from either repo, or
+  without `--root` from inside the collection. `update_site_icons.py`
+  runs `pnpm sm-dev` in whichever checkout it's started from.
 * SourceMonkey loads it as a separate local collection.
 * Nothing in a private collection is published, and nothing from it
   gets copied or mentioned here: this repo is public.
@@ -105,6 +108,9 @@ what it is, imports this file, and lists what differs there. In short:
   SourceMonkey, my preferred userscript manager.
 * `install-in-Tampermonkey` installs scripts in Tampermonkey, an
   alternative userscript manager.
+* `userscript-collections` covers this repo's layout: the manifest,
+  README tables, site icons, script docs and screenshots, with the
+  scripts that regenerate them (symlinked into `scripts/`).
 * `add-comment-navigation-script` writes a keyboard comment-navigation
   script for a new site, using our shared libraries.
 * `publish-on-GreasyFork` publishes a script to Greasy Fork (the
@@ -113,7 +119,7 @@ what it is, imports this file, and lists what differs there. In short:
   outward-facing action, and every step ends with me reviewing and
   submitting the form myself. Its tools live in the skill's `scripts/`,
   with symlinks in this repo's `scripts/` for running by hand. We use
-  it with the manifest (see "Keeping the script list current").
+  it with the manifest (see "Our collection").
 
 The SourceMonkey skills are symlinks into
 `node_modules/sourcemonkey/skills/`, a copy of `../SourceMonkey` taken
@@ -136,14 +142,9 @@ steps, with these specifics for this repo:
   own profile (`.playwright-profile`), where I've signed in to test
   sites, and the one specs connect to.
 * **Write the script** under `sites/<site>/`, with its sibling `.md`
-  doc (see "Documentation files" below). Name and describe it per
-  "Naming and describing a script" below.
-* **List it** before running it: add an entry to
-  `script_manifest.json`, in site order, then run
-  `scripts/update_site_icons.py <script>` and `scripts/update_readme.py`
-  to fill in its icons and regenerate the README tables. See "Keeping
-  the script list current" below. Only set a `category` if I ask for
-  one.
+  doc, and **list it** before running it: follow the
+  `userscript-collections` skill's steps for a new script (doc, naming,
+  manifest entry, icons, README).
 * **Install:** SourceMonkey (the default) already has this directory
   installed, and the manifest entry adds the script. Run the
   `install-in-SourceMonkey` skill's `refresh-file` command once, naming
@@ -152,101 +153,26 @@ steps, with these specifics for this repo:
 * **Spec:** `sites/<site>/<name>.spec.js`, once I confirm the script
   works in my normal browser (see "Specs" below).
 
-### Keeping the script list current
+## Our collection
 
-**`script_manifest.json`** — the list SourceMonkey loads, and our
-source of truth for which scripts exist. Edit it by hand. It is an
-object with two lists, plus our Greasy Fork user:
-
-```json
-{
-  "greasyfork": { "user": "1604620-jeff-shute" },
-  "scripts": [ ... ],
-  "libraries": [ ... ]
-}
-```
-
-We publish in the `publish-on-GreasyFork` skill's manifest mode: its
-tools read the user from here, and `link` records each published
-script's and library's Greasy Fork details on its entry. The skill has
-the full rules for those fields.
-
-`scripts` has one entry per userscript, in site order, each an object
-with:
-
-* `path` — the relative path from the repo root. Required.
-* `category` — which README table the script belongs in. Omit it for
-  the "Miscellaneous" table (equivalent to `"default"`).
-* `greasyfork` — the id and URL of the published script, written by
-  `greasyfork-scripts.py link` once it's published. Don't add it by
-  hand.
-* `site_icons` — the icons shown before the script's name: its own
-  `@icon`, or else the favicon of each site it runs on, as
-  SourceMonkey's collections page shows them. Paths from the repo
-  root, mostly into `site-icons/`. Generated; see below.
-* `site_icons_pinned` — `true` keeps `site_icons` and its files as
-  they are, for an icon fixed by hand. Google Calendar has one: the
-  temp browser isn't logged in, and gets a plain Google icon.
-
-SourceMonkey reads `path` and ignores the other fields.
-
-`libraries` has one entry per shared `@require` helper in `lib/` —
-those aren't userscripts and SourceMonkey doesn't load them directly, so we list
-them only to track what exists and where each is published:
-
-```json
-{
-  "path": "lib/keyboard-shortcuts.js",
-  "github_url": "https://raw.githubusercontent.com/jshute96/userscripts/main/lib/keyboard-shortcuts.js",
-  "greasyfork": {
-    "id": 592123,
-    "url": "https://greasyfork.org/scripts/592123-keyboard-shortcuts",
-    "latest_version_url": "https://update.greasyfork.org/scripts/592123/1907419/keyboard-shortcuts.js"
-  }
-}
-```
-
-Libraries carry two extra fields, the two sides of the same URL.
-`github_url` is the raw URL our scripts `@require`; write it by hand.
-`latest_version_url` is the exact Greasy Fork version a posted script
-`@require`s instead, which `link` writes and refreshes. The pair is
-what lets `greasyfork-url.py --code-file` rewrite a script's GitHub
-`@require`s to Greasy Fork ones as it posts them (see the `@require`
-notes below).
-
-**`README.md`, under "My userscripts"** — generated. Run
-`scripts/update_readme.py` after adding or removing a script or
-library, or when a script's `@name` or `@description` changes.
-It also rewrites each script doc's `#` title line: the script's
-`site_icons`, then its `@name`. `--check` just reports what's stale,
-without writing.
-
-**`site_icons` and `site-icons/`** — generated by
-`scripts/update_site_icons.py`, which starts a temp-browser `sm-dev`
-run with every script and saves each one's icons (`sm-dev script N
-save --include icon,site-icons`). Run it after adding a script, or
-changing its `@icon` or `@match` lines, then run `update_readme.py`.
-Name scripts (`update_site_icons.py sites/x/y.user.js`) to update just
-those; the rest keep their icons. Site icons come from the live sites,
-so a full run can also pick up a site's new favicon.
-
-Each script table sits under a placeholder comment naming its category,
-with the libraries under its own:
-
-```markdown
-<!-- update_readme.py category=keyboard-comments -->
-<!-- update_readme.py libraries -->
-```
-
-The script rewrites the table under each placeholder.
-
-### Script categories
-
-Scripts omit `category` by default, and then go in a default category.
-
-If the user asks you to put the script in a particular category, add
-the `category` tag. This should match some existing `category` in the
-manifest (and a placeholder in `README.md`).
+* **The manifest** also records our Greasy Fork user, as a top-level
+  `"greasyfork": { "user": "1604620-jeff-shute" }`. We publish in the
+  `publish-on-GreasyFork` skill's manifest mode: its tools read the
+  user from here, and `link` records each published script's and
+  library's Greasy Fork details on its entry. The skill has the rules
+  for those fields.
+  - A library's `github_url` is the raw URL our scripts `@require`
+    (`https://raw.githubusercontent.com/jshute96/userscripts/main/lib/<name>.js`),
+    and its `greasyfork.latest_version_url` the exact Greasy Fork
+    version a posted script `@require`s instead. The pair is what lets
+    `greasyfork-url.py --code-file` rewrite a script's GitHub
+    `@require`s as it posts them (see "Shared code" below).
+* **The README's** script tables are under "My userscripts", one per
+  `category` in the manifest; the default one is "Miscellaneous".
+* **Pinned icons:** Google Calendar's script has `site_icons_pinned`,
+  since the temp browser isn't logged in and gets a plain Google icon.
+* **Screenshots:** I may capture them with SeeWhatISee (a Chrome
+  extension), cropping them and highlighting regions in that tool.
 
 ## Repo conventions
 
@@ -364,189 +290,8 @@ this repo.
 
 ## Naming and describing a script
 
-Every script is described at three levels of increasing length, each
-written for a reader who may never see the others. All three are
-user-facing: they're what shows up in the userscript manager, in
-search results, and on the script's page when it's published to
-[Greasy Fork](https://greasyfork.org/).
-
-1. **`@name`**: follow the `SourceMonkey-userscripts` skill's
-   `references/naming-and-describing.md`.
-2. **`@description`**: the same reference.
-3. **The doc's `Summary` section**: below.
-
-Write all three as a set, and keep them consistent: the doc's `#`
-title must match the `@name` (after its icons), and the doc's
-`Summary` should include more details on what's in the `@description`.
-
-When any of them changes on an existing script, update the `.md`
-title and run `scripts/update_readme.py` in the same edit (see
-"Keeping the script list current" above), and bump the `@version`, so
-installed copies pick the new text up.
-
-### The doc's `Summary` section
-
-The `.md` file's first `##` section. This is what gets posted as the
-script's description on repository sites, so write it for a stranger
-who found the script in a search, not for us.
-
-* Give a reader enough to decide whether they want the script: what
-  the problem is (what was wrong, missing, or annoying before), and
-  what the script adds or changes.
-  - Don't explain all the exact details, exact wording of messages, etc, or
-    other details that become obvious as soon as someone uses the feature.
-* Multiple paragraphs are fine, as are tables, lists, and links.
-  Formatting is free — but keep it readable top to bottom.
-* If the script needs usage instructions to be useful — key bindings,
-  URL parameters, configuration options — put them here, under `###`
-  subsections. Anything a *user* needs goes in `Summary`; anything
-  only a *maintainer* needs goes in `Implementation`.
-* Don't spell out consequences the reader can infer, and don't
-  narrate what the screenshots already show.
-* Don't explain trivially obvious motivations. e.g. Don't bother
-  explaining that popups are annoying and that's why we want to close them.
-* Screenshots go at the **end** of `Summary` — see below.
-
-## Documentation files for each userscript
-
-Each userscript has a sibling `.md` whose `#` title is the script's
-site icons followed by its `@name` (`update_readme.py` writes it), and
-which has three sections: `Summary`,
-`Visible changes`, `Implementation`.
-
-* **Summary**: the user-facing description — see "Naming and
-  describing a script" above.
-* **Visible changes**: a short bulleted list of user-visible behavior
-  changes. Brief — readers should be able to scan it. Group related
-  points; don't over-explain.
-* **Implementation**: the longer section, written for the future
-  maintainer (probably us, after the site changes and the script
-  breaks). Cover:
-  - What we observed about the page's DOM and behavior that the
-    script depends on (selectors, attributes, structural anchors).
-  - What we are assuming will stay stable.
-  - How we modify the page to produce the visible changes.
-
-  The point isn't exhaustive detail — it's enough context that
-  someone can compare the doc to a future version of the site, see
-  what's changed, and fix the script.
-
-* Refer to the things we write as "userscripts", not "Tampermonkey
-  scripts" or other branded names.
-
-### Screenshots in doc files
-
-Screenshots are optional — include them when a picture makes the
-change clearer than prose (layout fixes, added UI, restyled
-elements). Skip them when the change is invisible or trivially
-described.
-
-* **Location and naming.** Put images in a `screenshots/`
-  subdirectory of the script's site directory:
-  `sites/<site>/screenshots/`. Name them after the script:
-  - `<script-basename>-before.png` / `<script-basename>-after.png`
-    when there's a single pair.
-  - `<script-basename>-<what>-before.png` /
-    `<script-basename>-<what>-after.png` when showing more than one
-    aspect, where `<what>` names the page, state, or condition.
-  - A single unpaired image is just `<script-basename>.png`, or
-    `<script-basename>-<what>.png`.
-
-* **Where they go in the doc.** At the **end** of the `Summary`
-  section — they're part of the user-facing description, not the
-  implementation notes. (Implementation-only diagnostic images can go
-  in `Implementation` instead.)
-  - Keep them in one block at the end, all together, rather than
-    interleaved through the prose. Repository sites like Greasy Fork
-    strip the images out of the description and show them in a
-    separate gallery underneath.
-  - Headings above images: Format them like
-    ```markdown
-    **Page X before:**
-    ![Before](screenshots/thing-x-before.png)
-    ```
-  - Headings for multiple images:
-    On Greasy Fork, we just get one combined header above all the images, like
-    "Pages X and Y, before and after:".
-    - Put that combined heading in the doc as an HTML comment
-      immediately above the image block:
-      ```markdown
-      <!-- image-gallery-heading: **Pages X and Y, before and after:** -->
-      ```
-    - Every doc with *multiple* images should have this alternate heading.
-      (With just a single image, we can use the original heading as is.)
-
-* **Extracting the description to publish.**
-  `scripts/extract-description.py` pulls the `Summary` text and the
-  image list out of a doc, for Greasy Fork's description and gallery
-  (see the `publish-on-GreasyFork` skill).
-
-* **Labels.** Label each image with what it is — `<what> before:` /
-  `<what> after:` for a pair, `Example:` for a single one — where
-  `<what>` names the page or surface being shown (`Search page`,
-  `Title bar`, `Activity page`). Keep it to that. Set the label
-  **bold** on its own line, so it doesn't read as body text next to
-  the image. (Bold rather than a markdown heading.)
-  **Don't narrate what's visible in the image**; the reader is
-  looking at it. Add prose only for something the picture can't say
-  on its own.
-
-* **Matching dimensions.** Capture before and after at the same width
-  and height, framing the same region of the page — a pair that
-  differs only in the thing that changed is far easier to compare
-  than one where everything shifts. (Exception when the shape of the
-  captured items changed.)
-
-* **Borders.** Most page captures are white-on-white and dissolve
-  into the doc's background with no visible edge. Add a 1px black
-  border to each: `convert x.png -bordercolor black -border 1 x.png`.
-  Images grow by 2px in both directions, but stay matched in size.
-  Skip it for dark captures (a video player, say) — they already
-  have an edge, and a black border on them is invisible.
-
-* **Size and format.** Full-screen captures off a HiDPI display come
-  in enormous (3841×1976 for one browser window). Downscale them to
-  about a quarter — `convert x.jpg -resize 25% -quality 88 out.jpg`
-  — which is still legible in the doc. Keep photographic content
-  (video frames) as `.jpg`; UI captures of text and flat color stay
-  `.png`, where it's both sharper and smaller.
-
-* **Layout.** If the images are small, show before and after
-  side-by-side in an HTML table (GitHub renders raw HTML in
-  Markdown); otherwise stack them.
-
-* **Capturing them.** The user can capture images with SeeWhatISee,
-  cropping them and highlighting regions in that tool.
-  If they capture full-page screenshots, you could crop them appropriately.
-  Alternatively, you could capture screenshots yourself in the
-  Playwright browser.
-
-* **Framing.** Prefer screenshots focused on the relevant
-  section over full-page captures, but include enough surrounding
-  context that it's clear where on the page you're looking. If the
-  difference isn't obvious at a glance, add a highlight (box or
-  arrow) to the image.
-
-Stacked pair:
-
-```markdown
-**Search page before:**
-
-![Before](screenshots/fix-climb-slider-before.png)
-
-**Search page after:**
-
-![After](screenshots/fix-climb-slider-after.png)
-```
-
-Side-by-side pair:
-
-```markdown
-<table>
-  <tr><td><b>Before</b></td><td><b>After</b></td></tr>
-  <tr>
-    <td><img src="screenshots/fix-climb-slider-before.png" alt="Before"></td>
-    <td><img src="screenshots/fix-climb-slider-after.png" alt="After"></td>
-  </tr>
-</table>
-```
+Follow the `userscript-collections` skill's
+`references/script-docs.md`: `@name`, `@description` and the doc's
+`Summary` are written as a set, for readers in the userscript manager,
+search results and Greasy Fork. Its `references/screenshots.md` has
+the screenshot conventions.

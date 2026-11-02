@@ -78,8 +78,10 @@ in the script's Greasy Fork URL).
 ### The manifest's Greasy Fork fields
 
 `script_manifest.json` is the list of scripts the SourceMonkey userscript
-manager loads from a repo. SourceMonkey reads each entry's `path` and
-ignores every other field, which is where the Greasy Fork details go:
+manager loads from a repo (the `userscript-collections` skill, if
+installed, describes its other fields). SourceMonkey reads each entry's
+`path` and ignores every other field, which is where the Greasy Fork
+details go:
 
 ```json
 {
