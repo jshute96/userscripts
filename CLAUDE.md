@@ -111,7 +111,9 @@ what it is, imports this file, and lists what differs there. In short:
   userscript repository site) and updates its description and
   screenshots there. **Run it only when I ask**: it's an
   outward-facing action, and every step ends with me reviewing and
-  submitting the form myself.
+  submitting the form myself. Its tools live in the skill's `scripts/`,
+  with symlinks in this repo's `scripts/` for running by hand. We use
+  it with the manifest (see "Keeping the script list current").
 
 The SourceMonkey skills are symlinks into
 `node_modules/sourcemonkey/skills/`, a copy of `../SourceMonkey` taken
@@ -154,14 +156,20 @@ steps, with these specifics for this repo:
 
 **`script_manifest.json`** — the list SourceMonkey loads, and our
 source of truth for which scripts exist. Edit it by hand. It is an
-object with two lists:
+object with two lists, plus our Greasy Fork user:
 
 ```json
 {
+  "greasyfork": { "user": "1604620-jeff-shute" },
   "scripts": [ ... ],
   "libraries": [ ... ]
 }
 ```
+
+We publish in the `publish-on-GreasyFork` skill's manifest mode: its
+tools read the user from here, and `link` records each published
+script's and library's Greasy Fork details on its entry. The skill has
+the full rules for those fields.
 
 `scripts` has one entry per userscript, in site order, each an object
 with:
@@ -169,8 +177,9 @@ with:
 * `path` — the relative path from the repo root. Required.
 * `category` — which README table the script belongs in. Omit it for
   the "Miscellaneous" table (equivalent to `"default"`).
-* `greasyfork` — the id and URL of the published script. Don't add
-  it until the script is published.
+* `greasyfork` — the id and URL of the published script, written by
+  `greasyfork-scripts.py link` once it's published. Don't add it by
+  hand.
 * `site_icons` — the icons shown before the script's name: its own
   `@icon`, or else the favicon of each site it runs on, as
   SourceMonkey's collections page shows them. Paths from the repo
@@ -197,29 +206,13 @@ them only to track what exists and where each is published:
 }
 ```
 
-Libraries carry two extra fields, and they're the two sides of the same
-URL. `github_url` is the raw URL our scripts `@require`; write it by
-hand. `latest_version_url` is what that becomes on Greasy Fork: Greasy
-Fork gives a library one id and one landing page (`url`), but mints a
-*new* URL for every version posted, and a `@require` has to name one
-exact version. Scripts loading `@require` libraries from Greasy Fork
-point at a specific version and don't get updates without updating the
-`@require`.
-
-The pair is what lets `greasyfork-url.py --code-file` rewrite a
-script's GitHub `@require`s to Greasy Fork ones as it posts them — see
-the `@require` notes below.
-
-`scripts/greasyfork-scripts.py match` reports whether each recorded
-`latest_version_url` is still the newest, and `link` refreshes it. A
-library's id takes one extra step to find: Greasy Fork leaves libraries
-out of the user page's JSON, so it's read from the "Libraries" section
-of the HTML user page instead, where each entry carries it in a
-`data-script-id` attribute. `match` and `link` do that for any library
-with no id recorded yet, pairing by name — our libraries are published
-under their filename without `.js`. Everything else is synced from the
-id, via the library's own JSON page
-(`https://api.greasyfork.org/en/scripts/<id>.json`).
+Libraries carry two extra fields, the two sides of the same URL.
+`github_url` is the raw URL our scripts `@require`; write it by hand.
+`latest_version_url` is the exact Greasy Fork version a posted script
+`@require`s instead, which `link` writes and refreshes. The pair is
+what lets `greasyfork-url.py --code-file` rewrite a script's GitHub
+`@require`s to Greasy Fork ones as it posts them (see the `@require`
+notes below).
 
 **`README.md`, under "My userscripts"** — generated. Run
 `scripts/update_readme.py` after adding or removing a script or
@@ -279,34 +272,14 @@ helpers load and how scripts cooperate through the DOM. Here:
   `scripts`, and get their own README table.
 * **Helpers shared within one site** sit next to the scripts that need
   them, with a bare relative `@require` (`// @require installed-list.js`).
-* **Greasy Fork won't accept a GitHub `@require`**: it wants
-  libraries published on Greasy Fork or an allowlisted CDN. Our
-  `lib/` files are published there (see `libraries` in
-  `script_manifest.json`), but the scripts still `@require` the
-  GitHub raw URLs, so **a script using `lib/` can't use Greasy
-  Fork's import-from-GitHub auto-update**: the copy it fetches is
-  the one with the GitHub `@require`s. Publish these by posting the
-  code instead (`greasyfork-url.py new`/`update --code-file`), which
-  rewrites each `lib/` `@require` to that library's
-  `latest_version_url` on the way, matching it by the library's
-  `github_url` in the manifest. The checked-in file is untouched
-  (it keeps the GitHub URLs a local install needs), so every version
-  is still posted by hand.
-  - **A relative-path `@require` can't be published at all**: it only
-    resolves against a local install's directory, so a Greasy Fork
-    install gets a script whose helper never loads. Publishing such a
-    script means inlining the helper into the posted copy.
-  - `greasyfork-url.py` checks for both before it builds a form URL:
-    on `import` and `--code-upload`, which hand Greasy Fork the file
-    as-is, and on `--code-file` after its rewrite. A script it stops
-    on is one that would have been published broken.
-  - A library is published on the same forms as a script, choosing the
-    `library` script type, which adds Name and Description fields (a
-    `lib/` file has no metadata block to fill them from).
-    `greasyfork-url.py --library lib/<name>.js` derives both from the
-    file (basename, and its first `//` line) along with Additional info
-    from the sibling `.md`. There's no import-from-GitHub for libraries
-    at all, so every version is posted this way.
+* **Greasy Fork won't accept a GitHub `@require`**, so **a script
+  using `lib/` can't use Greasy Fork's import-from-GitHub
+  auto-update**. Our `lib/` files are published there as libraries,
+  and these scripts are posted as standalone copies, with
+  `greasyfork-url.py --code-file` rewriting each `lib/` `@require` on
+  the way. A script with a relative-path `@require` can't be published
+  without inlining its helper. The `publish-on-GreasyFork` skill has
+  the details.
 * Existing libraries: `lib/keyboard-shortcuts.js` (key registration
   and a cross-script `?` help overlay), `lib/keyboard-comment-nav.js`
   (the comment-navigation behavior shared by every site that has it),
@@ -504,14 +477,9 @@ described.
       (With just a single image, we can use the original heading as is.)
 
 * **Extracting the description to publish.**
-  `scripts/extract-description.py <doc.md>` prints the `Summary`
-  section. `--no-images` gives the text to paste as the Greasy Fork
-  description (images, their labels, any `<table>` layout around them,
-  and any heading left empty are all removed, and the
-  `image-gallery-heading` comment is appended in their place).
-  `--images` lists the image files to upload, one per line, in doc
-  order and resolved to full paths — ready to pass to
-  `scripts/greasyfork-url.py --image-files`.
+  `scripts/extract-description.py` pulls the `Summary` text and the
+  image list out of a doc, for Greasy Fork's description and gallery
+  (see the `publish-on-GreasyFork` skill).
 
 * **Labels.** Label each image with what it is — `<what> before:` /
   `<what> after:` for a pair, `Example:` for a single one — where

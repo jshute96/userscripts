@@ -1,4 +1,7 @@
 {
+  "greasyfork": {
+    "user": "1604620-jeff-shute"
+  },
   "scripts": [
     {
       "path": "sites/any/image-zoom-pan.user.js",

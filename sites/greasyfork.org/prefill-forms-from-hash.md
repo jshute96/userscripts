@@ -100,9 +100,10 @@ These work on all pages:
 
 ### Building the URLs with a script
 
-`scripts/greasyfork-url.py` assembles these URLs from file paths and
-launches the browser, which is simpler than building URLs manually.
-It has one subcommand per page — `new`, `update`, `import` — and its
+`scripts/greasyfork-url.py` (from the
+[publish-on-GreasyFork](../../skills/publish-on-GreasyFork/SKILL.md)
+skill) assembles these URLs from file paths and launches the browser,
+which is simpler than building URLs manually. It has one subcommand per page — `new`, `update`, `import` — and its
 flags are named after the hash parameters they set. `--print` shows
 the URL instead of opening it. See the script for details.
 
