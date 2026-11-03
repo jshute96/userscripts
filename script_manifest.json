@@ -181,12 +181,6 @@
       "path": "sites/go-grip/directory-nav.user.js"
     },
     {
-      "path": "sites/greasyfork.org/prefill-forms-from-hash.user.js",
-      "site_icons": [
-        "site-icons/greasyfork.org_script_versions_new.png"
-      ]
-    },
-    {
       "path": "sites/instagram.com/fullscreen-and-keyboard.user.js",
       "site_icons": [
         "site-icons/instagram.com.ico"

@@ -11,6 +11,9 @@ recurring decision, record it so the next session benefits:
   their own.
 * **How to use `sm-dev` and the harness** → the `SourceMonkey-dev`
   skill, in the same place.
+* **The collection layout, and publishing on Greasy Fork, in general**
+  → the `userscript-collections` and `publish-on-GreasyFork` skills,
+  in the same place.
 * **Conventions and workflows specific to this repo** (layout,
   manifest, README, docs, publishing) → this file (`CLAUDE.md`).
 * **Reusable how-to-do-X procedures for this repo** → a skill under
@@ -110,16 +113,19 @@ what it is, imports this file, and lists what differs there. In short:
   alternative userscript manager.
 * `userscript-collections` covers this repo's layout: the manifest,
   README tables, site icons, script docs and screenshots, with the
-  scripts that regenerate them (symlinked into `scripts/`).
+  scripts that regenerate them (symlinked into `scripts/`). It comes
+  from SourceMonkey.
 * `add-comment-navigation-script` writes a keyboard comment-navigation
   script for a new site, using our shared libraries.
 * `publish-on-GreasyFork` publishes a script to Greasy Fork (the
   userscript repository site) and updates its description and
   screenshots there. **Run it only when I ask**: it's an
   outward-facing action, and every step ends with me reviewing and
-  submitting the form myself. Its tools live in the skill's `scripts/`,
-  with symlinks in this repo's `scripts/` for running by hand. We use
-  it with the manifest (see "Our collection").
+  submitting the form myself. It comes from SourceMonkey, with the
+  prefill userscript its URLs need (in SourceMonkey's
+  `userscripts/greasyfork/`). Its tools live in the skill's
+  `scripts/`, with symlinks in this repo's `scripts/` for running by
+  hand. We use it with the manifest (see "Our collection").
 
 The SourceMonkey skills are symlinks into
 `node_modules/sourcemonkey/skills/`, a copy of `../SourceMonkey` taken
