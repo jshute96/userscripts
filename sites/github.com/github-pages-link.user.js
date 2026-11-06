@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitHub: Link to github.io pages
 // @namespace    https://github.com/jshute96/userscripts
-// @version      1.0.0
+// @version      1.0.1
 // @description  Adds a github.io button next to Raw on file pages, opening the file on the repo's GitHub Pages site. Shown only when the site has that file.
 // @author       Jeff Shute <jshute@gmail.com>
 // @license      MIT
@@ -10,6 +10,8 @@
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
 // @grant        GM_setValue
+// @grant        GM_deleteValue
+// @grant        GM_listValues
 // @connect      github.io
 // ==/UserScript==
 
@@ -64,6 +66,14 @@
       GM_setValue(key, Date.now());
     }
     return null;
+  }
+
+  // Delete expired entries, so storage doesn't keep a record of every repo
+  // we've viewed.
+  function deleteExpired() {
+    for (const key of GM_listValues()) {
+      if (Date.now() - GM_getValue(key) >= NO_SITE_MS) GM_deleteValue(key);
+    }
   }
 
   let decidedFor = null; // path we've looked up (or are looking up)
@@ -128,5 +138,6 @@
   }).observe(document.documentElement, { childList: true, subtree: true });
 
   log('init');
+  deleteExpired();
   update();
 })();

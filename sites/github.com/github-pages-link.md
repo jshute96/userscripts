@@ -59,7 +59,8 @@ button.
   - 200: we show the button, linking to the final URL after redirects.
   - 404: a `GET` of the same URL reads the 404 page. "Site not found"
     is stored in GM storage (`nosite:<owner>/<repo>`) for 12 hours, so
-    the repo's other files send no requests meanwhile.
+    the repo's other files send no requests meanwhile. Each page load
+    deletes the entries older than that.
 * The button is a clone of Raw, labeled `github.io`, in its own clone
   of Raw's group item, inserted before Raw's, so the group draws its
   borders.
