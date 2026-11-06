@@ -4,6 +4,16 @@
   },
   "scripts": [
     {
+      "path": "sites/amazon.com/show-not-yet-delivered.user.js",
+      "site_icons": [
+        "site-icons/amazon.com.ico"
+      ],
+      "greasyfork": {
+        "id": 604064,
+        "url": "https://greasyfork.org/scripts/604064-amazon-show-orders-not-yet-delivered"
+      }
+    },
+    {
       "path": "sites/any/image-zoom-pan.user.js",
       "site_icons": [
         "site-icons/chrome-logo.png"
